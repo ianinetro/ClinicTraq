@@ -1,0 +1,67 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.venv/
+venv/
+env/
+ENV/
+
+# ── Node ──────────────────────────────────────────────────────────────────────
+node_modules/
+dist/
+.vite/
+.next/
+out/
+*.tsbuildinfo
+
+# ── Environment / secrets ─────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+# .env.example is intentionally NOT ignored
+
+# ── Docker / data volumes ─────────────────────────────────────────────────────
+data/
+
+# ── Logs and runtime files ────────────────────────────────────────────────────
+*.log
+*.pid
+*.sock
+celerybeat-schedule
+celerybeat.pid
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ── JetBrains / VS Code ───────────────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# ── Alembic ───────────────────────────────────────────────────────────────────
+# Keep migrations tracked; ignore only generated temp files
+backend/migrations/versions/__pycache__/
+
+# ── Playwright ────────────────────────────────────────────────────────────────
+playwright-report/
+test-results/
