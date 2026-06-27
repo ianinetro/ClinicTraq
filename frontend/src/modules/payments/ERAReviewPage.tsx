@@ -3,7 +3,6 @@ import { ArrowLeft, CheckCircle, SkipForward, Link2 } from 'lucide-react'
 import { PageHeader } from '../../components/shell/PageHeader'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
-import { StatusBadge } from '../../components/shared/StatusBadge'
 import { useToast } from '../../components/ui/Toast'
 import { api } from '../../services/api'
 import { clsx } from 'clsx'
@@ -42,7 +41,7 @@ const MOCK_ERA_PAYMENTS = [
 ]
 
 export function ERAReviewPage() {
-  const { id } = useParams<{ id: string }>()
+  useParams<{ id: string }>()
   const navigate = useNavigate()
   const { addToast } = useToast()
   const [processing, setProcessing] = useState<Record<string, boolean>>({})
@@ -108,7 +107,7 @@ export function ERAReviewPage() {
                 payment.status === 'matched' ? 'bg-[#ECFDF5]' : 'bg-[#FFFBEB]',
               )}>
                 <div className="flex items-center gap-3">
-                  <Badge variant={payment.status === 'matched' ? 'success' : 'warning'} size="sm">
+                  <Badge variant={payment.status === 'matched' ? 'success' : 'warning'}>
                     {payment.status === 'matched' ? 'Matched' : 'Unmatched'}
                   </Badge>
                   <span className="text-sm font-mono font-semibold">{payment.claimNumber}</span>
@@ -121,9 +120,9 @@ export function ERAReviewPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   {isPosted ? (
-                    <Badge variant="success" size="sm">Posted</Badge>
+                    <Badge variant="success">Posted</Badge>
                   ) : isSkipped ? (
-                    <Badge variant="inactive" size="sm">Skipped</Badge>
+                    <Badge variant="default">Skipped</Badge>
                   ) : (
                     <>
                       {payment.status === 'unmatched' && (

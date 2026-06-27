@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { DataTable, Column } from '../../components/ui/DataTable'
 import { Badge } from '../../components/ui/Badge'
 import { Select } from '../../components/ui/Select'
-import api from '../../services/api'
+import { apiClient as api } from '../../services/api'
 
 interface Visit {
   id: string
@@ -79,8 +79,8 @@ export function VisitsPage() {
           />
         </div>
         <DataTable
-          columns={columns as Column<Record<string, unknown>>[]}
-          data={(data?.items || []) as Record<string, unknown>[]}
+          columns={columns}
+          data={data?.items || []}
           isLoading={isLoading}
           emptyMessage="No visits found"
         />

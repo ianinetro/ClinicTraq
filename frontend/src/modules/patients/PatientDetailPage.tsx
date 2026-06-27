@@ -5,8 +5,8 @@ import { ArrowLeft } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
 import { PHIField } from '../../components/shared/PHIField'
-import { DataTable, Column } from '../../components/ui/DataTable'
-import api from '../../services/api'
+import { DataTable } from '../../components/ui/DataTable'
+import { apiClient as api } from '../../services/api'
 
 const tabs = ['Demographics', 'Insurance', 'Visits', 'Claims', 'Balance'] as const
 type Tab = typeof tabs[number]

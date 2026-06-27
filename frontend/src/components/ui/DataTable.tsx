@@ -31,7 +31,7 @@ function SkeletonRow({ cols }: { cols: number }) {
   )
 }
 
-export function DataTable<T extends Record<string, unknown>>({ columns, data, isLoading, emptyMessage = 'No data found' }: DataTableProps<T>) {
+export function DataTable<T>({ columns, data, isLoading, emptyMessage = 'No data found' }: DataTableProps<T>) {
   return (
     <>
       <style>{`
@@ -71,7 +71,7 @@ export function DataTable<T extends Record<string, unknown>>({ columns, data, is
                 >
                   {columns.map(col => (
                     <td key={col.key} style={{ padding: '12px 16px', color: 'var(--bb-text-primary)' }}>
-                      {col.render ? col.render(row) : (row[col.key] as React.ReactNode)}
+                      {col.render ? col.render(row) : ((row as Record<string, unknown>)[col.key] as React.ReactNode)}
                     </td>
                   ))}
                 </tr>

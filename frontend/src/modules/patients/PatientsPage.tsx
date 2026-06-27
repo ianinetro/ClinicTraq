@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { DataTable, Column } from '../../components/ui/DataTable'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
-import api from '../../services/api'
+import { apiClient as api } from '../../services/api'
 
 interface Patient {
   id: string
@@ -120,8 +120,8 @@ export function PatientsPage() {
           </div>
         </div>
         <DataTable
-          columns={columns as Column<Record<string, unknown>>[]}
-          data={items as Record<string, unknown>[]}
+          columns={columns}
+          data={items}
           isLoading={isLoading}
           emptyMessage="No patients found"
         />

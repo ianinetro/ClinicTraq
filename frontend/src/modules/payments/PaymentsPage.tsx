@@ -4,7 +4,7 @@ import { Upload, FileUp } from 'lucide-react'
 import { DataTable, Column } from '../../components/ui/DataTable'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
-import api from '../../services/api'
+import { apiClient as api } from '../../services/api'
 
 const tabs = ['Post Payments', 'ERA Import', 'Payment History'] as const
 type Tab = typeof tabs[number]
@@ -79,8 +79,8 @@ export function PaymentsPage() {
       {activeTab === 'Payment History' && (
         <div style={{ background: 'var(--bb-surface-card)', borderRadius: 'var(--bb-radius-lg)', border: '1px solid var(--bb-border)', boxShadow: 'var(--bb-shadow-sm)', overflow: 'hidden' }}>
           <DataTable
-            columns={columns as Column<Record<string, unknown>>[]}
-            data={(data?.items || []) as Record<string, unknown>[]}
+            columns={columns}
+            data={data?.items || []}
             isLoading={isLoading}
             emptyMessage="No payments found"
           />

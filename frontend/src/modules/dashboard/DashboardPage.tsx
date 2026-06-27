@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Users, FileText, AlertCircle, DollarSign } from 'lucide-react'
 import { KPICard } from '../../components/ui/KPICard'
-import api from '../../services/api'
+import { apiClient as api } from '../../services/api'
 
 interface DashboardStats {
   todayVisits: number

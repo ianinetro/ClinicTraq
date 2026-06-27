@@ -10,56 +10,56 @@ type AllStatus =
   | 'open' | 'snoozed' | 'resolved'
   | 'matched' | 'unmatched' | 'posted' | 'skipped'
 
-type BadgeVariant = 'active' | 'inactive' | 'pending' | 'in-progress' | 'completed' | 'failed' | 'warning' | 'draft' | 'submitted' | 'overdue' | 'blocked' | 'info' | 'success' | 'denied' | 'paid' | 'needs-review'
+type BadgeVariant = 'success' | 'warning' | 'danger' | 'info' | 'default'
 
 const statusMap: Partial<Record<AllStatus, BadgeVariant>> = {
   // Patient statuses
-  active: 'active',
-  inactive: 'inactive',
+  active: 'success',
+  inactive: 'default',
 
   // Visit statuses
-  scheduled: 'pending',
-  'checked-in': 'in-progress',
-  'in-progress': 'in-progress',
-  completed: 'completed',
-  cancelled: 'inactive',
+  scheduled: 'info',
+  'checked-in': 'warning',
+  'in-progress': 'warning',
+  completed: 'success',
+  cancelled: 'default',
   'no-show': 'warning',
 
   // Claim statuses
-  draft: 'draft',
-  'validation-failed': 'failed',
+  draft: 'default',
+  'validation-failed': 'danger',
   ready: 'info',
-  submitted: 'submitted',
-  acknowledged: 'in-progress',
-  pending: 'pending',
-  paid: 'paid',
-  denied: 'denied',
-  rejected: 'failed',
+  submitted: 'info',
+  acknowledged: 'warning',
+  pending: 'warning',
+  paid: 'success',
+  denied: 'danger',
+  rejected: 'danger',
   appealed: 'warning',
-  void: 'inactive',
+  void: 'default',
 
   // Payment statuses
   unapplied: 'warning',
-  partial: 'in-progress',
+  partial: 'warning',
   applied: 'success',
-  reconciled: 'completed',
+  reconciled: 'success',
 
   // Priority
-  critical: 'overdue',
+  critical: 'danger',
   high: 'warning',
-  medium: 'pending',
+  medium: 'warning',
   low: 'info',
 
   // Work queue
-  open: 'pending',
-  snoozed: 'inactive',
-  resolved: 'completed',
+  open: 'warning',
+  snoozed: 'default',
+  resolved: 'success',
 
   // ERA
   matched: 'success',
   unmatched: 'warning',
-  posted: 'completed',
-  skipped: 'inactive',
+  posted: 'success',
+  skipped: 'default',
 }
 
 const statusLabels: Partial<Record<AllStatus, string>> = {
@@ -75,8 +75,8 @@ interface StatusBadgeProps {
   className?: string
 }
 
-export function StatusBadge({ status, size, className }: StatusBadgeProps) {
-  const variant = statusMap[status as AllStatus] ?? 'inactive'
+export function StatusBadge({ status, className }: StatusBadgeProps) {
+  const variant = statusMap[status as AllStatus] ?? 'default'
   const label = statusLabels[status as AllStatus] ?? status.charAt(0).toUpperCase() + status.slice(1)
-  return <Badge variant={variant} size={size} className={className}>{label}</Badge>
+  return <Badge variant={variant}>{label}</Badge>
 }
