@@ -53,7 +53,7 @@ root = os.getcwd()
 out = "/tmp/clinictraq-backend.zip"
 skip_ext = {".pyc", ".pyo"}
 skip_dirs = {"__pycache__", ".pytest_cache", "tests", ".venv", ".git"}
-skip_files = {".deployment"}
+skip_files = {".deployment", "requirements.txt"}
 with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in skip_dirs]
