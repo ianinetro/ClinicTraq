@@ -284,9 +284,12 @@ async def upload_era(
     db.add(era_file)
     await db.flush()
 
-    # Enqueue import task
-    from workers.era_importer import import_era
-    import_era.delay(str(era_file.id), str(ctx.tenant_id))
+    # Enqueue import task (skipped if Redis/Celery unavailable)
+    try:
+        from workers.era_importer import import_era
+        import_era.delay(str(era_file.id), str(ctx.tenant_id))
+    except Exception:
+        pass  # ERA file saved; background processing unavailable without Redis
 
     return era_file
 

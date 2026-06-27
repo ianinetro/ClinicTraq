@@ -5,6 +5,7 @@ from celery.schedules import crontab
 
 from config import settings
 
+# celery_app is a stub when Redis is not configured; the API runs fine without it
 celery_app = Celery(
     "clinictraq",
     broker=settings.REDIS_URL,
