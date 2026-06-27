@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -15,86 +15,97 @@ class Patient(Base):
     __tablename__ = "patients"
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
-    # Name
+    practice_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("practices.id"), nullable=True)
+    account_number: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)
     middle_name: Mapped[Optional[str]] = mapped_column(String(100))
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    suffix: Mapped[Optional[str]] = mapped_column(String(20))
-    # Demographics
-    date_of_birth: Mapped[Optional[date]] = mapped_column(Date)
-    gender: Mapped[Optional[str]] = mapped_column(String(20))
-    marital_status: Mapped[Optional[str]] = mapped_column(String(20))
-    # Contact
+    dob: Mapped[Optional[date]] = mapped_column(Date)
+    sex: Mapped[Optional[str]] = mapped_column(String(10))
+    ssn_encrypted: Mapped[Optional[str]] = mapped_column(String(255))
+    account_type: Mapped[str] = mapped_column(String(50), default="patient")
+    status: Mapped[str] = mapped_column(String(50), default="active")
+    primary_care_provider_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("providers.id"))
+    referring_provider_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("referring_providers.id"))
     address_line1: Mapped[Optional[str]] = mapped_column(String(255))
     address_line2: Mapped[Optional[str]] = mapped_column(String(255))
     city: Mapped[Optional[str]] = mapped_column(String(100))
     state: Mapped[Optional[str]] = mapped_column(String(2))
-    zip_code: Mapped[Optional[str]] = mapped_column(String(10))
+    zip: Mapped[Optional[str]] = mapped_column(String(10))
     phone_home: Mapped[Optional[str]] = mapped_column(String(20))
-    phone_cell: Mapped[Optional[str]] = mapped_column(String(20))
     phone_work: Mapped[Optional[str]] = mapped_column(String(20))
+    phone_cell: Mapped[Optional[str]] = mapped_column(String(20))
+    preferred_phone: Mapped[Optional[str]] = mapped_column(String(20))
     email: Mapped[Optional[str]] = mapped_column(String(255))
-    # PHI
-    ssn_encrypted: Mapped[Optional[str]] = mapped_column(Text)  # Fernet encrypted
-    # MRN
-    mrn: Mapped[Optional[str]] = mapped_column(String(50), index=True)
-    # Clinical
-    primary_language: Mapped[Optional[str]] = mapped_column(String(50))
+    communication_pref: Mapped[Optional[str]] = mapped_column(String(50))
+    marital_status: Mapped[Optional[str]] = mapped_column(String(50))
+    preferred_language: Mapped[Optional[str]] = mapped_column(String(50))
     race: Mapped[Optional[str]] = mapped_column(String(50))
     ethnicity: Mapped[Optional[str]] = mapped_column(String(50))
-    # Status
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    # Full text search vector — updated via DB trigger in production
-    search_vector: Mapped[Optional[Any]] = mapped_column(TSVECTOR)
+    gender_identity: Mapped[Optional[str]] = mapped_column(String(50))
+    sexual_orientation: Mapped[Optional[str]] = mapped_column(String(50))
+    employment_info: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB)
+    emergency_contact: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB)
+    next_of_kin: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB)
+    user_defined_fields: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB)
+    confidential_flag: Mapped[bool] = mapped_column(Boolean, default=False)
+    exempt_reporting_flag: Mapped[bool] = mapped_column(Boolean, default=False)
+    no_statement_flag: Mapped[bool] = mapped_column(Boolean, default=False)
+    start_date: Mapped[Optional[date]] = mapped_column(Date)
+    end_date: Mapped[Optional[date]] = mapped_column(Date)
+    search_vector: Mapped[Optional[Any]] = mapped_column(TSVECTOR, nullable=True)
 
-    insurances: Mapped[list["PatientInsurance"]] = relationship("PatientInsurance", back_populates="patient")
-    guarantors: Mapped[list["Guarantor"]] = relationship("Guarantor", back_populates="patient")
-    eligibility_checks: Mapped[list["EligibilityCheck"]] = relationship("EligibilityCheck", back_populates="patient")
+    insurances: Mapped[List["PatientInsurance"]] = relationship("PatientInsurance", back_populates="patient")
+    guarantors: Mapped[List["Guarantor"]] = relationship("Guarantor", back_populates="patient")
+    eligibility_checks: Mapped[List["EligibilityCheck"]] = relationship("EligibilityCheck", back_populates="patient")
+    body_map_annotations: Mapped[List["BodyMapAnnotation"]] = relationship("BodyMapAnnotation", back_populates="patient")
+
+    @property
+    def full_name(self) -> str:
+        return f"{self.first_name} {self.last_name}"
 
 
 class PatientInsurance(Base):
     __tablename__ = "patient_insurances"
 
-    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
-    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
-    payer_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("payers.id"), nullable=False)
-    priority: Mapped[int] = mapped_column(Integer, default=1)  # 1=primary, 2=secondary, 3=tertiary
-    member_id: Mapped[str] = mapped_column(String(100), nullable=False)
-    group_number: Mapped[Optional[str]] = mapped_column(String(50))
-    plan_name: Mapped[Optional[str]] = mapped_column(String(100))
-    # Subscriber info (if patient is not subscriber)
-    subscriber_first_name: Mapped[Optional[str]] = mapped_column(String(100))
-    subscriber_last_name: Mapped[Optional[str]] = mapped_column(String(100))
-    subscriber_dob: Mapped[Optional[date]] = mapped_column(Date)
-    subscriber_gender: Mapped[Optional[str]] = mapped_column(String(20))
-    relationship_to_subscriber: Mapped[Optional[str]] = mapped_column(String(50))
-    # Effective dates
-    effective_date: Mapped[Optional[date]] = mapped_column(Date)
-    termination_date: Mapped[Optional[date]] = mapped_column(Date)
-    # Copay / deductible info
-    copay_amount: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
-    deductible_amount: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
+    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
+    priority: Mapped[str] = mapped_column(String(20), nullable=False)  # primary/secondary/tertiary
+    payer_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("payers.id"))
+    subscriber_id: Mapped[Optional[str]] = mapped_column(String(100))
+    group_number: Mapped[Optional[str]] = mapped_column(String(100))
+    plan_name: Mapped[Optional[str]] = mapped_column(String(255))
+    copay: Mapped[Optional[Any]] = mapped_column(Numeric(10, 2))
+    deductible: Mapped[Optional[Any]] = mapped_column(Numeric(10, 2))
+    relationship_to_insured: Mapped[Optional[str]] = mapped_column(String(50))
+    release_of_info: Mapped[bool] = mapped_column(Boolean, default=False)
+    signature_on_file: Mapped[bool] = mapped_column(Boolean, default=False)
+    signature_date: Mapped[Optional[date]] = mapped_column(Date)
+    auth_number: Mapped[Optional[str]] = mapped_column(String(100))
+    auth_visits: Mapped[Optional[int]] = mapped_column(Integer)
+    auth_effective_from: Mapped[Optional[date]] = mapped_column(Date)
+    auth_effective_to: Mapped[Optional[date]] = mapped_column(Date)
+    auth_visits_used: Mapped[int] = mapped_column(Integer, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     patient: Mapped["Patient"] = relationship("Patient", back_populates="insurances")
+    deductible_trackers: Mapped[List["PatientDeductibleTracker"]] = relationship("PatientDeductibleTracker", back_populates="patient_insurance")
 
 
 class Guarantor(Base):
     __tablename__ = "guarantors"
 
-    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
-    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
     relationship: Mapped[Optional[str]] = mapped_column(String(50))
     address_line1: Mapped[Optional[str]] = mapped_column(String(255))
+    address_line2: Mapped[Optional[str]] = mapped_column(String(255))
     city: Mapped[Optional[str]] = mapped_column(String(100))
     state: Mapped[Optional[str]] = mapped_column(String(2))
-    zip_code: Mapped[Optional[str]] = mapped_column(String(10))
+    zip: Mapped[Optional[str]] = mapped_column(String(10))
     phone: Mapped[Optional[str]] = mapped_column(String(20))
     email: Mapped[Optional[str]] = mapped_column(String(255))
-    ssn_encrypted: Mapped[Optional[str]] = mapped_column(Text)
-    is_primary: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_self: Mapped[bool] = mapped_column(Boolean, default=False)
 
     patient: Mapped["Patient"] = relationship("Patient", back_populates="guarantors")
 
@@ -102,34 +113,45 @@ class Guarantor(Base):
 class EligibilityCheck(Base):
     __tablename__ = "eligibility_checks"
 
-    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
-    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
-    patient_insurance_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("patient_insurances.id"), nullable=False
-    )
-    check_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    status: Mapped[str] = mapped_column(String(50), default="pending")  # pending, active, inactive, error
-    response_data: Mapped[Optional[Dict]] = mapped_column(JSONB)
-    copay_amount: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
-    deductible_amount: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
-    deductible_met: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
-    out_of_pocket_max: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
-    out_of_pocket_met: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
-    coinsurance_pct: Mapped[Optional[float]] = mapped_column(Numeric(5, 2))
+    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
+    patient_insurance_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("patient_insurances.id"))
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    checked_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), nullable=False)
+    response_raw: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB)
+    coverage_active: Mapped[Optional[bool]] = mapped_column(Boolean)
+    copay: Mapped[Optional[Any]] = mapped_column(Numeric(10, 2))
+    deductible: Mapped[Optional[Any]] = mapped_column(Numeric(10, 2))
+    deductible_met: Mapped[Optional[Any]] = mapped_column(Numeric(10, 2))
+    out_of_pocket: Mapped[Optional[Any]] = mapped_column(Numeric(10, 2))
     error_message: Mapped[Optional[str]] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(String(20), default="manual")
 
     patient: Mapped["Patient"] = relationship("Patient", back_populates="eligibility_checks")
+
+
+class PatientDeductibleTracker(Base):
+    __tablename__ = "patient_deductible_trackers"
+
+    patient_insurance_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patient_insurances.id"), nullable=False, index=True)
+    calendar_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    deductible_amount: Mapped[Any] = mapped_column(Numeric(10, 2), nullable=False)
+    amount_met: Mapped[Any] = mapped_column(Numeric(10, 2), default=0)
+
+    patient_insurance: Mapped["PatientInsurance"] = relationship("PatientInsurance", back_populates="deductible_trackers")
 
 
 class BodyMapAnnotation(Base):
     __tablename__ = "body_map_annotations"
 
-    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
-    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
-    visit_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
-    body_region: Mapped[str] = mapped_column(String(100), nullable=False)
-    annotation_type: Mapped[str] = mapped_column(String(50), nullable=False)  # pain, injury, finding
-    severity: Mapped[Optional[str]] = mapped_column(String(20))
-    notes: Mapped[Optional[str]] = mapped_column(Text)
-    coordinates: Mapped[Optional[Dict]] = mapped_column(JSONB)  # {x, y, view: 'front'|'back'}
-    created_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True))
+    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
+    visit_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True))
+    region_code: Mapped[str] = mapped_column(String(50), nullable=False)
+    annotation_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), default="none")
+    linked_diagnosis_code: Mapped[Optional[str]] = mapped_column(String(20))
+    created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    patient: Mapped["Patient"] = relationship("Patient", back_populates="body_map_annotations")
