@@ -1,0 +1,31 @@
+Azure App Service Configuration Notes
+======================================
+Runtime: Python 3.11
+Startup command: bash startup.sh
+App Settings (Environment Variables) to configure in Azure Portal:
+  DATABASE_URL        = postgresql+asyncpg://user:pass@host/dbname
+  REDIS_URL           = rediss://host:6380/0  (Azure Cache for Redis uses SSL)
+  SECRET_KEY          = <generate with: openssl rand -hex 32>
+  FERNET_KEY          = <generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())">
+  ALGORITHM           = HS256
+  ACCESS_TOKEN_EXPIRE_MINUTES = 15
+  REFRESH_TOKEN_EXPIRE_DAYS = 7
+  ENVIRONMENT         = production
+  DEBUG               = false
+  ALLOWED_ORIGINS     = https://clinictraq.pages.dev,https://app.clinictraq.com
+  WEB_WORKERS         = 2
+
+Database: Azure Database for PostgreSQL Flexible Server (PostgreSQL 16)
+Cache: Azure Cache for Redis (use rediss:// with SSL port 6380)
+File Storage: Azure Blob Storage (configure AWS_* env vars with Azure Blob compatible endpoint)
+Celery Workers: Deploy as separate Azure App Service or Azure Container Instance using same image
+
+Cloudflare Pages Configuration:
+  Build command: cd frontend && npm run build  (or npm run build from frontend dir)
+  Build output directory: frontend/dist
+  Root directory: / (repo root)
+  Environment variables:
+    VITE_API_URL = https://api.clinictraq.com/api/v1
+
+  Add custom domain in Cloudflare Pages dashboard.
+  _redirects file handles SPA routing automatically.
