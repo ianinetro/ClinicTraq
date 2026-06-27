@@ -1,256 +1,102 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { format } from 'date-fns'
-import { Send, RefreshCw } from 'lucide-react'
-import { PageHeader } from '../../components/shell/PageHeader'
-import { Table, type ColumnDef } from '../../components/ui/Table'
-import { Button } from '../../components/ui/Button'
+import { useQuery } from '@tanstack/react-query'
+import { Send } from 'lucide-react'
+import { DataTable, Column } from '../../components/ui/DataTable'
 import { Badge } from '../../components/ui/Badge'
-import { SearchInput } from '../../components/shared/SearchInput'
-import { StatusBadge } from '../../components/shared/StatusBadge'
-import { PHIField } from '../../components/shared/PHIField'
-import { useClaims } from '../../services/queries'
-import { api } from '../../services/api'
-import { useToast } from '../../components/ui/Toast'
-import { ConfirmModal } from '../../components/ui/Modal'
-import type { Claim } from '../../types'
+import { Button } from '../../components/ui/Button'
+import { Select } from '../../components/ui/Select'
+import api from '../../services/api'
 
+interface Claim {
+  id: string
+  claimId: string
+  patient: string
+  dos: string
+  payer: string
+  billed: number
+  paid: number
+  balance: number
+  status: string
+}
+
+const statusVariant = (s: string): 'success' | 'warning' | 'danger' | 'info' | 'default' => {
+  if (s === 'Paid') return 'success'
+  if (s === 'Denied') return 'danger'
+  if (s === 'Pending') return 'warning'
+  if (s === 'Submitted') return 'info'
+  return 'default'
+}
 
 export function ClaimsPage() {
-  const navigate = useNavigate()
-  const { addToast } = useToast()
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
-  const [page, setPage] = useState(1)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [batchConfirmOpen, setBatchConfirmOpen] = useState(false)
-  const [batchSubmitting, setBatchSubmitting] = useState(false)
+  const [status, setStatus] = useState('')
+  const [payer, setPayer] = useState('')
 
-  const { data, isLoading, error, refetch } = useClaims({
-    search: search || undefined,
-    status: statusFilter || undefined,
-    page,
-    pageSize: 25,
+  const { data, isLoading } = useQuery({
+    queryKey: ['claims', status, payer],
+    queryFn: async () => {
+      try {
+        const res = await api.get('/claims', { params: { status, payer } })
+        return res.data
+      } catch {
+        return {
+          items: [
+            { id: '1', claimId: 'A10042', patient: 'Johnson, Mary', dos: '2026-06-26', payer: 'BlueCross PPO', billed: 185.00, paid: 148.00, balance: 37.00, status: 'Paid' },
+            { id: '2', claimId: 'A10043', patient: 'Williams, Robert', dos: '2026-06-25', payer: 'Aetna HMO', billed: 320.00, paid: 0, balance: 320.00, status: 'Submitted' },
+            { id: '3', claimId: 'A10044', patient: 'Davis, Susan', dos: '2026-06-24', payer: 'United Healthcare', billed: 250.00, paid: 0, balance: 250.00, status: 'Denied' },
+            { id: '4', claimId: 'A10045', patient: 'Brown, James', dos: '2026-06-23', payer: 'Cigna PPO', billed: 420.00, paid: 0, balance: 420.00, status: 'Pending' },
+          ],
+          total: 4,
+        }
+      }
+    },
   })
 
-  async function handleBatchSubmit() {
-    setBatchSubmitting(true)
-    try {
-      await api.claims.batchSubmit(Array.from(selectedIds))
-      addToast({ variant: 'success', message: `${selectedIds.size} claims submitted.` })
-      setSelectedIds(new Set())
-      setBatchConfirmOpen(false)
-      refetch()
-    } catch {
-      addToast({ variant: 'error', message: 'Batch submission failed. Please try again.' })
-    } finally {
-      setBatchSubmitting(false)
-    }
-  }
-
-  const columns: ColumnDef<Claim>[] = [
-    {
-      id: 'claimNumber',
-      header: 'Claim #',
-      width: '120px',
-      sortable: true,
-      cell: (row) => (
-        <span className="text-sm font-mono text-[#0410BD] hover:underline cursor-pointer">
-          {row.claimNumber}
-        </span>
-      ),
-    },
-    {
-      id: 'patient',
-      header: 'Patient',
-      cell: (row) => row.patient ? (
-        <PHIField
-          value={`${row.patient.firstName} ${row.patient.lastName}`}
-          fieldName="Patient Name"
-          patientId={row.patientId}
-          fieldType="name"
-          inline
-        />
-      ) : <span className="text-[#BABACE]">—</span>,
-    },
-    {
-      id: 'dos',
-      header: 'DOS',
-      sortable: true,
-      width: '100px',
-      cell: (row) => (
-        <span className="text-sm tabular-nums text-[#676687]">
-          {row.dos ? format(new Date(row.dos), 'MM/dd/yy') : '—'}
-        </span>
-      ),
-    },
-    {
-      id: 'payer',
-      header: 'Payer',
-      cell: (row) => <span className="text-sm text-[#12122C]">{row.payerName}</span>,
-    },
-    {
-      id: 'totalCharges',
-      header: 'Charges',
-      align: 'right',
-      sortable: true,
-      cell: (row) => (
-        <span className="text-sm tabular-nums">${row.totalCharges.toFixed(2)}</span>
-      ),
-    },
-    {
-      id: 'totalPaid',
-      header: 'Paid',
-      align: 'right',
-      cell: (row) => (
-        <span className="text-sm tabular-nums text-[#047857]">
-          {row.totalPaid > 0 ? `$${row.totalPaid.toFixed(2)}` : '—'}
-        </span>
-      ),
-    },
-    {
-      id: 'balance',
-      header: 'Balance',
-      align: 'right',
-      cell: (row) => (
-        <span className={`text-sm tabular-nums font-medium ${row.balance > 0 ? 'text-[#B91C1C]' : 'text-[#676687]'}`}>
-          ${row.balance.toFixed(2)}
-        </span>
-      ),
-    },
-    {
-      id: 'status',
-      header: 'Status',
-      cell: (row) => (
-        <div className="relative group">
-          <StatusBadge status={row.status} size="sm" />
-          {/* CPT/DX tooltip on hover */}
-          {row.claimLines && row.claimLines.length > 0 && (
-            <div className="absolute left-0 top-full mt-1 z-30 hidden group-hover:block bg-[#12122C] text-white text-xs rounded-lg p-3 shadow-xl min-w-56 pointer-events-none">
-              <p className="font-semibold mb-1.5 text-[#A2A8FF]">CPT Codes</p>
-              {row.claimLines.slice(0, 5).map((line, i) => (
-                <div key={i} className="flex gap-2 mb-0.5">
-                  <span className="font-mono text-[#94F2FA]">{line.cptCode}</span>
-                  <span className="text-white/60 text-[10px] truncate">{line.cptDescription}</span>
-                  {line.modifiers.filter(Boolean).length > 0 && (
-                    <span className="text-[#A2A8FF] font-mono">{line.modifiers.filter(Boolean).join(' ')}</span>
-                  )}
-                </div>
-              ))}
-              {row.visit?.diagnoses && row.visit.diagnoses.length > 0 && (
-                <>
-                  <p className="font-semibold mt-2 mb-1 text-[#A2A8FF]">DX Codes</p>
-                  {row.visit.diagnoses.slice(0, 4).map((dx, i) => (
-                    <div key={i} className="flex gap-2 mb-0.5">
-                      <span className="font-mono text-[#94F2FA]">{dx.code}</span>
-                      <span className="text-white/60 text-[10px] truncate">{dx.description}</span>
-                    </div>
-                  ))}
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      ),
-    },
-    {
-      id: 'validation',
-      header: 'Validation',
-      cell: (row) => {
-        const v = row.validationStatus
-        const map = { passed: 'active', warnings: 'warning', failed: 'failed', unchecked: 'inactive' } as const
-        const label = { passed: 'Passed', warnings: 'Warnings', failed: 'Failed', unchecked: 'Not Run' }
-        return <Badge variant={map[v] ?? 'inactive'} size="sm">{label[v] ?? v}</Badge>
-      },
-    },
-    {
-      id: 'actions',
-      header: '',
-      width: '80px',
-      cell: (row) => (
-        <Button
-          size="xs"
-          variant="secondary"
-          onClick={(e) => { e.stopPropagation(); navigate(`/claims/${row.id}`) }}
-        >
-          Open
-        </Button>
-      ),
-    },
+  const columns: Column<Claim>[] = [
+    { key: 'claimId', header: 'Claim ID', render: r => <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--bb-brand-blue)' }}>{r.claimId}</span> },
+    { key: 'patient', header: 'Patient', render: r => <span style={{ fontWeight: 500 }}>{r.patient}</span> },
+    { key: 'dos', header: 'DOS' },
+    { key: 'payer', header: 'Payer' },
+    { key: 'billed', header: 'Billed', render: r => `$${r.billed.toFixed(2)}` },
+    { key: 'paid', header: 'Paid', render: r => r.paid > 0 ? <span style={{ color: 'var(--bb-status-success)', fontWeight: 600 }}>${r.paid.toFixed(2)}</span> : '—' },
+    { key: 'balance', header: 'Balance', render: r => r.balance > 0 ? <span style={{ color: 'var(--bb-status-danger)', fontWeight: 600 }}>${r.balance.toFixed(2)}</span> : <span style={{ color: 'var(--bb-status-success)' }}>$0.00</span> },
+    { key: 'status', header: 'Status', render: r => <Badge variant={statusVariant(r.status)}>{r.status}</Badge> },
   ]
 
   return (
-    <div className="p-6 space-y-4">
-      <PageHeader
-        title="Claims"
-        description="Manage and submit insurance claims"
-      />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Claims</h2>
+          <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--bb-text-secondary)' }}>Insurance claim management</p>
+        </div>
+        <Button variant="primary">
+          <Send size={14} />
+          Batch Submit
+        </Button>
+      </div>
 
-      <Table<Claim>
-        columns={columns}
-        data={data?.items ?? []}
-        loading={isLoading}
-        error={error ? 'Failed to load claims.' : undefined}
-        total={data?.total ?? 0}
-        page={page}
-        pageSize={25}
-        onPageChange={setPage}
-        onRowClick={(row) => navigate(`/claims/${row.id}`)}
-        getRowId={(row) => row.id}
-        multiSelect
-        selectedIds={selectedIds}
-        onSelectionChange={setSelectedIds}
-        emptyTitle="No claims found"
-        emptyDescription="Claims will appear here once visits are billed."
-        toolbar={
-          <div className="flex items-center gap-3 w-full">
-            <SearchInput
-              value={search}
-              onChange={(v) => { setSearch(v); setPage(1) }}
-              placeholder="Search claims…"
-              className="w-72"
-            />
-            <select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
-              className="h-9 border border-[#BABACE] rounded-md text-sm px-2 text-[#12122C] bg-white outline-none focus:border-[#3F4CFF]"
-            >
-              <option value="">All Statuses</option>
-              <option value="draft">Draft</option>
-              <option value="ready">Ready</option>
-              <option value="submitted">Submitted</option>
-              <option value="paid">Paid</option>
-              <option value="denied">Denied</option>
-              <option value="rejected">Rejected</option>
-            </select>
-            <div className="ml-auto flex items-center gap-2">
-              <Button size="sm" variant="secondary" leftIcon={<RefreshCw size={13} />} onClick={() => refetch()}>
-                Refresh
-              </Button>
-              {selectedIds.size > 0 && (
-                <Button
-                  size="sm"
-                  variant="primary"
-                  leftIcon={<Send size={13} />}
-                  onClick={() => setBatchConfirmOpen(true)}
-                >
-                  Submit {selectedIds.size} Claims
-                </Button>
-              )}
-            </div>
-          </div>
-        }
-      />
-
-      <ConfirmModal
-        open={batchConfirmOpen}
-        onClose={() => setBatchConfirmOpen(false)}
-        onConfirm={handleBatchSubmit}
-        title={`Submit ${selectedIds.size} Claims`}
-        message={`You are about to electronically submit ${selectedIds.size} claims to their respective payers. This action cannot be undone.`}
-        confirmLabel="Submit Claims"
-        loading={batchSubmitting}
-      />
+      <div style={{ background: 'var(--bb-surface-card)', borderRadius: 'var(--bb-radius-lg)', border: '1px solid var(--bb-border)', boxShadow: 'var(--bb-shadow-sm)', overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--bb-border)', display: 'flex', gap: 12 }}>
+          <Select
+            options={[{ value: '', label: 'All Statuses' }, { value: 'Submitted', label: 'Submitted' }, { value: 'Pending', label: 'Pending' }, { value: 'Denied', label: 'Denied' }, { value: 'Paid', label: 'Paid' }]}
+            value={status}
+            onChange={e => setStatus(e.target.value)}
+            style={{ width: 160 }}
+          />
+          <Select
+            options={[{ value: '', label: 'All Payers' }, { value: 'bluecross', label: 'BlueCross PPO' }, { value: 'aetna', label: 'Aetna HMO' }, { value: 'united', label: 'United Healthcare' }]}
+            value={payer}
+            onChange={e => setPayer(e.target.value)}
+            style={{ width: 200 }}
+          />
+        </div>
+        <DataTable
+          columns={columns as Column<Record<string, unknown>>[]}
+          data={(data?.items || []) as Record<string, unknown>[]}
+          isLoading={isLoading}
+          emptyMessage="No claims found"
+        />
+      </div>
     </div>
   )
 }

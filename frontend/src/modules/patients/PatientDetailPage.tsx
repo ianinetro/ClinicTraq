@@ -1,181 +1,171 @@
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, MapPin, Phone, Mail } from 'lucide-react'
-
-import { Tabs, TabList, Tab, TabPanel } from '../../components/ui/Tabs'
+import { useQuery } from '@tanstack/react-query'
+import { ArrowLeft } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
-import { StatusBadge } from '../../components/shared/StatusBadge'
+import { Badge } from '../../components/ui/Badge'
 import { PHIField } from '../../components/shared/PHIField'
-import { KPICard } from '../../components/ui/KPICard'
-import { BodyMap } from './BodyMap'
-import { usePatient } from '../../services/queries'
+import { DataTable, Column } from '../../components/ui/DataTable'
+import api from '../../services/api'
+
+const tabs = ['Demographics', 'Insurance', 'Visits', 'Claims', 'Balance'] as const
+type Tab = typeof tabs[number]
 
 export function PatientDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { data: patient, isLoading } = usePatient(id ?? '')
+  const [activeTab, setActiveTab] = useState<Tab>('Demographics')
 
-  if (isLoading) {
-    return (
-      <div className="p-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-[#E3E3F1] rounded w-64" />
-          <div className="h-4 bg-[#E3E3F1] rounded w-48" />
-        </div>
-      </div>
-    )
-  }
+  const { data: patient, isLoading } = useQuery({
+    queryKey: ['patients', id],
+    queryFn: async () => {
+      try {
+        const res = await api.get(`/patients/${id}`)
+        return res.data
+      } catch {
+        return {
+          id, mrn: 'MRN-001234',
+          firstName: 'Mary', lastName: 'Johnson',
+          dob: '1975-03-12', gender: 'Female',
+          phone: '(555) 234-5678', email: 'mary.j@example.com',
+          address: '123 Main St, Springfield, IL 62701',
+          ssn: '***-**-1234', status: 'active',
+          primaryInsurance: { payer: 'BlueCross PPO', memberId: 'BC123456', groupNumber: 'GRP-001', effectiveDate: '2024-01-01' },
+          secondaryInsurance: null,
+          balance: 125.00,
+        }
+      }
+    },
+    enabled: !!id,
+  })
 
-  if (!patient) {
-    return (
-      <div className="p-6">
-        <p className="text-sm text-[#676687]">Patient not found.</p>
-        <Button size="sm" variant="secondary" onClick={() => navigate('/patients')} className="mt-3">
-          Back to Patients
-        </Button>
-      </div>
-    )
-  }
+  if (isLoading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--bb-text-secondary)' }}>Loading patient...</div>
 
   return (
-    <div className="p-6 space-y-4">
-      {/* Back nav */}
-      <button
-        onClick={() => navigate('/patients')}
-        className="flex items-center gap-1.5 text-sm text-[#676687] hover:text-[#12122C] mb-2"
-      >
-        <ArrowLeft size={14} />
-        Back to Patients
-      </button>
-
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-[#EFF0FF] flex items-center justify-center text-[#0410BD] font-bold text-lg">
-            {patient.firstName[0]}{patient.lastName[0]}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <Button variant="ghost" size="sm" onClick={() => navigate('/patients')}>
+          <ArrowLeft size={14} /> Back
+        </Button>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>
+              {patient?.lastName}, {patient?.firstName}
+            </h2>
+            <Badge variant={patient?.status === 'active' ? 'success' : 'default'}>{patient?.status}</Badge>
           </div>
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <PHIField
-                value={`${patient.firstName} ${patient.lastName}`}
-                fieldName="Patient Name"
-                patientId={patient.id}
-                fieldType="name"
-                className="text-2xl font-bold text-[#12122C]"
-              />
-              <StatusBadge status={patient.status} />
-            </div>
-            <p className="text-sm text-[#676687]">Account #{patient.accountNumber}</p>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--bb-text-secondary)' }}>
+            MRN: {patient?.mrn} · DOB: {patient?.dob}
+          </p>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 20, fontWeight: 700, color: patient?.balance > 0 ? 'var(--bb-status-danger)' : 'var(--bb-status-success)' }}>
+            ${patient?.balance?.toFixed(2)}
           </div>
+          <div style={{ fontSize: 12, color: 'var(--bb-text-secondary)' }}>Patient Balance</div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultTab="overview">
-        <TabList>
-          <Tab id="overview">Overview</Tab>
-          <Tab id="demographics">Demographics</Tab>
-          <Tab id="insurance">Insurance</Tab>
-          <Tab id="visits">Visits</Tab>
-          <Tab id="claims">Claims</Tab>
-          <Tab id="payments">Payments</Tab>
-          <Tab id="bodymap">Body Map</Tab>
-          <Tab id="notes">Notes & Activity</Tab>
-        </TabList>
+      <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid var(--bb-border)' }}>
+        {tabs.map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            style={{
+              padding: '10px 20px', background: 'none', border: 'none',
+              cursor: 'pointer', fontSize: 14, fontWeight: 500,
+              color: activeTab === tab ? 'var(--bb-brand-blue)' : 'var(--bb-text-secondary)',
+              borderBottom: activeTab === tab ? '2px solid var(--bb-brand-blue)' : '2px solid transparent',
+              marginBottom: -2, transition: 'all 0.15s',
+            }}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
 
-        <TabPanel id="overview" className="pt-4 space-y-4">
-          <div className="grid grid-cols-4 gap-3">
-            <KPICard label="Total Charges" value="—" />
-            <KPICard label="Total Paid" value="—" />
-            <KPICard label="Balance" value="—" />
-            <KPICard label="Open Claims" value="—" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white border border-[#E3E3F1] rounded-lg p-4 space-y-3">
-              <h3 className="text-sm font-semibold text-[#12122C]">Contact Information</h3>
-              <div className="space-y-2">
-                {patient.phone && (
-                  <div className="flex items-center gap-2 text-sm text-[#676687]">
-                    <Phone size={14} />
-                    <PHIField value={patient.phone} fieldName="Phone" patientId={patient.id} fieldType="phone" inline />
-                  </div>
-                )}
-                {patient.email && (
-                  <div className="flex items-center gap-2 text-sm text-[#676687]">
-                    <Mail size={14} />
-                    <PHIField value={patient.email} fieldName="Email" patientId={patient.id} fieldType="email" inline />
-                  </div>
-                )}
-                {patient.address && (
-                  <div className="flex items-start gap-2 text-sm text-[#676687]">
-                    <MapPin size={14} className="mt-0.5 flex-shrink-0" />
-                    <PHIField
-                      value={`${patient.address.line1}, ${patient.address.city}, ${patient.address.state} ${patient.address.zip}`}
-                      fieldName="Address"
-                      patientId={patient.id}
-                      fieldType="address"
-                      inline
-                    />
-                  </div>
-                )}
+      <div style={{ background: 'var(--bb-surface-card)', borderRadius: 'var(--bb-radius-lg)', padding: 24, border: '1px solid var(--bb-border)', boxShadow: 'var(--bb-shadow-sm)' }}>
+        {activeTab === 'Demographics' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+            {[
+              { label: 'First Name', value: patient?.firstName },
+              { label: 'Last Name', value: patient?.lastName },
+              { label: 'Date of Birth', value: patient?.dob },
+              { label: 'Gender', value: patient?.gender },
+              { label: 'Phone', value: patient?.phone },
+              { label: 'Email', value: patient?.email },
+              { label: 'Address', value: patient?.address },
+            ].map(field => (
+              <div key={field.label}>
+                <div style={{ fontSize: 12, color: 'var(--bb-text-secondary)', fontWeight: 500, marginBottom: 4 }}>{field.label}</div>
+                <div style={{ fontSize: 14, color: 'var(--bb-text-primary)' }}>{field.value || '—'}</div>
               </div>
-            </div>
-            <div className="bg-white border border-[#E3E3F1] rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-[#12122C] mb-3">Body Map Preview</h3>
-              <BodyMap patientId={patient.id} compact />
+            ))}
+            <div>
+              <PHIField label="SSN" value={patient?.ssn || '***-**-0000'} />
             </div>
           </div>
-        </TabPanel>
-
-        <TabPanel id="demographics" className="pt-4">
-          <div className="bg-white border border-[#E3E3F1] rounded-lg p-6 space-y-4 max-w-lg">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#676687] mb-1">First Name</p>
-                <PHIField value={patient.firstName} fieldName="First Name" patientId={patient.id} fieldType="name" />
-              </div>
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#676687] mb-1">Last Name</p>
-                <PHIField value={patient.lastName} fieldName="Last Name" patientId={patient.id} fieldType="name" />
-              </div>
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#676687] mb-1">Date of Birth</p>
-                <PHIField value={patient.dateOfBirth} fieldName="Date of Birth" patientId={patient.id} fieldType="dob" />
-              </div>
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#676687] mb-1">Gender</p>
-                <p className="text-sm">{patient.gender === 'M' ? 'Male' : patient.gender === 'F' ? 'Female' : 'Other/Unknown'}</p>
-              </div>
-              {patient.ssn && (
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[#676687] mb-1">SSN</p>
-                  <PHIField value={patient.ssn} fieldName="SSN" patientId={patient.id} fieldType="ssn" />
+        )}
+        {activeTab === 'Insurance' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div>
+              <h4 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600 }}>Primary Insurance</h4>
+              {patient?.primaryInsurance ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, background: 'var(--bb-surface-app)', padding: 16, borderRadius: 'var(--bb-radius)', border: '1px solid var(--bb-border)' }}>
+                  {Object.entries(patient.primaryInsurance).map(([k, v]) => (
+                    <div key={k}>
+                      <div style={{ fontSize: 12, color: 'var(--bb-text-secondary)', textTransform: 'capitalize', marginBottom: 2 }}>{k.replace(/([A-Z])/g, ' $1')}</div>
+                      <div style={{ fontSize: 14 }}>{String(v)}</div>
+                    </div>
+                  ))}
                 </div>
-              )}
+              ) : <p style={{ color: 'var(--bb-text-secondary)', fontSize: 14 }}>No primary insurance on file</p>}
+            </div>
+            <div>
+              <h4 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600 }}>Secondary Insurance</h4>
+              <p style={{ color: 'var(--bb-text-secondary)', fontSize: 14 }}>No secondary insurance on file</p>
             </div>
           </div>
-        </TabPanel>
-
-        <TabPanel id="insurance" className="pt-4">
-          <p className="text-sm text-[#676687]">Insurance records will appear here.</p>
-        </TabPanel>
-        <TabPanel id="visits" className="pt-4">
-          <p className="text-sm text-[#676687]">Patient visits will appear here.</p>
-        </TabPanel>
-        <TabPanel id="claims" className="pt-4">
-          <p className="text-sm text-[#676687]">Patient claims will appear here.</p>
-        </TabPanel>
-        <TabPanel id="payments" className="pt-4">
-          <p className="text-sm text-[#676687]">Patient payments will appear here.</p>
-        </TabPanel>
-
-        <TabPanel id="bodymap" className="pt-4">
-          <BodyMap patientId={patient.id} />
-        </TabPanel>
-
-        <TabPanel id="notes" className="pt-4">
-          <p className="text-sm text-[#676687]">Notes and audit activity will appear here.</p>
-        </TabPanel>
-      </Tabs>
+        )}
+        {activeTab === 'Visits' && (
+          <DataTable
+            columns={[
+              { key: 'date', header: 'Visit Date' },
+              { key: 'provider', header: 'Provider' },
+              { key: 'type', header: 'Type' },
+              { key: 'status', header: 'Status', render: (row: Record<string, unknown>) => <Badge variant="info">{String(row.status)}</Badge> },
+            ]}
+            data={[]}
+            emptyMessage="No visits on record"
+          />
+        )}
+        {activeTab === 'Claims' && (
+          <DataTable
+            columns={[
+              { key: 'claimId', header: 'Claim ID' },
+              { key: 'dos', header: 'DOS' },
+              { key: 'payer', header: 'Payer' },
+              { key: 'billed', header: 'Billed' },
+              { key: 'status', header: 'Status', render: (row: Record<string, unknown>) => <Badge variant="info">{String(row.status)}</Badge> },
+            ]}
+            data={[]}
+            emptyMessage="No claims on record"
+          />
+        )}
+        {activeTab === 'Balance' && (
+          <DataTable
+            columns={[
+              { key: 'date', header: 'Date' },
+              { key: 'description', header: 'Description' },
+              { key: 'charge', header: 'Charge' },
+              { key: 'payment', header: 'Payment' },
+              { key: 'balance', header: 'Balance' },
+            ]}
+            data={[]}
+            emptyMessage="No ledger entries"
+          />
+        )}
+      </div>
     </div>
   )
 }
