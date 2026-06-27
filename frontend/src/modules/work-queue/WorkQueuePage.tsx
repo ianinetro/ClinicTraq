@@ -90,8 +90,8 @@ export function WorkQueuePage() {
           />
         </div>
         <DataTable
-          columns={columns as Column<Record<string, unknown>>[]}
-          data={(data?.items || []) as Record<string, unknown>[]}
+          columns={columns}
+          data={data?.items || []}
           isLoading={isLoading}
           emptyMessage="Work queue is empty"
         />

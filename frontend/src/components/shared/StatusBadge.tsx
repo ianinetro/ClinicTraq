@@ -75,7 +75,7 @@ interface StatusBadgeProps {
   className?: string
 }
 
-export function StatusBadge({ status, className }: StatusBadgeProps) {
+export function StatusBadge({ status }: StatusBadgeProps) {
   const variant = statusMap[status as AllStatus] ?? 'default'
   const label = statusLabels[status as AllStatus] ?? status.charAt(0).toUpperCase() + status.slice(1)
   return <Badge variant={variant}>{label}</Badge>

@@ -22,7 +22,7 @@ export function AppShell() {
   return (
     <ToastProvider>
       <div style={{ display: 'flex', minHeight: '100vh' }}>
-        <SideNav />
+        <SideNav isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <div style={{ flex: 1, marginLeft: 240, display: 'flex', flexDirection: 'column' }}>
           <TopNav onMenuClick={() => setSidebarOpen(v => !v)} pageTitle={title} />
           <main style={{

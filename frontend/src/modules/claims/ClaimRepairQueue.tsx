@@ -34,7 +34,7 @@ export function ClaimRepairQueue() {
       id: 'patient',
       header: 'Patient',
       cell: (row) => row.patient ? (
-        <PHIField value={`${row.patient.firstName} ${row.patient.lastName}`} fieldName="Patient Name" patientId={row.patientId} fieldType="name" inline />
+        <PHIField value={`${row.patient.firstName} ${row.patient.lastName}`} />
       ) : <span className="text-[#BABACE]">—</span>,
     },
     {

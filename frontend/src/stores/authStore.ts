@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import api from '../services/api'
+import { apiClient as api } from '../services/api'
 
 interface User {
   id: string
