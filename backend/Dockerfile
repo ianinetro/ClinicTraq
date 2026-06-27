@@ -30,4 +30,5 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Azure App Service sets PORT; WEB_WORKERS can be overridden via App Settings
+CMD ["sh", "-c", "exec python3 -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers ${WEB_WORKERS:-2} --proxy-headers --forwarded-allow-ips='*'"]

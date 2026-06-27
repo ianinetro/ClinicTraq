@@ -18,6 +18,7 @@ REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 # ── Configuration — edit these or set as env vars ────────────────────────────
 AZURE_RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-clinictraq-rg}"
 AZURE_WEBAPP_NAME="${AZURE_WEBAPP_NAME:-clinictraq-api}"
+AZURE_ACR_NAME="${AZURE_ACR_NAME:-clinictraqacr}"
 VITE_API_URL="${VITE_API_URL:-https://${AZURE_WEBAPP_NAME}.azurewebsites.net/api/v1}"
 CF_PROJECT_NAME="${CF_PROJECT_NAME:-clinictraq}"
 # ─────────────────────────────────────────────────────────────────────────────
@@ -36,119 +37,43 @@ for arg in "$@"; do
   esac
 done
 
-# ── Deploy backend to Azure App Service ──────────────────────────────────────
+# ── Deploy backend to Azure App Service (Docker via ACR) ─────────────────────
 deploy_backend() {
-  cd "$REPO_ROOT/backend"
+  IMAGE="${AZURE_ACR_NAME}.azurecr.io/clinictraq-api:latest"
 
-  info "Building backend zip package (source only — packages built by Azure Oryx)..."
-  python3 - <<'PYEOF'
-import zipfile, os
-root = os.getcwd()
-out = "/tmp/clinictraq-backend.zip"
-skip_ext = {".pyc", ".pyo"}
-skip_dirs = {"__pycache__", ".pytest_cache", "tests", ".venv", ".git", ".packages"}
-skip_files = {".deployment"}
-with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in skip_dirs]
-        for fn in filenames:
-            if os.path.splitext(fn)[1] in skip_ext:
-                continue
-            if fn in skip_files:
-                continue
-            full = os.path.join(dirpath, fn)
-            arcname = os.path.relpath(full, root)
-            zf.write(full, arcname)
-print(f"Created {out} ({os.path.getsize(out)//1024//1024}MB / {os.path.getsize(out)//1024}KB)")
-PYEOF
+  info "Building and pushing Docker image to ACR: $IMAGE"
+  info "(az acr build runs the Docker build in Azure — no local Docker required)"
+  az acr build \
+    --registry "$AZURE_ACR_NAME" \
+    --image "clinictraq-api:latest" \
+    --file "$REPO_ROOT/backend/Dockerfile" \
+    "$REPO_ROOT/backend"
 
-  # One-time config (set once manually; do NOT call these inside this script — they cause
-  # an SCM container restart which will kill an in-progress upload):
-  # az webapp config appsettings set ... SCM_DO_BUILD_DURING_DEPLOYMENT=true   ← must be true
-  # az webapp config set ... --startup-file "python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips='*'"
-  # az resource update ... scm ... properties.allow=true
-  # az resource update --resource-group "$AZURE_RESOURCE_GROUP" --name scm --namespace Microsoft.Web --resource-type basicPublishingCredentialsPolicies --parent "sites/$AZURE_WEBAPP_NAME" --set properties.allow=true --output none
-
-  info "Deploying via Kudu ZIP API..."
-  PUBLISH_USER=$(az webapp deployment list-publishing-credentials \
+  info "Updating App Service to use image: $IMAGE"
+  az webapp config container set \
     --resource-group "$AZURE_RESOURCE_GROUP" \
     --name "$AZURE_WEBAPP_NAME" \
-    --query "publishingUserName" \
-    --output tsv)
-  PUBLISH_PASS=$(az webapp deployment list-publishing-credentials \
+    --container-image-name "$IMAGE" \
+    --output none
+
+  info "Restarting App Service..."
+  az webapp restart \
     --resource-group "$AZURE_RESOURCE_GROUP" \
     --name "$AZURE_WEBAPP_NAME" \
-    --query "publishingPassword" \
-    --output tsv)
+    --output none
 
-  NETRC_FILE=$(mktemp)
-  chmod 600 "$NETRC_FILE"
-  printf 'machine %s.scm.azurewebsites.net\nlogin %s\npassword %s\n' \
-    "$AZURE_WEBAPP_NAME" "$PUBLISH_USER" "$PUBLISH_PASS" > "$NETRC_FILE"
-
-  SCM_HOST="${AZURE_WEBAPP_NAME}.scm.azurewebsites.net"
-
-  HTTP_STATUS=$(curl -s -o /tmp/deploy_response.txt -w "%{http_code}" \
-    -X POST \
-    --netrc-file "$NETRC_FILE" \
-    -H "Content-Type: application/zip" \
-    --data-binary @/tmp/clinictraq-backend.zip \
-    "https://${SCM_HOST}/api/zipdeploy?isAsync=true")
-
-  if [[ "$HTTP_STATUS" == "200" || "$HTTP_STATUS" == "202" ]]; then
-    info "Deployment submitted (HTTP $HTTP_STATUS). Waiting for Oryx build to finish..."
-    DEPLOY_OK=false
-    for i in $(seq 1 60); do
-      sleep 10
-      STATUS_JSON=$(curl -s --netrc-file "$NETRC_FILE" \
-        "https://${SCM_HOST}/api/deployments/latest")
-      DEPLOY_STATUS=$(echo "$STATUS_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status', 0))" 2>/dev/null || echo "0")
-      DEPLOY_MSG=$(echo "$STATUS_JSON"   | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status_text',''))" 2>/dev/null || echo "")
-      info "  [$i/60] status=$DEPLOY_STATUS $DEPLOY_MSG"
-      if [[ "$DEPLOY_STATUS" == "4" ]]; then
-        info "Oryx build succeeded."
-        DEPLOY_OK=true
-        break
-      elif [[ "$DEPLOY_STATUS" == "3" ]]; then
-        error "Deployment failed. Check https://${AZURE_WEBAPP_NAME}.scm.azurewebsites.net/api/deployments/latest"
-      fi
-    done
-
-    if [[ "$DEPLOY_OK" == "true" ]]; then
-      # Oryx compresses the build output (antenv + source) into output.tar.zst.
-      # The app container extracts this on every start — writing thousands of Python
-      # package files to Azure Files NFS is slow and exceeds the 230s startup timeout.
-      # Fix: extract output.tar.zst here in the SCM container (no startup deadline),
-      # then delete it so the app container finds antenv directly in wwwroot.
-      TARBALL_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-        --netrc-file "$NETRC_FILE" \
-        "https://${SCM_HOST}/api/vfs/site/wwwroot/output.tar.zst")
-      if [[ "$TARBALL_STATUS" == "200" ]]; then
-        info "Extracting antenv from output.tar.zst in SCM container..."
-        info "(This runs once here so the app container starts instantly — no 230s timeout risk)"
-        EXTRACT=$(curl -s --max-time 600 -X POST \
-          --netrc-file "$NETRC_FILE" \
-          -H "Content-Type: application/json" \
-          "https://${SCM_HOST}/api/command" \
-          -d '{"command":"cd /home/site/wwwroot && tar -xf output.tar.zst && rm -f output.tar.zst && echo EXTRACTED","dir":"/home/site/wwwroot"}')
-        EXIT_CODE=$(echo "$EXTRACT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('ExitCode',1))" 2>/dev/null || echo "1")
-        OUTPUT=$(echo "$EXTRACT"   | python3 -c "import sys,json; print(json.load(sys.stdin).get('Output',''))"   2>/dev/null || echo "")
-        if [[ "$EXIT_CODE" == "0" ]] && echo "$OUTPUT" | grep -q "EXTRACTED"; then
-          info "antenv extracted, output.tar.zst deleted. App container will start fast."
-        else
-          warn "Extraction issue (ExitCode=$EXIT_CODE). App may be slow on first start."
-          warn "Output: $OUTPUT"
-        fi
-      else
-        info "No output.tar.zst found — skipping extraction step."
-      fi
+  info "Waiting for app to come online..."
+  HEALTH_URL="https://${AZURE_WEBAPP_NAME}.azurewebsites.net/api/v1/health"
+  for i in $(seq 1 30); do
+    sleep 10
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$HEALTH_URL" || echo "000")
+    info "  [$i/30] health=$HTTP_CODE"
+    if [[ "$HTTP_CODE" == "200" ]]; then
+      info "App is healthy."
+      break
     fi
-  else
-    cat /tmp/deploy_response.txt
-    error "Kudu ZIP deploy returned HTTP $HTTP_STATUS"
-  fi
+  done
 
-  rm -f /tmp/clinictraq-backend.zip /tmp/deploy_response.txt "$NETRC_FILE"
   info "Backend deployed."
 }
 
