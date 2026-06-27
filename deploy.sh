@@ -130,7 +130,7 @@ PYEOF
           --netrc-file "$NETRC_FILE" \
           -H "Content-Type: application/json" \
           "https://${SCM_HOST}/api/command" \
-          -d '{"command":"cd /home/site/wwwroot && zstd -d output.tar.zst -c | tar -xf - && rm -f output.tar.zst && echo EXTRACTED","dir":"/home/site/wwwroot"}')
+          -d '{"command":"cd /home/site/wwwroot && tar -xf output.tar.zst && rm -f output.tar.zst && echo EXTRACTED","dir":"/home/site/wwwroot"}')
         EXIT_CODE=$(echo "$EXTRACT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('ExitCode',1))" 2>/dev/null || echo "1")
         OUTPUT=$(echo "$EXTRACT"   | python3 -c "import sys,json; print(json.load(sys.stdin).get('Output',''))"   2>/dev/null || echo "")
         if [[ "$EXIT_CODE" == "0" ]] && echo "$OUTPUT" | grep -q "EXTRACTED"; then
