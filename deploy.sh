@@ -96,21 +96,53 @@ PYEOF
     "https://${SCM_HOST}/api/zipdeploy?isAsync=true")
 
   if [[ "$HTTP_STATUS" == "200" || "$HTTP_STATUS" == "202" ]]; then
-    info "Deployment submitted (HTTP $HTTP_STATUS). Waiting for build to finish..."
-    for i in $(seq 1 30); do
+    info "Deployment submitted (HTTP $HTTP_STATUS). Waiting for Oryx build to finish..."
+    DEPLOY_OK=false
+    for i in $(seq 1 60); do
       sleep 10
       STATUS_JSON=$(curl -s --netrc-file "$NETRC_FILE" \
         "https://${SCM_HOST}/api/deployments/latest")
       DEPLOY_STATUS=$(echo "$STATUS_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status', 0))" 2>/dev/null || echo "0")
       DEPLOY_MSG=$(echo "$STATUS_JSON"   | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status_text',''))" 2>/dev/null || echo "")
-      info "  [$i/30] status=$DEPLOY_STATUS $DEPLOY_MSG"
+      info "  [$i/60] status=$DEPLOY_STATUS $DEPLOY_MSG"
       if [[ "$DEPLOY_STATUS" == "4" ]]; then
-        info "Deployment succeeded."
+        info "Oryx build succeeded."
+        DEPLOY_OK=true
         break
       elif [[ "$DEPLOY_STATUS" == "3" ]]; then
         error "Deployment failed. Check https://${AZURE_WEBAPP_NAME}.scm.azurewebsites.net/api/deployments/latest"
       fi
     done
+
+    if [[ "$DEPLOY_OK" == "true" ]]; then
+      # Oryx compresses the build output (antenv + source) into output.tar.zst.
+      # The app container extracts this on every start — writing thousands of Python
+      # package files to Azure Files NFS is slow and exceeds the 230s startup timeout.
+      # Fix: extract output.tar.zst here in the SCM container (no startup deadline),
+      # then delete it so the app container finds antenv directly in wwwroot.
+      TARBALL_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+        --netrc-file "$NETRC_FILE" \
+        "https://${SCM_HOST}/api/vfs/site/wwwroot/output.tar.zst")
+      if [[ "$TARBALL_STATUS" == "200" ]]; then
+        info "Extracting antenv from output.tar.zst in SCM container..."
+        info "(This runs once here so the app container starts instantly — no 230s timeout risk)"
+        EXTRACT=$(curl -s --max-time 600 -X POST \
+          --netrc-file "$NETRC_FILE" \
+          -H "Content-Type: application/json" \
+          "https://${SCM_HOST}/api/command" \
+          -d '{"command":"cd /home/site/wwwroot && zstd -d output.tar.zst -c | tar -xf - && rm -f output.tar.zst && echo EXTRACTED","dir":"/home/site/wwwroot"}')
+        EXIT_CODE=$(echo "$EXTRACT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('ExitCode',1))" 2>/dev/null || echo "1")
+        OUTPUT=$(echo "$EXTRACT"   | python3 -c "import sys,json; print(json.load(sys.stdin).get('Output',''))"   2>/dev/null || echo "")
+        if [[ "$EXIT_CODE" == "0" ]] && echo "$OUTPUT" | grep -q "EXTRACTED"; then
+          info "antenv extracted, output.tar.zst deleted. App container will start fast."
+        else
+          warn "Extraction issue (ExitCode=$EXIT_CODE). App may be slow on first start."
+          warn "Output: $OUTPUT"
+        fi
+      else
+        info "No output.tar.zst found — skipping extraction step."
+      fi
+    fi
   else
     cat /tmp/deploy_response.txt
     error "Kudu ZIP deploy returned HTTP $HTTP_STATUS"
