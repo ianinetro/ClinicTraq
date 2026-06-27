@@ -28,29 +28,20 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
 
-    # File Storage — Azure Blob Storage (primary) or Cloudflare R2 (S3-compatible alternative)
-    # Azure Blob: set AZURE_STORAGE_CONNECTION_STRING or AZURE_STORAGE_ACCOUNT_NAME + AZURE_STORAGE_ACCOUNT_KEY
-    AZURE_STORAGE_CONNECTION_STRING: Optional[str] = None
-    AZURE_STORAGE_ACCOUNT_NAME: Optional[str] = None
-    AZURE_STORAGE_ACCOUNT_KEY: Optional[str] = None
-    AZURE_STORAGE_CONTAINER: str = "clinictraq-uploads"
-
-    # Cloudflare R2 (S3-compatible) — alternative to Azure Blob
-    # R2 endpoint: https://<account_id>.r2.cloudflarestorage.com
+    # File Storage — Cloudflare R2 (primary, S3-compatible, zero egress fees)
+    # Get these from Cloudflare Dashboard → R2 → Manage R2 API tokens
     R2_ACCOUNT_ID: Optional[str] = None
     R2_ACCESS_KEY_ID: Optional[str] = None
     R2_SECRET_ACCESS_KEY: Optional[str] = None
-    R2_BUCKET: Optional[str] = None
+    R2_BUCKET: str = "clinictraq-uploads"
 
     @property
-    def r2_endpoint_url(self) -> Optional[str]:
-        if self.R2_ACCOUNT_ID:
-            return f"https://{self.R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-        return None
+    def r2_endpoint_url(self) -> str:
+        return f"https://{self.R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
     @property
-    def use_r2(self) -> bool:
-        return bool(self.R2_ACCOUNT_ID and self.R2_ACCESS_KEY_ID)
+    def storage_configured(self) -> bool:
+        return bool(self.R2_ACCOUNT_ID and self.R2_ACCESS_KEY_ID and self.R2_SECRET_ACCESS_KEY)
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
