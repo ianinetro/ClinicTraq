@@ -76,6 +76,17 @@ PYEOF
     --startup-file "bash startup.sh" \
     --output none
 
+  # Enable basic-auth publishing credentials (disabled by default on newer App Services)
+  info "Enabling SCM basic auth..."
+  az resource update \
+    --resource-group "$AZURE_RESOURCE_GROUP" \
+    --name scm \
+    --namespace Microsoft.Web \
+    --resource-type basicPublishingCredentialsPolicies \
+    --parent "sites/$AZURE_WEBAPP_NAME" \
+    --set properties.allow=true \
+    --output none
+
   info "Deploying via Kudu ZIP API..."
   # Fetch publishing credentials as plain strings (avoids JSON quoting issues)
   PUBLISH_USER=$(az webapp deployment list-publishing-credentials \
