@@ -77,24 +77,23 @@ PYEOF
     --output none
 
   info "Deploying via Kudu ZIP API..."
-  # Fetch publishing credentials
-  CREDS=$(az webapp deployment list-publishing-credentials \
+  # Fetch publishing credentials as plain strings (avoids JSON quoting issues)
+  PUBLISH_USER=$(az webapp deployment list-publishing-credentials \
     --resource-group "$AZURE_RESOURCE_GROUP" \
     --name "$AZURE_WEBAPP_NAME" \
-    --query "{u:publishingUserName,p:publishingPassword}" \
-    --output json)
-  # Write to netrc so curl doesn't expand the $ in the username
+    --query "publishingUserName" \
+    --output tsv)
+  PUBLISH_PASS=$(az webapp deployment list-publishing-credentials \
+    --resource-group "$AZURE_RESOURCE_GROUP" \
+    --name "$AZURE_WEBAPP_NAME" \
+    --query "publishingPassword" \
+    --output tsv)
+
+  # Write to netrc so curl handles the literal $ in the username without shell expansion
   NETRC_FILE=$(mktemp)
-  python3 - "$NETRC_FILE" "$AZURE_WEBAPP_NAME" <<PYEOF
-import sys, json
-netrc_path, app = sys.argv[1], sys.argv[2]
-d = json.loads("""${CREDS}""")
-with open(netrc_path, 'w') as f:
-    f.write(f"machine {app}.scm.azurewebsites.net\n")
-    f.write(f"login {d['u']}\n")
-    f.write(f"password {d['p']}\n")
-import os; os.chmod(netrc_path, 0o600)
-PYEOF
+  chmod 600 "$NETRC_FILE"
+  printf 'machine %s.scm.azurewebsites.net\nlogin %s\npassword %s\n' \
+    "$AZURE_WEBAPP_NAME" "$PUBLISH_USER" "$PUBLISH_PASS" > "$NETRC_FILE"
 
   SCM_HOST="${AZURE_WEBAPP_NAME}.scm.azurewebsites.net"
 
