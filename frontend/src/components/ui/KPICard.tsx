@@ -1,61 +1,47 @@
-import { clsx } from 'clsx'
+import React from 'react'
 import { TrendingUp, TrendingDown } from 'lucide-react'
 
 interface KPICardProps {
-  label: string
+  title: string
   value: string | number
-  delta?: number
-  deltaLabel?: string
-  timeframe?: string
-  onClick?: () => void
-  loading?: boolean
-  className?: string
-  accentColor?: string
+  subtitle?: string
+  trend?: string
+  trendUp?: boolean
+  icon?: React.ReactNode
 }
 
-export function KPICard({
-  label, value, delta, deltaLabel, timeframe, onClick, loading, className, accentColor
-}: KPICardProps) {
-  if (loading) {
-    return (
-      <div className={clsx('bg-white rounded-lg border border-[#E3E3F1] p-4 animate-pulse', className)}>
-        <div className="h-3 bg-[#E3E3F1] rounded w-2/3 mb-3" />
-        <div className="h-8 bg-[#E3E3F1] rounded w-1/2 mb-2" />
-        <div className="h-3 bg-[#E3E3F1] rounded w-1/3" />
-      </div>
-    )
-  }
-
+export function KPICard({ title, value, subtitle, trend, trendUp, icon }: KPICardProps) {
   return (
-    <div
-      onClick={onClick}
-      role={onClick ? 'button' : undefined}
-      tabIndex={onClick ? 0 : undefined}
-      onKeyDown={onClick ? (e) => e.key === 'Enter' && onClick() : undefined}
-      className={clsx(
-        'bg-white rounded-lg border border-[#E3E3F1] p-4 transition-colors duration-150',
-        onClick && 'cursor-pointer hover:bg-[#EFF0FF] hover:border-[#A2A8FF]',
-        className,
-      )}
-      style={accentColor ? { borderTop: `3px solid ${accentColor}` } : undefined}
-    >
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-[#676687] mb-1">{label}</p>
-      <p className="text-2xl font-bold text-[#12122C] leading-tight tabular-nums">{value}</p>
-      {(delta !== undefined || timeframe) && (
-        <div className="flex items-center gap-1.5 mt-1">
-          {delta !== undefined && (
-            <span className={clsx(
-              'inline-flex items-center gap-0.5 text-xs font-medium',
-              delta > 0 ? 'text-[#B91C1C]' : 'text-[#047857]',
-            )}>
-              {delta > 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-              {Math.abs(delta)}
-            </span>
-          )}
-          {deltaLabel && <span className="text-xs text-[#676687]">{deltaLabel}</span>}
-          {timeframe && <span className="text-xs text-[#676687]">{timeframe}</span>}
-        </div>
-      )}
+    <div style={{
+      background: 'var(--bb-surface-card)',
+      borderRadius: 'var(--bb-radius-lg)',
+      padding: '20px',
+      boxShadow: 'var(--bb-shadow-sm)',
+      border: '1px solid var(--bb-border)',
+      flex: 1,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--bb-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          {title}
+        </span>
+        {icon && (
+          <span style={{ color: 'var(--bb-brand-blue)', opacity: 0.8 }}>{icon}</span>
+        )}
+      </div>
+      <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--bb-text-primary)', marginBottom: 6 }}>{value}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {trend && (
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 2,
+            fontSize: 12, fontWeight: 600,
+            color: trendUp ? 'var(--bb-status-success)' : 'var(--bb-status-danger)',
+          }}>
+            {trendUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+            {trend}
+          </span>
+        )}
+        {subtitle && <span style={{ fontSize: 12, color: 'var(--bb-text-secondary)' }}>{subtitle}</span>}
+      </div>
     </div>
   )
 }

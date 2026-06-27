@@ -3,7 +3,7 @@ import { Loader2 } from 'lucide-react'
 import { clsx } from 'clsx'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'destructive' | 'tertiary'
   size?: 'xs' | 'sm' | 'md' | 'lg'
   loading?: boolean
   leftIcon?: ReactNode
@@ -20,6 +20,10 @@ const variantClasses: Record<NonNullable<ButtonProps['variant']>, string> = {
     'text-[#676687] hover:bg-[#EFF0FF] hover:text-[#12122C] focus-visible:ring-2 focus-visible:ring-[#0410BD] focus-visible:ring-offset-2 disabled:opacity-50',
   danger:
     'bg-[#DC2626] text-white hover:bg-[#B91C1C] active:bg-[#991B1B] focus-visible:ring-2 focus-visible:ring-[#DC2626] focus-visible:ring-offset-2 disabled:opacity-50',
+  destructive:
+    'bg-[#DC2626] text-white hover:bg-[#B91C1C] active:bg-[#991B1B] focus-visible:ring-2 focus-visible:ring-[#DC2626] focus-visible:ring-offset-2 disabled:opacity-50',
+  tertiary:
+    'text-[#0410BD] hover:bg-[#EFF0FF] focus-visible:ring-2 focus-visible:ring-[#0410BD] focus-visible:ring-offset-2 disabled:opacity-50',
 }
 
 const sizeClasses: Record<NonNullable<ButtonProps['size']>, string> = {

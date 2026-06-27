@@ -169,7 +169,7 @@ export function DashboardPage() {
     setDrawerOpen(true)
   }
 
-  const totalOpen = summary ? Object.values(summary).reduce((a, b) => a + b, 0) : 0
+  const totalOpen = summary ? Object.values(summary as unknown as Record<string, number>).reduce((a, b) => a + b, 0) : 0
 
   return (
     <div className="p-6 space-y-6">

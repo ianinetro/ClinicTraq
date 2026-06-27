@@ -20,13 +20,17 @@ interface Toast {
   duration?: number
 }
 
+type AddToastOpts = Omit<Toast, 'id' | 'title'> & { title?: string; message?: string }
+
 interface ToastContextValue {
   toast: (opts: Omit<Toast, 'id'>) => void
+  addToast: (opts: AddToastOpts) => void
   dismiss: (id: string) => void
 }
 
 const ToastContext = createContext<ToastContextValue>({
   toast: () => {},
+  addToast: () => {},
   dismiss: () => {},
 })
 
@@ -88,8 +92,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((prev) => [...prev, { ...opts, id }])
   }, [])
 
+  const addToast = useCallback((opts: AddToastOpts) => {
+    const id = Math.random().toString(36).slice(2)
+    const title = opts.title ?? opts.message ?? ''
+    const { message: _message, ...rest } = opts
+    setToasts((prev) => [...prev, { ...rest, title, id }])
+  }, [])
+
   return (
-    <ToastContext.Provider value={{ toast, dismiss }}>
+    <ToastContext.Provider value={{ toast, addToast, dismiss }}>
       {children}
       {createPortal(
         <div className="fixed bottom-5 right-5 flex flex-col gap-2 z-[100] pointer-events-none">

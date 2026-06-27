@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { clsx } from 'clsx'
-import type { BodyAnnotation } from '../../types'
+
 
 interface BodyRegion {
   id: string

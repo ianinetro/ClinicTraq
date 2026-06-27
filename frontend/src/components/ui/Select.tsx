@@ -1,57 +1,44 @@
-import { forwardRef, type SelectHTMLAttributes } from 'react'
-import { ChevronDown } from 'lucide-react'
-import { clsx } from 'clsx'
-import { Label } from './Label'
+import React from 'react'
 
-interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
+interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label?: string
   error?: string
-  helperText?: string
-  required?: boolean
+  hint?: string
   options: { value: string; label: string }[]
-  placeholder?: string
-  containerClassName?: string
 }
 
-export const Select = forwardRef<HTMLSelectElement, SelectProps>(
-  ({ label, error, helperText, required, options, placeholder, containerClassName, className, id, ...props }, ref) => {
-    const selectId = id ?? label?.toLowerCase().replace(/\s+/g, '-')
+export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
+  ({ label, error, hint, options, style, ...props }, ref) => {
     return (
-      <div className={clsx('flex flex-col gap-1', containerClassName)}>
-        {label && <Label htmlFor={selectId} required={required}>{label}</Label>}
-        <div className="relative">
-          <select
-            ref={ref}
-            id={selectId}
-            className={clsx(
-              'w-full h-10 bg-white border rounded-[4px] text-sm text-[#12122C] pl-3 pr-9 appearance-none',
-              'transition-all duration-150 outline-none cursor-pointer',
-              'focus:border-[#3F4CFF] focus:shadow-[0_0_0_3px_rgba(63,76,255,0.16)]',
-              error
-                ? 'border-[#DC2626] shadow-[0_0_0_3px_rgba(220,38,38,0.12)]'
-                : 'border-[#BABACE]',
-              props.disabled && 'bg-[#EFF0FF] text-[#BABACE] cursor-not-allowed',
-              className,
-            )}
-            {...props}
-          >
-            {placeholder && <option value="">{placeholder}</option>}
-            {options.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          <ChevronDown
-            size={16}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#676687] pointer-events-none"
-          />
-        </div>
-        {error && <p className="text-xs text-[#B91C1C]">{error}</p>}
-        {helperText && !error && <p className="text-xs text-[#676687]">{helperText}</p>}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {label && (
+          <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--bb-text-primary)' }}>
+            {label}
+          </label>
+        )}
+        <select
+          ref={ref}
+          style={{
+            height: 36,
+            padding: '0 12px',
+            border: `1px solid ${error ? 'var(--bb-status-danger)' : 'var(--bb-border)'}`,
+            borderRadius: 'var(--bb-radius)',
+            fontSize: 14,
+            color: 'var(--bb-text-primary)',
+            background: 'var(--bb-surface-card)',
+            outline: 'none',
+            width: '100%',
+            cursor: 'pointer',
+            ...style,
+          }}
+          {...props}
+        >
+          {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        {error && <span style={{ fontSize: 12, color: 'var(--bb-status-danger)' }}>{error}</span>}
+        {hint && !error && <span style={{ fontSize: 12, color: 'var(--bb-text-secondary)' }}>{hint}</span>}
       </div>
     )
-  },
+  }
 )
-
 Select.displayName = 'Select'

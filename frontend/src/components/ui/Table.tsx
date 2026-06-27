@@ -52,7 +52,7 @@ function SkeletonRow({ cols }: { cols: number }) {
   )
 }
 
-export function Table<T extends Record<string, unknown>>({
+export function Table<T extends object>({
   columns, data, loading, error,
   emptyIcon, emptyTitle = 'No data', emptyDescription, emptyAction,
   toolbar, onRowClick, getRowId, selectedIds, onSelectionChange, multiSelect,

@@ -1,98 +1,53 @@
+import { useState, useEffect } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
-import { clsx } from 'clsx'
-import { usePHIReveal } from '../../hooks/usePHIReveal'
-import { api } from '../../services/api'
-
-type PHIFieldType = 'name' | 'dob' | 'ssn' | 'phone' | 'email' | 'address' | 'generic'
 
 interface PHIFieldProps {
   value: string
-  fieldName: string
-  patientId: string
-  fieldType?: PHIFieldType
-  revealDuration?: number
-  className?: string
-  inline?: boolean
+  label?: string
+  onReveal?: () => void
 }
 
-function maskValue(value: string, fieldType: PHIFieldType): string {
-  switch (fieldType) {
-    case 'name':
-      return '••••• •••••'
-    case 'dob':
-      return '••/••/••••'
-    case 'ssn': {
-      const last4 = value.slice(-4)
-      return `•••-••-${last4}`
-    }
-    case 'phone':
-      return '(•••) •••-••••'
-    case 'email':
-      return '•••••@•••••.•••'
-    case 'address':
-      return '•••• ••••• ••, •• •••••'
-    default:
-      return '•'.repeat(Math.min(value.length || 8, 12))
-  }
-}
+export function PHIField({ value, label, onReveal }: PHIFieldProps) {
+  const [revealed, setRevealed] = useState(false)
 
-export function PHIField({
-  value, fieldName, patientId, fieldType = 'generic', revealDuration = 30, className, inline = false,
-}: PHIFieldProps) {
-  const { revealed, timeRemaining, reveal, hide } = usePHIReveal(revealDuration)
+  useEffect(() => {
+    if (!revealed) return
+    const timer = setTimeout(() => setRevealed(false), 30000)
+    return () => clearTimeout(timer)
+  }, [revealed])
 
-  async function handleReveal() {
-    if (revealed) {
-      hide()
-      return
-    }
-    // Non-blocking audit log
-    api.audit.phiReveal(patientId, fieldName).catch(() => {})
-    reveal()
-  }
+  const maskedValue = value.replace(/[^-* ]/g, '*')
 
-  const displayValue = revealed ? value : maskValue(value, fieldType)
-
-  if (inline) {
-    return (
-      <span className={clsx('inline-flex items-center gap-1', className)}>
-        <span className={clsx('font-mono text-sm', !revealed && 'text-[#BABACE] tracking-wider')}>
-          {displayValue}
-        </span>
-        <button
-          onClick={handleReveal}
-          aria-label={revealed ? `Hide ${fieldName}` : `Reveal ${fieldName}`}
-          className="text-[#676687] hover:text-[#0410BD] transition-colors p-0.5 rounded"
-        >
-          {revealed ? <EyeOff size={14} /> : <Eye size={14} />}
-        </button>
-        {revealed && (
-          <span className="text-[10px] text-[#676687]">Hiding in {timeRemaining}s</span>
-        )}
-      </span>
-    )
+  const handleReveal = () => {
+    setRevealed(true)
+    onReveal?.()
   }
 
   return (
-    <div className={clsx('flex flex-col gap-0.5', className)}>
-      <div className="flex items-center gap-1.5">
-        <span className={clsx(
-          'text-sm',
-          revealed ? 'text-[#12122C]' : 'text-[#BABACE] tracking-wider font-mono',
-        )}>
-          {displayValue}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      {label && <span style={{ fontSize: 12, color: 'var(--bb-text-secondary)', fontWeight: 500 }}>{label}</span>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{
+          fontFamily: revealed ? 'inherit' : 'monospace',
+          fontSize: 14, color: 'var(--bb-text-primary)',
+          background: 'var(--bb-surface-app)',
+          padding: '4px 8px', borderRadius: 'var(--bb-radius-sm)',
+          border: '1px solid var(--bb-border)',
+        }}>
+          {revealed ? value : maskedValue}
         </span>
         <button
-          onClick={handleReveal}
-          aria-label={revealed ? `Hide ${fieldName}` : `Reveal ${fieldName}`}
-          className="text-[#676687] hover:text-[#0410BD] transition-colors p-0.5 rounded hover:bg-[#EFF0FF]"
+          onClick={revealed ? () => setRevealed(false) : handleReveal}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'var(--bb-brand-blue)', display: 'flex', alignItems: 'center',
+            gap: 4, fontSize: 12, padding: '4px 8px',
+          }}
         >
           {revealed ? <EyeOff size={14} /> : <Eye size={14} />}
+          {revealed ? 'Hide' : 'Reveal'}
         </button>
       </div>
-      {revealed && (
-        <p className="text-[10px] text-[#676687]">Hiding in {timeRemaining}s</p>
-      )}
     </div>
   )
 }

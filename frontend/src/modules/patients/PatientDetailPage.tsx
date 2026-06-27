@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, MapPin, Phone, Mail } from 'lucide-react'
-import { PageHeader } from '../../components/shell/PageHeader'
+
 import { Tabs, TabList, Tab, TabPanel } from '../../components/ui/Tabs'
 import { Button } from '../../components/ui/Button'
 import { StatusBadge } from '../../components/shared/StatusBadge'
