@@ -1,25 +1,32 @@
 #!/bin/bash
 # Azure App Service startup for ClinicTraq FastAPI backend
 #
-# Oryx extracts output.tar.zst to /tmp/<hash>/ at runtime.
-# main.py, domains/, alembic.ini, and antenv/ all live in that extracted dir.
-# NEVER cd to /home/site/wwwroot — source files are NOT there at runtime.
+# Oryx architecture:
+#   - output.tar.zst extracted to /tmp/<hash>/ — contains ONLY antenv (the virtualenv)
+#   - Python source files (main.py, domains/, alembic.ini…) stay at /home/site/wwwroot/
+#
+# So: activate antenv from /tmp, then work from /home/site/wwwroot.
 
-# Work from the directory containing this script (the Oryx-extracted app dir)
-cd "$(dirname "${BASH_SOURCE[0]}")"
-APP_DIR="$(pwd)"
-
-# Activate the Oryx-built virtualenv (always in antenv/ alongside this script)
-if [[ -f "$APP_DIR/antenv/bin/activate" ]]; then
+# Find and activate the Oryx-built antenv in the extracted temp dir
+ANTENV=$(find /tmp -maxdepth 5 -name "activate" -path "*/antenv/bin/*" 2>/dev/null | head -1)
+if [[ -n "$ANTENV" ]]; then
     # shellcheck source=/dev/null
-    source "$APP_DIR/antenv/bin/activate"
+    source "$ANTENV"
+    echo "[startup] activated antenv: $ANTENV"
+else
+    echo "[startup] WARNING: antenv not found in /tmp"
 fi
 
-# Add app dir to PYTHONPATH so uvicorn can import main.py and domains/
-export PYTHONPATH="$APP_DIR:${PYTHONPATH:-}"
+# Source files live at /home/site/wwwroot (the ZIP extraction root)
+cd /home/site/wwwroot
 
-# Run migrations with timeout (non-fatal — app starts even if DB is unavailable)
-timeout 60 alembic upgrade head || echo "WARNING: alembic upgrade failed — continuing startup"
+# Add wwwroot to PYTHONPATH so uvicorn can import main.py and the domains/ package
+export PYTHONPATH="/home/site/wwwroot:${PYTHONPATH:-}"
+
+echo "[startup] CWD=$(pwd) PYTHONPATH=$PYTHONPATH"
+
+# Run migrations with timeout (non-fatal — app starts even if DB is unavailable at boot)
+timeout 60 alembic upgrade head && echo "[startup] migrations ok" || echo "[startup] WARNING: alembic failed — continuing"
 
 exec uvicorn main:app \
     --host 0.0.0.0 \
