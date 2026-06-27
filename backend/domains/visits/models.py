@@ -16,42 +16,38 @@ class Visit(Base):
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
-    provider_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("providers.id"))
+    practice_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("practices.id"))
     office_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("offices.id"))
     facility_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("facilities.id"))
-    date_of_service: Mapped[date] = mapped_column(Date, nullable=False, index=True)
-    # Hospital fields
-    admit_date: Mapped[Optional[date]] = mapped_column(Date)
-    discharge_date: Mapped[Optional[date]] = mapped_column(Date)
-    admit_code: Mapped[Optional[str]] = mapped_column(String(2))   # UB-04 admit type
-    discharge_code: Mapped[Optional[str]] = mapped_column(String(2))  # UB-04 patient status
-    claim_type: Mapped[str] = mapped_column(String(20), default="professional")  # professional | institutional
-    status: Mapped[str] = mapped_column(String(30), default="open")  # open, billed, cancelled
+    provider_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("providers.id"))
+    billing_provider_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("billing_providers.id"))
+    rendering_provider_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("providers.id"))
+    visit_date: Mapped[date] = mapped_column(Date, nullable=False)
     visit_type: Mapped[Optional[str]] = mapped_column(String(50))
-    place_of_service_code: Mapped[Optional[str]] = mapped_column(String(2))
-    # Clinical
+    reason: Mapped[Optional[str]] = mapped_column(String(255))
     chief_complaint: Mapped[Optional[str]] = mapped_column(Text)
+    allergies: Mapped[Optional[str]] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(50), default="open")
+    print_statement_flag: Mapped[bool] = mapped_column(Boolean, default=True)
     vital_signs: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB)
-    # Billing
-    superbill_generated: Mapped[bool] = mapped_column(Boolean, default=False)
-    superbill_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    assigned_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True))
 
-    diagnoses: Mapped[List["VisitDiagnosis"]] = relationship("VisitDiagnosis", back_populates="visit")
-    charge_lines: Mapped[List["ChargeLine"]] = relationship("ChargeLine", back_populates="visit")
-    billing_options: Mapped[Optional["VisitBillingOptions"]] = relationship("VisitBillingOptions", back_populates="visit", uselist=False)
-    notes: Mapped[List["VisitNote"]] = relationship("VisitNote", back_populates="visit")
+    diagnoses: Mapped[List["VisitDiagnosis"]] = relationship("VisitDiagnosis", back_populates="visit", cascade="all, delete-orphan")
+    charge_lines: Mapped[List["ChargeLine"]] = relationship("ChargeLine", back_populates="visit", cascade="all, delete-orphan")
+    billing_options: Mapped[Optional["VisitBillingOptions"]] = relationship("VisitBillingOptions", back_populates="visit", uselist=False, cascade="all, delete-orphan")
+    visit_notes: Mapped[List["VisitNote"]] = relationship("VisitNote", back_populates="visit", cascade="all, delete-orphan")
 
 
 class VisitDiagnosis(Base):
     __tablename__ = "visit_diagnoses"
 
-    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     visit_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("visits.id"), nullable=False, index=True)
-    diagnosis_code_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("diagnosis_codes.id"))
-    icd_code: Mapped[str] = mapped_column(String(10), nullable=False)
-    sequence: Mapped[int] = mapped_column(Integer, nullable=False, default=1)  # 1 = primary
-    is_primary: Mapped[bool] = mapped_column(Boolean, default=False)
-    poa: Mapped[Optional[str]] = mapped_column(String(1))  # present on admission: Y/N/W/U/1
+    code_type: Mapped[str] = mapped_column(String(10), default="ICD-10")
+    diagnosis_code: Mapped[str] = mapped_column(String(20), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    pointer_label: Mapped[str] = mapped_column(String(1), nullable=False)  # A-L
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
 
     visit: Mapped["Visit"] = relationship("Visit", back_populates="diagnoses")
 
@@ -59,37 +55,70 @@ class VisitDiagnosis(Base):
 class ChargeLine(Base):
     __tablename__ = "charge_lines"
 
-    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     visit_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("visits.id"), nullable=False, index=True)
-    cpt_code_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("cpt_codes.id"))
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    dos_from: Mapped[date] = mapped_column(Date, nullable=False)
+    dos_to: Mapped[date] = mapped_column(Date, nullable=False)
+    pos: Mapped[str] = mapped_column(String(2), nullable=False)
     cpt_code: Mapped[str] = mapped_column(String(10), nullable=False)
-    modifiers: Mapped[Optional[List[str]]] = mapped_column(JSONB)  # ["25", "RT"]
+    description: Mapped[Optional[str]] = mapped_column(String(255))
+    modifier_a: Mapped[Optional[str]] = mapped_column(String(2))
+    modifier_b: Mapped[Optional[str]] = mapped_column(String(2))
+    modifier_c: Mapped[Optional[str]] = mapped_column(String(2))
+    modifier_d: Mapped[Optional[str]] = mapped_column(String(2))
+    icd_pointers: Mapped[Optional[str]] = mapped_column(String(20))
+    charge: Mapped[Any] = mapped_column(Numeric(10, 2), nullable=False)
     units: Mapped[int] = mapped_column(Integer, default=1)
-    charge_amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
-    allowed_amount: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
-    revenue_code: Mapped[Optional[str]] = mapped_column(String(4))  # UB-04
-    sequence: Mapped[int] = mapped_column(Integer, default=1)
-    # Diagnosis pointers (1-based index into visit diagnoses)
-    diagnosis_pointers: Mapped[Optional[List[int]]] = mapped_column(JSONB)
+    insurance_payment: Mapped[Any] = mapped_column(Numeric(10, 2), default=0)
+    patient_payment: Mapped[Any] = mapped_column(Numeric(10, 2), default=0)
+    adjustment: Mapped[Any] = mapped_column(Numeric(10, 2), default=0)
+    line_note: Mapped[Optional[str]] = mapped_column(Text)
+    anesthesia_fields: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB)
+    ndc_qualifier: Mapped[Optional[str]] = mapped_column(String(10))
+    ndc_code: Mapped[Optional[str]] = mapped_column(String(20))
+    ndc_unit_price: Mapped[Optional[Any]] = mapped_column(Numeric(10, 4))
+    ndc_quantity: Mapped[Optional[Any]] = mapped_column(Numeric(10, 3))
+    ndc_qualifier_unit: Mapped[Optional[str]] = mapped_column(String(10))
 
     visit: Mapped["Visit"] = relationship("Visit", back_populates="charge_lines")
+
+    @property
+    def balance(self) -> Any:
+        charge = self.charge or 0
+        ins = self.insurance_payment or 0
+        pat = self.patient_payment or 0
+        adj = self.adjustment or 0
+        return charge - ins - pat - adj
 
 
 class VisitBillingOptions(Base):
     __tablename__ = "visit_billing_options"
 
-    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     visit_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("visits.id"), nullable=False, unique=True)
-    primary_insurance_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("patient_insurances.id"))
-    secondary_insurance_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("patient_insurances.id"))
-    billing_provider_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("billing_providers.id"))
     referring_provider_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("referring_providers.id"))
-    authorization_number: Mapped[Optional[str]] = mapped_column(String(50))
-    referral_number: Mapped[Optional[str]] = mapped_column(String(50))
-    hold_claim: Mapped[bool] = mapped_column(Boolean, default=False)
-    accident_related: Mapped[bool] = mapped_column(Boolean, default=False)
+    supervising_provider_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("providers.id"))
+    ordering_provider_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("providers.id"))
+    prior_auth_number: Mapped[Optional[str]] = mapped_column(String(50))
+    employment_related: Mapped[bool] = mapped_column(Boolean, default=False)
+    auto_accident: Mapped[bool] = mapped_column(Boolean, default=False)
+    auto_accident_state: Mapped[Optional[str]] = mapped_column(String(2))
+    other_accident: Mapped[bool] = mapped_column(Boolean, default=False)
+    onset_date: Mapped[Optional[date]] = mapped_column(Date)
+    hospitalization_from: Mapped[Optional[date]] = mapped_column(Date)
+    hospitalization_to: Mapped[Optional[date]] = mapped_column(Date)
+    initial_treatment_date: Mapped[Optional[date]] = mapped_column(Date)
+    last_seen_date: Mapped[Optional[date]] = mapped_column(Date)
     accident_date: Mapped[Optional[date]] = mapped_column(Date)
-    accident_state: Mapped[Optional[str]] = mapped_column(String(2))
+    medicaid_resubmission_code: Mapped[Optional[str]] = mapped_column(String(20))
+    original_ref_number: Mapped[Optional[str]] = mapped_column(String(50))
+    clia_number: Mapped[Optional[str]] = mapped_column(String(20))
+    mammography_cert: Mapped[Optional[str]] = mapped_column(String(20))
+    delay_reason_code: Mapped[Optional[str]] = mapped_column(String(10))
+    ambulance_fields: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB)
+    attachment_fields: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB)
+    hospice_employee: Mapped[bool] = mapped_column(Boolean, default=False)
+    referral_number: Mapped[Optional[str]] = mapped_column(String(50))
+    contract_fields: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB)
 
     visit: Mapped["Visit"] = relationship("Visit", back_populates="billing_options")
 
@@ -97,10 +126,8 @@ class VisitBillingOptions(Base):
 class VisitNote(Base):
     __tablename__ = "visit_notes"
 
-    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     visit_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("visits.id"), nullable=False, index=True)
-    note_type: Mapped[str] = mapped_column(String(50), default="clinical")  # clinical, billing, admin
-    content: Mapped[str] = mapped_column(Text, nullable=False)
-    created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    author_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    note: Mapped[str] = mapped_column(Text, nullable=False)
 
-    visit: Mapped["Visit"] = relationship("Visit", back_populates="notes")
+    visit: Mapped["Visit"] = relationship("Visit", back_populates="visit_notes")
