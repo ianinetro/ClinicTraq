@@ -83,24 +83,36 @@ PYEOF
     --name "$AZURE_WEBAPP_NAME" \
     --query "{u:publishingUserName,p:publishingPassword}" \
     --output json)
-  PUBLISH_USER=$(echo "$CREDS" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['u'])")
-  PUBLISH_PASS=$(echo "$CREDS" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['p'])")
+  # Write to netrc so curl doesn't expand the $ in the username
+  NETRC_FILE=$(mktemp)
+  python3 - "$NETRC_FILE" "$AZURE_WEBAPP_NAME" <<PYEOF
+import sys, json
+netrc_path, app = sys.argv[1], sys.argv[2]
+d = json.loads("""${CREDS}""")
+with open(netrc_path, 'w') as f:
+    f.write(f"machine {app}.scm.azurewebsites.net\n")
+    f.write(f"login {d['u']}\n")
+    f.write(f"password {d['p']}\n")
+import os; os.chmod(netrc_path, 0o600)
+PYEOF
+
+  SCM_HOST="${AZURE_WEBAPP_NAME}.scm.azurewebsites.net"
 
   # Use the Kudu ZIP deploy endpoint (more reliable than az webapp deploy)
   HTTP_STATUS=$(curl -s -o /tmp/deploy_response.txt -w "%{http_code}" \
     -X POST \
-    -u "${PUBLISH_USER}:${PUBLISH_PASS}" \
+    --netrc-file "$NETRC_FILE" \
     -H "Content-Type: application/zip" \
     --data-binary @/tmp/clinictraq-backend.zip \
-    "https://${AZURE_WEBAPP_NAME}.scm.azurewebsites.net/api/zipdeploy?isAsync=false&SCM_DO_BUILD_DURING_DEPLOYMENT=true")
+    "https://${SCM_HOST}/api/zipdeploy?isAsync=true")
 
   if [[ "$HTTP_STATUS" == "200" || "$HTTP_STATUS" == "202" ]]; then
     info "Deployment submitted (HTTP $HTTP_STATUS). Waiting for Oryx build to finish..."
     # Poll deployment status
     for i in $(seq 1 30); do
       sleep 10
-      STATUS_JSON=$(curl -s -u "${PUBLISH_USER}:${PUBLISH_PASS}" \
-        "https://${AZURE_WEBAPP_NAME}.scm.azurewebsites.net/api/deployments/latest")
+      STATUS_JSON=$(curl -s --netrc-file "$NETRC_FILE" \
+        "https://${SCM_HOST}/api/deployments/latest")
       DEPLOY_STATUS=$(echo "$STATUS_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status', 0))" 2>/dev/null || echo "0")
       DEPLOY_MSG=$(echo "$STATUS_JSON"   | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status_text',''))" 2>/dev/null || echo "")
       info "  [$i/30] status=$DEPLOY_STATUS $DEPLOY_MSG"
@@ -117,7 +129,7 @@ PYEOF
     error "Kudu ZIP deploy returned HTTP $HTTP_STATUS"
   fi
 
-  rm -f /tmp/clinictraq-backend.zip /tmp/deploy_response.txt
+  rm -f /tmp/clinictraq-backend.zip /tmp/deploy_response.txt "$NETRC_FILE"
   info "Backend deployed."
 }
 
