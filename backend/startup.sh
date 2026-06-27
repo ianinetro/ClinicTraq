@@ -1,18 +1,21 @@
 #!/bin/bash
 # Azure App Service startup for ClinicTraq FastAPI backend
-# Oryx extracts the build + antenv to a temp dir; source files stay in /home/site/wwwroot.
-# We must cd to wwwroot (where alembic.ini and main.py live) and activate the antenv.
+# Oryx extracts antenv to /tmp/<hash>/antenv; source files stay in /home/site/wwwroot.
 
+# Always work from wwwroot (alembic.ini and main.py live here)
 cd /home/site/wwwroot
 
-# Activate the virtualenv Oryx built (antenv location varies; find it)
+# Activate the Oryx-built virtualenv so alembic/uvicorn are on PATH
 ANTENV=$(find /tmp -maxdepth 2 -name "activate" -path "*/antenv/*" 2>/dev/null | head -1)
 if [[ -n "$ANTENV" ]]; then
     # shellcheck source=/dev/null
     source "$ANTENV"
 fi
 
-# Run migrations (failures are non-fatal so the app still starts on schema errors)
+# Ensure Python can import main.py from wwwroot regardless of Oryx PYTHONPATH
+export PYTHONPATH="/home/site/wwwroot:${PYTHONPATH:-}"
+
+# Run migrations (non-fatal)
 alembic upgrade head || echo "WARNING: alembic upgrade failed — continuing startup"
 
 exec uvicorn main:app \
