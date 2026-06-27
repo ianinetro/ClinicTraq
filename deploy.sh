@@ -40,20 +40,24 @@ done
 deploy_backend() {
   cd "$REPO_ROOT/backend"
 
-  # Install Python packages into .packages/ so they ship inside the zip.
-  # This avoids Oryx's output.tar.zst which takes >230s to extract at container start.
-  info "Installing Python packages into .packages/ (this takes ~1-2 min)..."
-  rm -rf .packages
-  pip install -r requirements.txt --target .packages --quiet --upgrade
+  # Ensure Oryx builds packages server-side (correct platform for Azure Linux).
+  # This must run BEFORE the upload so the SCM restart completes first.
+  info "Enabling server-side Oryx build..."
+  az webapp config appsettings set \
+    --resource-group "$AZURE_RESOURCE_GROUP" \
+    --name "$AZURE_WEBAPP_NAME" \
+    --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true \
+    --output none
+  sleep 5  # allow SCM container to restart before we upload
 
-  info "Building backend zip package..."
+  info "Building backend zip package (source only — packages built by Azure Oryx)..."
   python3 - <<'PYEOF'
 import zipfile, os
 root = os.getcwd()
 out = "/tmp/clinictraq-backend.zip"
 skip_ext = {".pyc", ".pyo"}
-skip_dirs = {"__pycache__", ".pytest_cache", "tests", ".venv", ".git"}
-skip_files = {".deployment", "requirements.txt"}
+skip_dirs = {"__pycache__", ".pytest_cache", "tests", ".venv", ".git", ".packages"}
+skip_files = {".deployment"}
 with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in skip_dirs]
