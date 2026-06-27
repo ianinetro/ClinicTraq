@@ -61,7 +61,7 @@ with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
 print(f"Created {out} ({os.path.getsize(out)//1024}KB)")
 PYEOF
 
-  info "Deploying to Azure App Service: $AZURE_WEBAPP_NAME"
+  info "Configuring Azure App Service: $AZURE_WEBAPP_NAME"
   # SCM_DO_BUILD_DURING_DEPLOYMENT=true tells Oryx to run pip install on the server
   az webapp config appsettings set \
     --resource-group "$AZURE_RESOURCE_GROUP" \
@@ -69,20 +69,55 @@ PYEOF
     --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true \
     --output none
 
-  az webapp deploy \
-    --resource-group "$AZURE_RESOURCE_GROUP" \
-    --name "$AZURE_WEBAPP_NAME" \
-    --src-path /tmp/clinictraq-backend.zip \
-    --type zip \
-    --async false
-
   info "Setting startup command..."
   az webapp config set \
     --resource-group "$AZURE_RESOURCE_GROUP" \
     --name "$AZURE_WEBAPP_NAME" \
-    --startup-file "bash startup.sh"
+    --startup-file "bash startup.sh" \
+    --output none
 
-  rm /tmp/clinictraq-backend.zip
+  info "Deploying via Kudu ZIP API..."
+  # Fetch publishing credentials
+  CREDS=$(az webapp deployment list-publishing-credentials \
+    --resource-group "$AZURE_RESOURCE_GROUP" \
+    --name "$AZURE_WEBAPP_NAME" \
+    --query "{u:publishingUserName,p:publishingPassword}" \
+    --output json)
+  PUBLISH_USER=$(echo "$CREDS" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['u'])")
+  PUBLISH_PASS=$(echo "$CREDS" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['p'])")
+
+  # Use the Kudu ZIP deploy endpoint (more reliable than az webapp deploy)
+  HTTP_STATUS=$(curl -s -o /tmp/deploy_response.txt -w "%{http_code}" \
+    -X POST \
+    -u "${PUBLISH_USER}:${PUBLISH_PASS}" \
+    -H "Content-Type: application/zip" \
+    --data-binary @/tmp/clinictraq-backend.zip \
+    "https://${AZURE_WEBAPP_NAME}.scm.azurewebsites.net/api/zipdeploy?isAsync=false&SCM_DO_BUILD_DURING_DEPLOYMENT=true")
+
+  if [[ "$HTTP_STATUS" == "200" || "$HTTP_STATUS" == "202" ]]; then
+    info "Deployment submitted (HTTP $HTTP_STATUS). Waiting for Oryx build to finish..."
+    # Poll deployment status
+    for i in $(seq 1 30); do
+      sleep 10
+      STATUS_JSON=$(curl -s -u "${PUBLISH_USER}:${PUBLISH_PASS}" \
+        "https://${AZURE_WEBAPP_NAME}.scm.azurewebsites.net/api/deployments/latest")
+      DEPLOY_STATUS=$(echo "$STATUS_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status', 0))" 2>/dev/null || echo "0")
+      DEPLOY_MSG=$(echo "$STATUS_JSON"   | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status_text',''))" 2>/dev/null || echo "")
+      info "  [$i/30] status=$DEPLOY_STATUS $DEPLOY_MSG"
+      # status 4 = success, status 3 = failed
+      if [[ "$DEPLOY_STATUS" == "4" ]]; then
+        info "Oryx build and deployment succeeded."
+        break
+      elif [[ "$DEPLOY_STATUS" == "3" ]]; then
+        error "Deployment failed. Check https://${AZURE_WEBAPP_NAME}.scm.azurewebsites.net/api/deployments/latest for logs."
+      fi
+    done
+  else
+    cat /tmp/deploy_response.txt
+    error "Kudu ZIP deploy returned HTTP $HTTP_STATUS"
+  fi
+
+  rm -f /tmp/clinictraq-backend.zip /tmp/deploy_response.txt
   info "Backend deployed."
 }
 
