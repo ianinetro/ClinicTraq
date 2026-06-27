@@ -3,7 +3,7 @@
 # Prerequisites on the VM:
 #   - Azure CLI (az) installed and logged in: az login
 #   - Node.js 20+ installed
-#   - Python 3.11+ installed
+#   - Python 3.11+ installed (must match Azure App Service runtime)
 #   - wrangler installed globally: npm install -g wrangler (for Cloudflare Pages)
 #
 # Usage:
@@ -38,18 +38,22 @@ done
 
 # ── Deploy backend to Azure App Service ──────────────────────────────────────
 deploy_backend() {
-  info "Building backend zip package..."
   cd "$REPO_ROOT/backend"
 
-  # Let Azure install dependencies via Oryx build (do NOT bundle .packages)
-  # Create zip using Python — source code only, no vendor packages
+  # Install Python packages into .packages/ so they ship inside the zip.
+  # This avoids Oryx's output.tar.zst which takes >230s to extract at container start.
+  info "Installing Python packages into .packages/ (this takes ~1-2 min)..."
+  rm -rf .packages
+  pip install -r requirements.txt --target .packages --quiet --upgrade
+
+  info "Building backend zip package..."
   python3 - <<'PYEOF'
 import zipfile, os
 root = os.getcwd()
 out = "/tmp/clinictraq-backend.zip"
 skip_ext = {".pyc", ".pyo"}
-skip_dirs = {"__pycache__", ".pytest_cache", "tests", ".venv", ".git", ".packages"}
-skip_files = {".deployment"}  # Kudu would run it as a build command, not runtime
+skip_dirs = {"__pycache__", ".pytest_cache", "tests", ".venv", ".git"}
+skip_files = {".deployment"}
 with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in skip_dirs]
@@ -61,15 +65,15 @@ with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
             full = os.path.join(dirpath, fn)
             arcname = os.path.relpath(full, root)
             zf.write(full, arcname)
-print(f"Created {out} ({os.path.getsize(out)//1024}KB)")
+print(f"Created {out} ({os.path.getsize(out)//1024//1024}MB / {os.path.getsize(out)//1024}KB)")
 PYEOF
 
   info "Configuring Azure App Service: $AZURE_WEBAPP_NAME"
-  # SCM_DO_BUILD_DURING_DEPLOYMENT=true tells Oryx to run pip install on the server
+  # Disable Oryx server-side build — packages are already in the zip
   az webapp config appsettings set \
     --resource-group "$AZURE_RESOURCE_GROUP" \
     --name "$AZURE_WEBAPP_NAME" \
-    --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true \
+    --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false \
     --output none
 
   info "Setting startup command..."
@@ -91,7 +95,6 @@ PYEOF
     --output none
 
   info "Deploying via Kudu ZIP API..."
-  # Fetch publishing credentials as plain strings (avoids JSON quoting issues)
   PUBLISH_USER=$(az webapp deployment list-publishing-credentials \
     --resource-group "$AZURE_RESOURCE_GROUP" \
     --name "$AZURE_WEBAPP_NAME" \
@@ -103,7 +106,6 @@ PYEOF
     --query "publishingPassword" \
     --output tsv)
 
-  # Write to netrc so curl handles the literal $ in the username without shell expansion
   NETRC_FILE=$(mktemp)
   chmod 600 "$NETRC_FILE"
   printf 'machine %s.scm.azurewebsites.net\nlogin %s\npassword %s\n' \
@@ -111,7 +113,6 @@ PYEOF
 
   SCM_HOST="${AZURE_WEBAPP_NAME}.scm.azurewebsites.net"
 
-  # Use the Kudu ZIP deploy endpoint (more reliable than az webapp deploy)
   HTTP_STATUS=$(curl -s -o /tmp/deploy_response.txt -w "%{http_code}" \
     -X POST \
     --netrc-file "$NETRC_FILE" \
@@ -120,8 +121,7 @@ PYEOF
     "https://${SCM_HOST}/api/zipdeploy?isAsync=true")
 
   if [[ "$HTTP_STATUS" == "200" || "$HTTP_STATUS" == "202" ]]; then
-    info "Deployment submitted (HTTP $HTTP_STATUS). Waiting for Oryx build to finish..."
-    # Poll deployment status
+    info "Deployment submitted (HTTP $HTTP_STATUS). Waiting for build to finish..."
     for i in $(seq 1 30); do
       sleep 10
       STATUS_JSON=$(curl -s --netrc-file "$NETRC_FILE" \
@@ -129,12 +129,11 @@ PYEOF
       DEPLOY_STATUS=$(echo "$STATUS_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status', 0))" 2>/dev/null || echo "0")
       DEPLOY_MSG=$(echo "$STATUS_JSON"   | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status_text',''))" 2>/dev/null || echo "")
       info "  [$i/30] status=$DEPLOY_STATUS $DEPLOY_MSG"
-      # status 4 = success, status 3 = failed
       if [[ "$DEPLOY_STATUS" == "4" ]]; then
-        info "Oryx build and deployment succeeded."
+        info "Deployment succeeded."
         break
       elif [[ "$DEPLOY_STATUS" == "3" ]]; then
-        error "Deployment failed. Check https://${AZURE_WEBAPP_NAME}.scm.azurewebsites.net/api/deployments/latest for logs."
+        error "Deployment failed. Check https://${AZURE_WEBAPP_NAME}.scm.azurewebsites.net/api/deployments/latest"
       fi
     done
   else

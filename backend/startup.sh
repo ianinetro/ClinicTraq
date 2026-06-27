@@ -1,22 +1,14 @@
 #!/bin/bash
-# Azure App Service startup for ClinicTraq FastAPI backend
-#
-# Azure activates the Oryx-built antenv BEFORE running this script,
-# so uvicorn/alembic/python are already on PATH.
+# Azure App Service startup — packages are bundled in .packages/ inside the zip.
+# No Oryx antenv extraction needed.
 
-set -e
-
-echo "[startup] PATH=$PATH"
-echo "[startup] which python=$(which python 2>/dev/null || echo NOT_FOUND)"
-echo "[startup] which uvicorn=$(which uvicorn 2>/dev/null || echo NOT_FOUND)"
-
-# Source files live at /home/site/wwwroot
 cd /home/site/wwwroot
-export PYTHONPATH="/home/site/wwwroot:${PYTHONPATH:-}"
+export PYTHONPATH="/home/site/wwwroot/.packages:/home/site/wwwroot:${PYTHONPATH:-}"
 
-echo "[startup] CWD=$(pwd) PYTHON=$(python --version 2>&1)"
+echo "[startup] python=$(python3 --version 2>&1)"
+echo "[startup] uvicorn=$(python3 -m uvicorn --version 2>&1)"
 
-exec uvicorn main:app \
+exec python3 -m uvicorn main:app \
     --host 0.0.0.0 \
     --port "${PORT:-8000}" \
     --workers "${WEB_WORKERS:-2}" \
