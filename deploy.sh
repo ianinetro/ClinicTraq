@@ -49,11 +49,14 @@ root = os.getcwd()
 out = "/tmp/clinictraq-backend.zip"
 skip_ext = {".pyc", ".pyo"}
 skip_dirs = {"__pycache__", ".pytest_cache", "tests", ".venv", ".git", ".packages"}
+skip_files = {".deployment"}  # Kudu would run it as a build command, not runtime
 with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in skip_dirs]
         for fn in filenames:
             if os.path.splitext(fn)[1] in skip_ext:
+                continue
+            if fn in skip_files:
                 continue
             full = os.path.join(dirpath, fn)
             arcname = os.path.relpath(full, root)
