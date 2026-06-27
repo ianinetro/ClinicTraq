@@ -41,21 +41,19 @@ deploy_backend() {
   info "Building backend zip package..."
   cd "$REPO_ROOT/backend"
 
-  # Install dependencies into a local dir for zip deploy
-  pip install -r requirements.txt --target .packages --quiet
-
-  # Create zip using Python (no system zip required)
+  # Let Azure install dependencies via Oryx build (do NOT bundle .packages)
+  # Create zip using Python — source code only, no vendor packages
   python3 - <<'PYEOF'
-import zipfile, os, sys
+import zipfile, os
 root = os.getcwd()
 out = "/tmp/clinictraq-backend.zip"
-skip = {".pyc", ".pyo"}
-skip_dirs = {"__pycache__", ".pytest_cache", "tests", ".venv", ".git"}
+skip_ext = {".pyc", ".pyo"}
+skip_dirs = {"__pycache__", ".pytest_cache", "tests", ".venv", ".git", ".packages"}
 with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in skip_dirs]
         for fn in filenames:
-            if os.path.splitext(fn)[1] in skip:
+            if os.path.splitext(fn)[1] in skip_ext:
                 continue
             full = os.path.join(dirpath, fn)
             arcname = os.path.relpath(full, root)
@@ -64,6 +62,13 @@ print(f"Created {out} ({os.path.getsize(out)//1024}KB)")
 PYEOF
 
   info "Deploying to Azure App Service: $AZURE_WEBAPP_NAME"
+  # SCM_DO_BUILD_DURING_DEPLOYMENT=true tells Oryx to run pip install on the server
+  az webapp config appsettings set \
+    --resource-group "$AZURE_RESOURCE_GROUP" \
+    --name "$AZURE_WEBAPP_NAME" \
+    --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true \
+    --output none
+
   az webapp deploy \
     --resource-group "$AZURE_RESOURCE_GROUP" \
     --name "$AZURE_WEBAPP_NAME" \
