@@ -40,16 +40,6 @@ done
 deploy_backend() {
   cd "$REPO_ROOT/backend"
 
-  # Ensure Oryx builds packages server-side (correct platform for Azure Linux).
-  # This must run BEFORE the upload so the SCM restart completes first.
-  info "Enabling server-side Oryx build..."
-  az webapp config appsettings set \
-    --resource-group "$AZURE_RESOURCE_GROUP" \
-    --name "$AZURE_WEBAPP_NAME" \
-    --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true \
-    --output none
-  sleep 5  # allow SCM container to restart before we upload
-
   info "Building backend zip package (source only — packages built by Azure Oryx)..."
   python3 - <<'PYEOF'
 import zipfile, os
@@ -72,10 +62,11 @@ with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
 print(f"Created {out} ({os.path.getsize(out)//1024//1024}MB / {os.path.getsize(out)//1024}KB)")
 PYEOF
 
-  # One-time config (already set — changes here cause SCM restart which kills the upload).
-  # Only uncomment these if you need to change them:
-  # az webapp config appsettings set --resource-group "$AZURE_RESOURCE_GROUP" --name "$AZURE_WEBAPP_NAME" --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false --output none
-  # az webapp config set --resource-group "$AZURE_RESOURCE_GROUP" --name "$AZURE_WEBAPP_NAME" --startup-file "bash startup.sh" --output none
+  # One-time config (set once manually; do NOT call these inside this script — they cause
+  # an SCM container restart which will kill an in-progress upload):
+  # az webapp config appsettings set ... SCM_DO_BUILD_DURING_DEPLOYMENT=true   ← must be true
+  # az webapp config set ... --startup-file "python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips='*'"
+  # az resource update ... scm ... properties.allow=true
   # az resource update --resource-group "$AZURE_RESOURCE_GROUP" --name scm --namespace Microsoft.Web --resource-type basicPublishingCredentialsPolicies --parent "sites/$AZURE_WEBAPP_NAME" --set properties.allow=true --output none
 
   info "Deploying via Kudu ZIP API..."
