@@ -1,12 +1,35 @@
 Azure App Service Configuration Notes
 ======================================
+Deployment: VM-based using ./deploy.sh (Azure CLI zip deploy)
 Runtime: Python 3.11
 Startup command: bash startup.sh
-App Settings (Environment Variables) to configure in Azure Portal:
-  DATABASE_URL        = postgresql+asyncpg://user:pass@host/dbname
-  REDIS_URL           = rediss://host:6380/0  (Azure Cache for Redis uses SSL)
-  SECRET_KEY          = <generate with: openssl rand -hex 32>
-  FERNET_KEY          = <generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())">
+
+── One-time VM setup ────────────────────────────────────────────────────────
+# Install Azure CLI
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+az login
+
+# Install Node.js 20 (for frontend build + wrangler)
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -
+sudo apt-get install -y nodejs
+npm install -g wrangler
+wrangler login    # authenticates to Cloudflare
+
+── Deploy commands ──────────────────────────────────────────────────────────
+export AZURE_RESOURCE_GROUP=clinictraq-rg
+export AZURE_WEBAPP_NAME=clinictraq-api
+export VITE_API_URL=https://clinictraq-api.azurewebsites.net/api/v1
+export CF_PROJECT_NAME=clinictraq
+
+./deploy.sh                  # deploy both backend + frontend
+./deploy.sh --backend-only
+./deploy.sh --frontend-only
+
+── Azure App Service — App Settings (set in Portal or via az cli) ───────────
+  DATABASE_URL        = postgresql+asyncpg://user:pass@server.postgres.database.azure.com:5432/clinictraq?ssl=require
+  REDIS_URL           = rediss://:password@cache.redis.cache.windows.net:6380/0
+  SECRET_KEY          = <openssl rand -hex 32>
+  FERNET_KEY          = <python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())">
   ALGORITHM           = HS256
   ACCESS_TOKEN_EXPIRE_MINUTES = 15
   REFRESH_TOKEN_EXPIRE_DAYS = 7
@@ -14,18 +37,19 @@ App Settings (Environment Variables) to configure in Azure Portal:
   DEBUG               = false
   ALLOWED_ORIGINS     = https://clinictraq.pages.dev,https://app.clinictraq.com
   WEB_WORKERS         = 2
+  AZURE_STORAGE_CONNECTION_STRING = <from Azure Portal → Storage Account → Access keys>
+  AZURE_STORAGE_CONTAINER = clinictraq-uploads
 
-Database: Azure Database for PostgreSQL Flexible Server (PostgreSQL 16)
-Cache: Azure Cache for Redis (use rediss:// with SSL port 6380)
-File Storage: Azure Blob Storage (configure AWS_* env vars with Azure Blob compatible endpoint)
-Celery Workers: Deploy as separate Azure App Service or Azure Container Instance using same image
+── Azure resources to create ────────────────────────────────────────────────
+  az group create --name clinictraq-rg --location eastus
+  az appservice plan create --name clinictraq-plan --resource-group clinictraq-rg --sku B2 --is-linux
+  az webapp create --name clinictraq-api --resource-group clinictraq-rg --plan clinictraq-plan --runtime "PYTHON:3.11"
+  az postgres flexible-server create --name clinictraq-db --resource-group clinictraq-rg --sku-name Standard_B2ms --tier Burstable --version 16 --admin-user clinictraq --admin-password <password>
+  az redis create --name clinictraq-cache --resource-group clinictraq-rg --sku Basic --vm-size c0
+  az storage account create --name clinictraqstorage --resource-group clinictraq-rg --sku Standard_LRS --kind StorageV2
 
-Cloudflare Pages Configuration:
-  Build command: cd frontend && npm run build  (or npm run build from frontend dir)
-  Build output directory: frontend/dist
-  Root directory: / (repo root)
-  Environment variables:
-    VITE_API_URL = https://api.clinictraq.com/api/v1
-
-  Add custom domain in Cloudflare Pages dashboard.
-  _redirects file handles SPA routing automatically.
+── Cloudflare Pages (frontend, built on VM + pushed via wrangler) ──────────
+  Build output: frontend/dist
+  deploy.sh handles: npm ci → npm run build → wrangler pages deploy dist
+  _redirects handles SPA routing (already in frontend/public/)
+  Add custom domain in Cloudflare Pages dashboard after first deploy.
