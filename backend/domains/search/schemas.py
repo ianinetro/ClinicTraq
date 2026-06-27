@@ -12,7 +12,7 @@ class SearchResult(BaseModel):
     label: Optional[str]
     url_hint: Optional[str]
     rank: Optional[float]
-    metadata: Optional[Dict[str, Any]]
+    doc_metadata: Optional[Dict[str, Any]]
 
 
 class SearchResponse(BaseModel):

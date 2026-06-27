@@ -70,7 +70,7 @@ class WorkItem(Base):
     resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     resolved_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True))
     # Metadata
-    metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB)
+    extra_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB)
     escalated: Mapped[bool] = mapped_column(Boolean, default=False)
     escalated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 

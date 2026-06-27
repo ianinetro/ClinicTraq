@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+:root {
+  --bb-brand-ink: #12122C;
+  --bb-brand-blue: #0410BD;
+  --bb-brand-teal: #007998;
+  --bb-brand-black: #000000;
+  --bb-brand-vivid-blue: #3F4CFF;
+  --bb-brand-cyan: #00CBDE;
+  --bb-brand-periwinkle: #A2A8FF;
+  --bb-brand-light-cyan: #94F2FA;
+  --bb-brand-slate: #676687;
+  --bb-surface-white: #FFFFFF;
+  --bb-surface-app: #F2F2F8;
+  --bb-surface-lavender: #EFF0FF;
+  --bb-surface-cyan: #D9FCFF;
+  --bb-surface-border-strong: #BABACE;
+  --bb-surface-border: #E3E3F1;
+  --bb-text-primary: #12122C;
+  --bb-text-secondary: #676687;
+  --bb-text-disabled: #BABACE;
+  --bb-text-inverse: #FFFFFF;
+  --bb-success-bg: #ECFDF5;
+  --bb-success-border: #A7F3D0;
+  --bb-success-text: #047857;
+  --bb-info-bg: #D9FCFF;
+  --bb-info-border: #94F2FA;
+  --bb-info-text: #007998;
+  --bb-warning-bg: #FFFBEB;
+  --bb-warning-border: #FDE68A;
+  --bb-warning-text: #B45309;
+  --bb-danger-bg: #FEF2F2;
+  --bb-danger-border: #FECACA;
+  --bb-danger-text: #B91C1C;
+  --bb-radius-sm: 4px;
+  --bb-radius-md: 6px;
+  --bb-radius-lg: 8px;
+  --bb-radius-xl: 12px;
+  --bb-shadow-sm: 0 1px 2px rgba(18, 18, 44, 0.06);
+  --bb-shadow-md: 0 8px 20px rgba(18, 18, 44, 0.10);
+  --bb-shadow-lg: 0 20px 40px rgba(18, 18, 44, 0.14);
+  --bb-focus-ring: rgba(63, 76, 255, 0.22);
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bb-surface-app);
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  color: var(--bb-text-primary);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+* { box-sizing: border-box; }
+
+@theme {
+  --color-bb-ink: #12122C;
+  --color-bb-blue: #0410BD;
+  --color-bb-vivid-blue: #3F4CFF;
+  --color-bb-teal: #007998;
+  --color-bb-cyan: #00CBDE;
+  --color-bb-periwinkle: #A2A8FF;
+  --color-bb-light-cyan: #94F2FA;
+  --color-bb-slate: #676687;
+  --color-bb-lavender: #EFF0FF;
+  --color-bb-surface-cyan: #D9FCFF;
+  --color-bb-border-strong: #BABACE;
+  --color-bb-border: #E3E3F1;
+  --color-bb-app-bg: #F2F2F8;
+  --color-bb-white: #FFFFFF;
+}

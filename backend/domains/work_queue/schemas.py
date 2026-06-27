@@ -18,7 +18,7 @@ class WorkItemCreate(BaseModel):
     visit_id: Optional[uuid.UUID] = None
     assigned_to: Optional[uuid.UUID] = None
     due_date: Optional[datetime] = None
-    metadata: Optional[Dict[str, Any]] = None
+    extra_data: Optional[Dict[str, Any]] = None
 
 
 class WorkItemUpdate(BaseModel):

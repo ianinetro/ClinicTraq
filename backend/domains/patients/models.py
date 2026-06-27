@@ -97,7 +97,7 @@ class Guarantor(Base):
     patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    relationship: Mapped[Optional[str]] = mapped_column(String(50))
+    relationship_to_patient: Mapped[Optional[str]] = mapped_column(String(50))
     address_line1: Mapped[Optional[str]] = mapped_column(String(255))
     address_line2: Mapped[Optional[str]] = mapped_column(String(255))
     city: Mapped[Optional[str]] = mapped_column(String(100))

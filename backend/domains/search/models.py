@@ -21,7 +21,7 @@ class SearchIndex(Base):
     # document_id is a string representation of the primary key (UUID or other)
     document_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     search_vector: Mapped[Optional[Any]] = mapped_column(TSVECTOR)
-    metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB)
+    doc_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB)
     # Human-readable label shown in results
     label: Mapped[Optional[str]] = mapped_column(String(255))
     # URL/path hint for the frontend to deep-link into
