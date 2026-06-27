@@ -68,31 +68,11 @@ with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
 print(f"Created {out} ({os.path.getsize(out)//1024//1024}MB / {os.path.getsize(out)//1024}KB)")
 PYEOF
 
-  info "Configuring Azure App Service: $AZURE_WEBAPP_NAME"
-  # Disable Oryx server-side build — packages are already in the zip
-  az webapp config appsettings set \
-    --resource-group "$AZURE_RESOURCE_GROUP" \
-    --name "$AZURE_WEBAPP_NAME" \
-    --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false \
-    --output none
-
-  info "Setting startup command..."
-  az webapp config set \
-    --resource-group "$AZURE_RESOURCE_GROUP" \
-    --name "$AZURE_WEBAPP_NAME" \
-    --startup-file "bash startup.sh" \
-    --output none
-
-  # Enable basic-auth publishing credentials (disabled by default on newer App Services)
-  info "Enabling SCM basic auth..."
-  az resource update \
-    --resource-group "$AZURE_RESOURCE_GROUP" \
-    --name scm \
-    --namespace Microsoft.Web \
-    --resource-type basicPublishingCredentialsPolicies \
-    --parent "sites/$AZURE_WEBAPP_NAME" \
-    --set properties.allow=true \
-    --output none
+  # One-time config (already set — changes here cause SCM restart which kills the upload).
+  # Only uncomment these if you need to change them:
+  # az webapp config appsettings set --resource-group "$AZURE_RESOURCE_GROUP" --name "$AZURE_WEBAPP_NAME" --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false --output none
+  # az webapp config set --resource-group "$AZURE_RESOURCE_GROUP" --name "$AZURE_WEBAPP_NAME" --startup-file "bash startup.sh" --output none
+  # az resource update --resource-group "$AZURE_RESOURCE_GROUP" --name scm --namespace Microsoft.Web --resource-type basicPublishingCredentialsPolicies --parent "sites/$AZURE_WEBAPP_NAME" --set properties.allow=true --output none
 
   info "Deploying via Kudu ZIP API..."
   PUBLISH_USER=$(az webapp deployment list-publishing-credentials \
