@@ -95,7 +95,27 @@ async def main() -> None:
         else:
             print(f"  Clinic exists: {clinic.name}")
 
-        # 5. Billing admin user
+        # 5a. Superuser (admin@clinictraq.com)
+        SUPERUSER_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@clinictraq.com")
+        SUPERUSER_PASSWORD = os.environ.get("ADMIN_PASSWORD", "ClinicTraq2026!")
+        superuser = (await db.execute(
+            select(User).where(User.tenant_id == tenant.id, User.email == SUPERUSER_EMAIL)
+        )).scalar_one_or_none()
+        if superuser is None:
+            superuser = User(
+                id=uuid.uuid4(), tenant_id=tenant.id,
+                email=SUPERUSER_EMAIL,
+                password_hash=pwd_ctx.hash(SUPERUSER_PASSWORD),
+                first_name="Admin", last_name="ClinicTraq",
+                is_active=True, is_superuser=True,
+            )
+            db.add(superuser)
+            await db.flush()
+            print(f"  Created superuser: {SUPERUSER_EMAIL}")
+        else:
+            print(f"  Superuser exists: {SUPERUSER_EMAIL}")
+
+        # 5b. Billing admin user
         user = (await db.execute(
             select(User).where(User.tenant_id == tenant.id, User.email == BILLING_EMAIL)
         )).scalar_one_or_none()
@@ -142,9 +162,9 @@ async def main() -> None:
     print(f"  Password: {BILLING_PASSWORD}")
     print(f"  Role:     billing_admin (full access to all clinics)")
     print()
-    print("Superuser (existing):")
-    print(f"  Email:    admin@clinictraq.com")
-    print(f"  Password: ClinicTraq2026!")
+    print("Superuser:")
+    print(f"  Email:    {SUPERUSER_EMAIL}")
+    print(f"  Password: {SUPERUSER_PASSWORD}")
     print("=" * 50)
 
 
