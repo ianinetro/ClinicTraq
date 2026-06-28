@@ -255,3 +255,72 @@ class BillingIssue(BaseModel):
     field: str
     message: str
     suggestion: str = ""
+
+
+class VitalSignsCreate(BaseModel):
+    visit_id: uuid.UUID
+    patient_id: uuid.UUID
+    height_in: Optional[float] = None
+    weight_lbs: Optional[float] = None
+    bmi: Optional[float] = None
+    systolic_bp: Optional[int] = None
+    diastolic_bp: Optional[int] = None
+    heart_rate: Optional[int] = None
+    respiratory_rate: Optional[int] = None
+    temperature_f: Optional[float] = None
+    o2_sat: Optional[int] = None
+    pain_scale: Optional[int] = None
+    recorded_at: Optional[datetime] = None
+
+
+class VitalSignsResponse(BaseModel):
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    visit_id: uuid.UUID
+    patient_id: uuid.UUID
+    height_in: Optional[float]
+    weight_lbs: Optional[float]
+    bmi: Optional[float]
+    systolic_bp: Optional[int]
+    diastolic_bp: Optional[int]
+    heart_rate: Optional[int]
+    respiratory_rate: Optional[int]
+    temperature_f: Optional[float]
+    o2_sat: Optional[int]
+    pain_scale: Optional[int]
+    recorded_by: Optional[uuid.UUID]
+    recorded_at: Optional[datetime]
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class OrderCreate(BaseModel):
+    visit_id: uuid.UUID
+    patient_id: uuid.UUID
+    order_type: str
+    description: str
+    priority: str = "routine"
+    notes: Optional[str] = None
+    external_ref: Optional[str] = None
+    ordered_at: Optional[datetime] = None
+
+
+class OrderResponse(BaseModel):
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    visit_id: uuid.UUID
+    patient_id: uuid.UUID
+    order_type: str
+    description: str
+    priority: str
+    status: str
+    ordered_by: Optional[uuid.UUID]
+    ordered_at: Optional[datetime]
+    notes: Optional[str]
+    external_ref: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}

@@ -13,12 +13,14 @@ from database import get_db
 from domains.identity.dependencies import TenantContext, require_permission
 from domains.identity.models import User
 from domains.visits.billing_validation import BillingValidator
-from domains.visits.models import ChargeLine, Visit, VisitBillingOptions, VisitDiagnosis, VisitNote
+from domains.visits.models import ChargeLine, Order, Visit, VisitBillingOptions, VisitDiagnosis, VisitNote, VitalSigns
 from domains.visits.schemas import (
     BillingIssue,
     ChargeLineCreate,
     ChargeLineResponse,
     ChargeLineUpdate,
+    OrderCreate,
+    OrderResponse,
     VisitBillingOptionsCreate,
     VisitBillingOptionsResponse,
     VisitBillingOptionsUpdate,
@@ -29,6 +31,8 @@ from domains.visits.schemas import (
     VisitNoteResponse,
     VisitResponse,
     VisitUpdate,
+    VitalSignsCreate,
+    VitalSignsResponse,
 )
 
 router = APIRouter(tags=["visits"])
@@ -352,6 +356,76 @@ async def add_note(
 ):
     await _require_visit(visit_id, ctx, db)
     obj = VisitNote(visit_id=visit_id, author_id=current_user.id, note=body.note)
+    db.add(obj)
+    await db.flush()
+    return obj
+
+
+# ── Vital Signs ───────────────────────────────────────────────────────────────
+
+@router.get("/visits/{visit_id}/vitals", response_model=List[VitalSignsResponse])
+async def list_vitals(
+    visit_id: uuid.UUID,
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("visits:read")),
+):
+    await _require_visit(visit_id, ctx, db)
+    result = await db.execute(
+        select(VitalSigns)
+        .where(VitalSigns.visit_id == visit_id, VitalSigns.tenant_id == ctx.tenant_id)
+        .order_by(VitalSigns.recorded_at)
+    )
+    return result.scalars().all()
+
+
+@router.post("/visits/{visit_id}/vitals", response_model=VitalSignsResponse, status_code=status.HTTP_201_CREATED)
+async def create_vitals(
+    visit_id: uuid.UUID,
+    body: VitalSignsCreate,
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("visits:write")),
+):
+    await _require_visit(visit_id, ctx, db)
+    data = body.model_dump()
+    data["visit_id"] = visit_id
+    obj = VitalSigns(tenant_id=ctx.tenant_id, recorded_by=current_user.id, **data)
+    db.add(obj)
+    await db.flush()
+    return obj
+
+
+# ── Orders ────────────────────────────────────────────────────────────────────
+
+@router.get("/visits/{visit_id}/orders", response_model=List[OrderResponse])
+async def list_orders(
+    visit_id: uuid.UUID,
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("visits:read")),
+):
+    await _require_visit(visit_id, ctx, db)
+    result = await db.execute(
+        select(Order)
+        .where(Order.visit_id == visit_id, Order.tenant_id == ctx.tenant_id)
+        .order_by(Order.ordered_at)
+    )
+    return result.scalars().all()
+
+
+@router.post("/visits/{visit_id}/orders", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
+async def create_order(
+    visit_id: uuid.UUID,
+    body: OrderCreate,
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("visits:write")),
+):
+    await _require_visit(visit_id, ctx, db)
+    data = body.model_dump()
+    data["visit_id"] = visit_id
+    obj = Order(tenant_id=ctx.tenant_id, ordered_by=current_user.id, **data)
     db.add(obj)
     await db.flush()
     return obj

@@ -131,3 +131,39 @@ class VisitNote(Base):
     note: Mapped[str] = mapped_column(Text, nullable=False)
 
     visit: Mapped["Visit"] = relationship("Visit", back_populates="visit_notes")
+
+
+class VitalSigns(Base):
+    __tablename__ = "vital_signs"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    visit_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("visits.id"), nullable=False, index=True)
+    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
+    height_in: Mapped[Optional[Any]] = mapped_column(Numeric(5, 2))
+    weight_lbs: Mapped[Optional[Any]] = mapped_column(Numeric(6, 2))
+    bmi: Mapped[Optional[Any]] = mapped_column(Numeric(5, 2))
+    systolic_bp: Mapped[Optional[int]] = mapped_column(Integer)
+    diastolic_bp: Mapped[Optional[int]] = mapped_column(Integer)
+    heart_rate: Mapped[Optional[int]] = mapped_column(Integer)
+    respiratory_rate: Mapped[Optional[int]] = mapped_column(Integer)
+    temperature_f: Mapped[Optional[Any]] = mapped_column(Numeric(5, 2))
+    o2_sat: Mapped[Optional[int]] = mapped_column(Integer)
+    pain_scale: Mapped[Optional[int]] = mapped_column(Integer)
+    recorded_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    recorded_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class Order(Base):
+    __tablename__ = "visit_orders"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    visit_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("visits.id"), nullable=False, index=True)
+    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
+    order_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    priority: Mapped[str] = mapped_column(String(20), default="routine")
+    status: Mapped[str] = mapped_column(String(50), default="pending")
+    ordered_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    ordered_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    external_ref: Mapped[Optional[str]] = mapped_column(String(255))
