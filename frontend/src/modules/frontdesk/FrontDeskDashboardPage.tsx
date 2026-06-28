@@ -228,7 +228,7 @@ export function FrontDeskDashboardPage() {
             <UserPlus size={14} /> Walk-In
           </button>
           <button
-            onClick={() => navigate('/frontdesk/schedule')}
+            onClick={() => navigate('/frontdesk/scheduler')}
             style={{ height: 36, padding: '0 16px', background: 'white', color: '#374151', border: '1px solid #D1D5DB', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600 }}
           >
             <Calendar size={14} /> Schedule
@@ -309,7 +309,8 @@ export function FrontDeskDashboardPage() {
             <div style={{ fontWeight: 700, fontSize: 14, color: '#12122C', marginBottom: 12 }}>Quick Actions</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {[
-                { label: 'New Patient', icon: UserPlus, action: () => navigate('/patients/new') },
+                { label: 'Check In Patient', icon: LogIn, action: () => navigate('/frontdesk/checkin') },
+              { label: 'New Patient', icon: UserPlus, action: () => navigate('/patients/new') },
                 { label: 'Find Patient', icon: Search, action: () => navigate('/patients') },
                 { label: 'New Visit', icon: Stethoscope, action: () => navigate('/visits/new') },
                 { label: 'New Claim', icon: AlertCircle, action: () => navigate('/claims/new') },

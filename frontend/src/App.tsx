@@ -19,6 +19,10 @@ import { WorkQueuePage } from './modules/work-queue/WorkQueuePage'
 import { SettingsPage } from './modules/settings/SettingsPage'
 import { OrgManagementPage } from './modules/organization/OrgManagementPage'
 import { FrontDeskDashboardPage } from './modules/frontdesk/FrontDeskDashboardPage'
+import { CheckInPage } from './modules/frontdesk/CheckInPage'
+import { SchedulerPage } from './modules/frontdesk/SchedulerPage'
+import { VitalsPage } from './modules/clinical/VitalsPage'
+import { ProviderNotePage } from './modules/clinical/ProviderNotePage'
 
 const AdminClinicsPage = lazy(() =>
   import('./modules/admin/AdminClinicsPage').then(m => ({ default: m.AdminClinicsPage }))
@@ -77,6 +81,12 @@ export default function App() {
         {/* Front Desk */}
         <Route path="/frontdesk" element={<FrontDeskDashboardPage />} />
         <Route path="/frontdesk/schedule" element={<FrontDeskDashboardPage />} />
+        <Route path="/frontdesk/checkin" element={<CheckInPage />} />
+        <Route path="/frontdesk/scheduler" element={<SchedulerPage />} />
+
+        {/* Clinical */}
+        <Route path="/visits/:id/vitals" element={<VitalsPage />} />
+        <Route path="/visits/:id/note" element={<ProviderNotePage />} />
 
         {/* Billing Workspace Manager */}
         <Route path="/billing/workspaces" element={<Suspense fallback={<Fallback />}><WorkspaceManagerPage /></Suspense>} />
