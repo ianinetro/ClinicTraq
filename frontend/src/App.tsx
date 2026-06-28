@@ -15,6 +15,7 @@ import { PaymentsPage } from './modules/payments/PaymentsPage'
 import { ERAReviewPage } from './modules/payments/ERAReviewPage'
 import { WorkQueuePage } from './modules/work-queue/WorkQueuePage'
 import { SettingsPage } from './modules/settings/SettingsPage'
+import { OrgManagementPage } from './modules/organization/OrgManagementPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore(s => s.isAuthenticated)
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="/payments/era/:id" element={<ERAReviewPage />} />
         <Route path="/work-queue" element={<WorkQueuePage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/organization" element={<OrgManagementPage />} />
       </Route>
     </Routes>
   )

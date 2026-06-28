@@ -234,3 +234,59 @@ class ClinicStaffAssignment(Base):
 
     clinic: Mapped["Clinic"] = relationship("Clinic", back_populates="staff_assignments")
     user: Mapped["User"] = relationship("User")
+
+
+# Roles for billing company users
+BILLING_ROLE_ADMIN = "billing_admin"       # access all clinics in the billing company, configure everything
+BILLING_ROLE_MANAGER = "billing_manager"   # supervise billing staff, approve write-offs
+BILLING_ROLE_CODER = "coder"               # review documentation, assign CPT/ICD codes
+BILLING_ROLE_CHARGE_ENTRY = "charge_entry" # enter/edit charges
+BILLING_ROLE_CLAIM_SUBMIT = "claim_submit" # submit claims, fix rejections
+BILLING_ROLE_PAYMENT_POSTER = "payment_poster"  # post ERA/EOB, adjustments
+BILLING_ROLE_DENIAL_SPECIALIST = "denial_specialist"  # work denials, file appeals
+BILLING_ROLE_AR_SPECIALIST = "ar_specialist"   # follow up unpaid claims, contact payers
+BILLING_ROLE_PATIENT_BILLING = "patient_billing"  # patient statements, collect payments
+
+# Roles for management group users
+MGMT_ROLE_ADMIN = "mgmt_admin"   # full admin, can set up clinics and billing companies
+MGMT_ROLE_VIEWER = "mgmt_viewer" # read-only view across all clinics
+
+
+class BillingCompanyUserAssignment(Base):
+    """Assigns a user to a billing company with a specific billing role."""
+    __tablename__ = "billing_company_user_assignments"
+    __table_args__ = (UniqueConstraint("billing_company_id", "user_id", name="uq_bc_user"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    billing_company_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("billing_companies.id"), nullable=False, index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
+    )
+    billing_role: Mapped[str] = mapped_column(String(30), nullable=False)
+    # list of clinic IDs this billing user can access (null = all clinics in company)
+    clinic_ids: Mapped[Optional[dict]] = mapped_column(JSONB)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    billing_company: Mapped["BillingCompany"] = relationship("BillingCompany")
+    user: Mapped["User"] = relationship("User")
+
+
+class ManagementGroupUserAssignment(Base):
+    """Assigns a user to a management group with an org-level role."""
+    __tablename__ = "management_group_user_assignments"
+    __table_args__ = (UniqueConstraint("management_group_id", "user_id", name="uq_mg_user"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    management_group_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("management_groups.id"), nullable=False, index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
+    )
+    mgmt_role: Mapped[str] = mapped_column(String(30), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    management_group: Mapped["ManagementGroup"] = relationship("ManagementGroup")
+    user: Mapped["User"] = relationship("User")

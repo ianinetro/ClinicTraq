@@ -23,6 +23,7 @@ from domains.payments.router import router as payments_router
 from domains.work_queue.router import router as work_queue_router
 from domains.audit.router import router as audit_router
 from domains.search.router import router as search_router
+from domains.identity.org_router import router as org_router
 
 logger = logging.getLogger("clinictraq")
 logging.basicConfig(level=logging.DEBUG if settings.DEBUG else logging.INFO)
@@ -156,6 +157,7 @@ def create_app() -> FastAPI:
     app.include_router(work_queue_router, prefix=prefix)
     app.include_router(audit_router, prefix=prefix)
     app.include_router(search_router, prefix=prefix)
+    app.include_router(org_router, prefix=prefix)
 
     @app.get("/health", tags=["health"])
     async def health_check():

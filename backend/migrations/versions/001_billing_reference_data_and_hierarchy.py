@@ -249,8 +249,49 @@ def upgrade() -> None:
     op.create_index("ix_body_zone_annotations_body_map_id", "body_zone_annotations", ["body_map_id"])
     op.create_index("ix_body_zone_annotations_tenant_id", "body_zone_annotations", ["tenant_id"])
 
+    # ------------------------------------------------------------------
+    # Billing company user assignments
+    # ------------------------------------------------------------------
+    op.create_table(
+        "billing_company_user_assignments",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), onupdate=sa.text("now()"), nullable=False),
+        sa.Column("tenant_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("billing_company_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("billing_companies.id"), nullable=False),
+        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("billing_role", sa.String(30), nullable=False),
+        sa.Column("clinic_ids", postgresql.JSONB(), nullable=True),
+        sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
+        sa.UniqueConstraint("billing_company_id", "user_id", name="uq_bc_user"),
+    )
+    op.create_index("ix_bc_user_assignments_tenant_id", "billing_company_user_assignments", ["tenant_id"])
+    op.create_index("ix_bc_user_assignments_billing_company_id", "billing_company_user_assignments", ["billing_company_id"])
+    op.create_index("ix_bc_user_assignments_user_id", "billing_company_user_assignments", ["user_id"])
+
+    # ------------------------------------------------------------------
+    # Management group user assignments
+    # ------------------------------------------------------------------
+    op.create_table(
+        "management_group_user_assignments",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), onupdate=sa.text("now()"), nullable=False),
+        sa.Column("tenant_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("management_group_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("management_groups.id"), nullable=False),
+        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("mgmt_role", sa.String(30), nullable=False),
+        sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
+        sa.UniqueConstraint("management_group_id", "user_id", name="uq_mg_user"),
+    )
+    op.create_index("ix_mg_user_assignments_tenant_id", "management_group_user_assignments", ["tenant_id"])
+    op.create_index("ix_mg_user_assignments_management_group_id", "management_group_user_assignments", ["management_group_id"])
+    op.create_index("ix_mg_user_assignments_user_id", "management_group_user_assignments", ["user_id"])
+
 
 def downgrade() -> None:
+    op.drop_table("management_group_user_assignments")
+    op.drop_table("billing_company_user_assignments")
     op.drop_table("body_zone_annotations")
     op.drop_table("visit_body_maps")
     op.drop_table("clinic_staff_assignments")

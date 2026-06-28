@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Users, Calendar, FileText,
-  DollarSign, AlertCircle, Settings, X
+  DollarSign, AlertCircle, Settings, X, Building2
 } from 'lucide-react'
 
 const navItems = [
@@ -11,6 +11,7 @@ const navItems = [
   { to: '/claims', label: 'Claims', icon: FileText },
   { to: '/payments', label: 'Payments', icon: DollarSign },
   { to: '/work-queue', label: 'Work Queue', icon: AlertCircle },
+  { to: '/organization', label: 'Organization', icon: Building2 },
   { to: '/settings', label: 'Settings', icon: Settings },
 ]
 
