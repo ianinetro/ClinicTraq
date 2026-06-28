@@ -57,6 +57,7 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins_list,
+        allow_origin_regex=r"https://[a-z0-9\-]+\.clinictraq\.pages\.dev",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
