@@ -33,8 +33,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Starting ClinicTraq backend — environment: %s", settings.ENVIRONMENT)
     # In production use Alembic; in dev optionally create tables
     if settings.ENVIRONMENT == "development":
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+        except Exception as exc:
+            logger.warning("Dev auto-migrate skipped (DB unreachable at startup): %s", exc)
     yield
     logger.info("Shutting down ClinicTraq backend")
     await engine.dispose()
