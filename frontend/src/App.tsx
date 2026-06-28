@@ -23,6 +23,7 @@ import { CheckInPage } from './modules/frontdesk/CheckInPage'
 import { SchedulerPage } from './modules/frontdesk/SchedulerPage'
 import { VitalsPage } from './modules/clinical/VitalsPage'
 import { ProviderNotePage } from './modules/clinical/ProviderNotePage'
+import { AppointmentsPage } from './modules/frontdesk/AppointmentsPage'
 
 const AdminClinicsPage = lazy(() =>
   import('./modules/admin/AdminClinicsPage').then(m => ({ default: m.AdminClinicsPage }))
@@ -77,6 +78,9 @@ export default function App() {
 
         {/* Work Queue */}
         <Route path="/work-queue" element={<WorkQueuePage />} />
+
+        {/* Appointments */}
+        <Route path="/appointments" element={<AppointmentsPage />} />
 
         {/* Front Desk */}
         <Route path="/frontdesk" element={<FrontDeskDashboardPage />} />
