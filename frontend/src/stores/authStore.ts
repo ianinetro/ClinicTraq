@@ -51,8 +51,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   setActiveClinic: (clinicId: string) => {
-    localStorage.setItem('active_clinic_id', clinicId)
-    set({ activeClinicId: clinicId })
+    if (clinicId) {
+      localStorage.setItem('active_clinic_id', clinicId)
+      set({ activeClinicId: clinicId })
+    } else {
+      localStorage.removeItem('active_clinic_id')
+      set({ activeClinicId: null })
+    }
   },
 
   hasPermission: (perm: string) => {

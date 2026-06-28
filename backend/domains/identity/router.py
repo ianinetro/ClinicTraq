@@ -17,6 +17,9 @@ from config import settings
 from database import get_db
 from domains.identity.dependencies import TenantContext, get_current_user, require_permission
 from domains.identity.models import (
+    BillingCompanyUserAssignment,
+    ClinicStaffAssignment,
+    ManagementGroupUserAssignment,
     Permission,
     RefreshToken,
     Role,
@@ -25,6 +28,7 @@ from domains.identity.models import (
     User,
     UserRole,
 )
+from domains.identity.permissions import get_all_permissions_for_user
 from domains.identity.schemas import (
     LoginRequest,
     LogoutRequest,
@@ -118,10 +122,49 @@ async def login(
     user.last_login = datetime.now(timezone.utc)
     await db.flush()
 
+    # Resolve org context for this user
+    clinic_assignment = (await db.execute(
+        select(ClinicStaffAssignment).where(
+            ClinicStaffAssignment.user_id == user.id,
+            ClinicStaffAssignment.is_active == True,
+            ClinicStaffAssignment.is_primary == True,
+        )
+    )).scalar_one_or_none()
+
+    bc_assignment = (await db.execute(
+        select(BillingCompanyUserAssignment).where(
+            BillingCompanyUserAssignment.user_id == user.id,
+            BillingCompanyUserAssignment.is_active == True,
+        )
+    )).scalar_one_or_none()
+
+    mg_assignment = (await db.execute(
+        select(ManagementGroupUserAssignment).where(
+            ManagementGroupUserAssignment.user_id == user.id,
+            ManagementGroupUserAssignment.is_active == True,
+        )
+    )).scalar_one_or_none()
+
+    clinic_role = clinic_assignment.clinic_role if clinic_assignment else None
+    billing_role = bc_assignment.billing_role if bc_assignment else None
+    mgmt_role = mg_assignment.mgmt_role if mg_assignment else None
+
+    role_name = "superuser" if user.is_superuser else (clinic_role or billing_role or mgmt_role or "user")
+    permissions = list(get_all_permissions_for_user(
+        clinic_role=clinic_role,
+        billing_role=billing_role,
+        mgmt_role=mgmt_role,
+        is_superuser=user.is_superuser,
+    ))
+
+    # Accessible clinic IDs for billing users
+    accessible_clinic_ids: list[str] | None = None
+    if bc_assignment:
+        if bc_assignment.clinic_ids:
+            accessible_clinic_ids = [str(c) for c in bc_assignment.clinic_ids]
+        # else null = all clinics in the company
+
     from domains.identity.schemas import UserInToken
-    role_name = "superuser" if user.is_superuser else (
-        user.user_roles[0].role.name if user.user_roles else "user"
-    )
     return TokenResponse(
         access_token=access_token,
         refresh_token=raw_refresh,
@@ -131,6 +174,14 @@ async def login(
             email=user.email,
             name=f"{user.first_name} {user.last_name}",
             role=role_name,
+            permissions=permissions,
+            clinicId=str(clinic_assignment.clinic_id) if clinic_assignment else None,
+            clinicRole=clinic_role,
+            billingCompanyId=str(bc_assignment.billing_company_id) if bc_assignment else None,
+            billingRole=billing_role,
+            managementGroupId=str(mg_assignment.management_group_id) if mg_assignment else None,
+            mgmtRole=mgmt_role,
+            accessibleClinicIds=accessible_clinic_ids,
         ),
     )
 

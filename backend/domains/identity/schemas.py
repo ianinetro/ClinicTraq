@@ -20,6 +20,15 @@ class UserInToken(BaseModel):
     email: str
     name: str
     role: str
+    permissions: List[str] = []
+    # Org context
+    clinicId: Optional[str] = None
+    clinicRole: Optional[str] = None
+    billingCompanyId: Optional[str] = None
+    billingRole: Optional[str] = None
+    managementGroupId: Optional[str] = None
+    mgmtRole: Optional[str] = None
+    accessibleClinicIds: Optional[List[str]] = None
 
 
 class TokenResponse(BaseModel):
