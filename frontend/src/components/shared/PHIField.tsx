@@ -14,6 +14,7 @@ interface PHIFieldProps {
 }
 
 export function PHIField({ value, label, onReveal }: PHIFieldProps) {
+  if (!value) return null
   const [revealed, setRevealed] = useState(false)
 
   useEffect(() => {
@@ -22,7 +23,7 @@ export function PHIField({ value, label, onReveal }: PHIFieldProps) {
     return () => clearTimeout(timer)
   }, [revealed])
 
-  const maskedValue = value.replace(/[^-* ]/g, '*')
+  const maskedValue = (value ?? '').replace(/[^-* ]/g, '*')
 
   const handleReveal = () => {
     setRevealed(true)
