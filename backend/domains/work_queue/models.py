@@ -4,7 +4,9 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
+from datetime import date
+
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -88,3 +90,27 @@ class WorkItemNote(Base):
     created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
 
     work_item: Mapped["WorkItem"] = relationship("WorkItem", back_populates="notes")
+
+
+class DenialAppeal(Base):
+    """Tracks denials and appeal workflow for denied claims."""
+    __tablename__ = "denial_appeals"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    claim_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), index=True, nullable=False)
+    # CARC/RARC codes from ERA 835
+    carc_code: Mapped[Optional[str]] = mapped_column(String(10))
+    rarc_code: Mapped[Optional[str]] = mapped_column(String(10))
+    denial_reason: Mapped[Optional[str]] = mapped_column(Text)
+    # Financial impact
+    denied_amount: Mapped[Optional[float]] = mapped_column()
+    # Appeal tracking
+    appeal_status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    # draft / submitted / won / lost / write_off
+    appeal_due_date: Mapped[Optional[date]] = mapped_column(Date)
+    appeal_submitted_date: Mapped[Optional[date]] = mapped_column(Date)
+    appeal_notes: Mapped[Optional[str]] = mapped_column(Text)
+    supporting_docs: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB)  # [{name, url, type}]
+    # Outcome
+    resolved_amount: Mapped[Optional[float]] = mapped_column()
+    resolved_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True))

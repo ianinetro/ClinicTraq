@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -135,3 +135,102 @@ class Session(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     user: Mapped["User"] = relationship("User", back_populates="sessions")
+
+
+# ---------------------------------------------------------------------------
+# Multi-layer organizational hierarchy
+# ManagementGroup → BillingCompany → Clinic → (providers, front desk users)
+# ---------------------------------------------------------------------------
+
+class ManagementGroup(Base):
+    """Top-level entity — owns multiple billing companies and clinics."""
+    __tablename__ = "management_groups"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    contact_email: Mapped[Optional[str]] = mapped_column(String(255))
+    contact_phone: Mapped[Optional[str]] = mapped_column(String(20))
+    address: Mapped[Optional[str]] = mapped_column(Text)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    settings: Mapped[Optional[dict]] = mapped_column(JSONB)
+
+    billing_companies: Mapped[List["BillingCompany"]] = relationship("BillingCompany", back_populates="management_group")
+    clinics: Mapped[List["Clinic"]] = relationship("Clinic", back_populates="management_group")
+
+
+class BillingCompany(Base):
+    """Billing company that handles revenue cycle for one or more clinics."""
+    __tablename__ = "billing_companies"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    management_group_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("management_groups.id"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    npi: Mapped[Optional[str]] = mapped_column(String(10))
+    tax_id: Mapped[Optional[str]] = mapped_column(String(20))
+    contact_email: Mapped[Optional[str]] = mapped_column(String(255))
+    contact_phone: Mapped[Optional[str]] = mapped_column(String(20))
+    address: Mapped[Optional[str]] = mapped_column(Text)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    management_group: Mapped[Optional["ManagementGroup"]] = relationship("ManagementGroup", back_populates="billing_companies")
+    clinics: Mapped[List["Clinic"]] = relationship("Clinic", back_populates="billing_company")
+
+
+class Clinic(Base):
+    """Individual clinic/office location."""
+    __tablename__ = "clinics"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    management_group_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("management_groups.id"), index=True
+    )
+    billing_company_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("billing_companies.id"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    npi: Mapped[Optional[str]] = mapped_column(String(10))
+    tax_id: Mapped[Optional[str]] = mapped_column(String(20))
+    address: Mapped[Optional[str]] = mapped_column(String(500))
+    city: Mapped[Optional[str]] = mapped_column(String(100))
+    state: Mapped[Optional[str]] = mapped_column(String(2))
+    zip_code: Mapped[Optional[str]] = mapped_column(String(10))
+    phone: Mapped[Optional[str]] = mapped_column(String(20))
+    fax: Mapped[Optional[str]] = mapped_column(String(20))
+    place_of_service_code: Mapped[str] = mapped_column(String(2), default="11")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    settings: Mapped[Optional[dict]] = mapped_column(JSONB)
+
+    management_group: Mapped[Optional["ManagementGroup"]] = relationship("ManagementGroup", back_populates="clinics")
+    billing_company: Mapped[Optional["BillingCompany"]] = relationship("BillingCompany", back_populates="clinics")
+    staff_assignments: Mapped[List["ClinicStaffAssignment"]] = relationship("ClinicStaffAssignment", back_populates="clinic")
+
+
+# Roles scoped to a specific clinic
+CLINIC_ROLE_FRONT_DESK = "front_desk"
+CLINIC_ROLE_DOCTOR = "doctor"
+CLINIC_ROLE_NURSE = "nurse"
+CLINIC_ROLE_BILLING = "billing"
+CLINIC_ROLE_SUPERVISOR = "supervisor"
+CLINIC_ROLE_ADMIN = "admin"
+
+
+class ClinicStaffAssignment(Base):
+    """Assigns a user to a clinic with a clinic-level role."""
+    __tablename__ = "clinic_staff_assignments"
+    __table_args__ = (UniqueConstraint("clinic_id", "user_id", name="uq_clinic_staff"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    clinic_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clinics.id"), nullable=False, index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
+    )
+    clinic_role: Mapped[str] = mapped_column(String(30), nullable=False)
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    clinic: Mapped["Clinic"] = relationship("Clinic", back_populates="staff_assignments")
+    user: Mapped["User"] = relationship("User")

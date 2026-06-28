@@ -1,15 +1,17 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Check, User, Stethoscope, ClipboardList, DollarSign, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, User, Stethoscope, ClipboardList, DollarSign, Plus, Trash2, Activity } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
+import { BodyMapCanvas, type BodyMapState } from './BodyMapCanvas'
 
 // ─── Step definitions ───────────────────────────────────────────────
 const STEPS = [
-  { id: 'patient', label: 'Patient', icon: User },
-  { id: 'encounter', label: 'Encounter', icon: Stethoscope },
-  { id: 'diagnoses', label: 'Diagnoses', icon: ClipboardList },
+  { id: 'patient',    label: 'Patient',    icon: User },
+  { id: 'encounter',  label: 'Encounter',  icon: Stethoscope },
+  { id: 'bodymap',    label: 'Body Map',   icon: Activity },
+  { id: 'diagnoses',  label: 'Diagnoses',  icon: ClipboardList },
   { id: 'procedures', label: 'Procedures', icon: DollarSign },
-  { id: 'review', label: 'Review', icon: Check },
+  { id: 'review',     label: 'Review',     icon: Check },
 ] as const
 type StepId = typeof STEPS[number]['id']
 
@@ -32,6 +34,7 @@ interface FormState {
   chiefComplaint: string
   diagnoses: DiagRow[]
   procedures: ProcRow[]
+  bodyMap: BodyMapState
 }
 
 const EMPTY: FormState = {
@@ -41,6 +44,43 @@ const EMPTY: FormState = {
   chiefComplaint: '',
   diagnoses: [],
   procedures: [],
+  bodyMap: {},
+}
+
+// ─── Debounce hook ───────────────────────────────────────────────────
+function useDebounce<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(t)
+  }, [value, delay])
+  return debounced
+}
+
+// ─── Code search hook ────────────────────────────────────────────────
+interface CodeResult { code: string; description: string; default_fee?: number }
+
+function useCodeSearch(endpoint: string, query: string): { results: CodeResult[]; loading: boolean } {
+  const [results, setResults] = useState<CodeResult[]>([])
+  const [loading, setLoading] = useState(false)
+  const debouncedQuery = useDebounce(query, 300)
+
+  useEffect(() => {
+    if (!debouncedQuery || debouncedQuery.length < 2) {
+      setResults([])
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    fetch(`/api${endpoint}?q=${encodeURIComponent(debouncedQuery)}&limit=10`)
+      .then(r => r.json())
+      .then(data => { if (!cancelled) setResults(data) })
+      .catch(() => { if (!cancelled) setResults([]) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [debouncedQuery, endpoint])
+
+  return { results, loading }
 }
 
 const MOCK_PATIENTS = [
@@ -104,6 +144,9 @@ export function VisitComposerPage() {
   const [diagSearch, setDiagSearch] = useState('')
   const [procSearch, setProcSearch] = useState('')
   const [submitted, setSubmitted] = useState(false)
+
+  const icdSearch = useCodeSearch('/icd10/search', diagSearch)
+  const cptSearch = useCodeSearch('/cpt/search', procSearch)
 
   const stepIdx = STEPS.findIndex(s => s.id === step)
   const set = (patch: Partial<FormState>) => setForm(f => ({ ...f, ...patch }))
@@ -311,18 +354,74 @@ export function VisitComposerPage() {
           </div>
         )}
 
-        {/* ── Step 3: Diagnoses ── */}
+        {/* ── Step 3b: Body Map ── */}
+        {step === 'bodymap' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Body Map</h3>
+              <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--bb-text-secondary)' }}>
+                Click anatomical zones to document findings. Annotations auto-populate diagnosis codes.
+              </p>
+            </div>
+            <BodyMapCanvas
+              value={form.bodyMap}
+              onChange={bodyMap => set({ bodyMap })}
+            />
+          </div>
+        )}
+
+        {/* ── Step 4: Diagnoses ── */}
         {step === 'diagnoses' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Diagnoses (ICD-10)</h3>
             <Field label="Search ICD-10 code or description">
-              <input
-                value={diagSearch}
-                onChange={e => setDiagSearch(e.target.value)}
-                placeholder="e.g. M54.5 or low back pain…"
-                style={inputStyle()}
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  value={diagSearch}
+                  onChange={e => setDiagSearch(e.target.value)}
+                  placeholder="e.g. M54.5 or low back pain…"
+                  style={inputStyle()}
+                />
+                {(icdSearch.results.length > 0 || icdSearch.loading) && diagSearch.length >= 2 && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '1px solid var(--bb-border)', borderRadius: 'var(--bb-radius)', boxShadow: '0 4px 16px rgba(0,0,0,0.12)', zIndex: 100, maxHeight: 240, overflowY: 'auto' }}>
+                    {icdSearch.loading && (
+                      <div style={{ padding: '10px 14px', fontSize: 13, color: 'var(--bb-text-secondary)' }}>Searching…</div>
+                    )}
+                    {icdSearch.results.map(r => (
+                      <button
+                        key={r.code}
+                        onClick={() => addDiag({ icd10: r.code, description: r.description })}
+                        style={{ width: '100%', padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', borderBottom: '1px solid var(--bb-border)', display: 'flex', gap: 10, alignItems: 'center' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = '#EFF0FF')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                      >
+                        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--bb-brand-blue)', flexShrink: 0 }}>{r.code}</span>
+                        <span style={{ fontSize: 13, color: 'var(--bb-text-primary)' }}>{r.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </Field>
+            {/* Body map suggestions */}
+            {Object.keys(form.bodyMap).length > 0 && (() => {
+              const bodyCodes = [...new Set(Object.values(form.bodyMap).flatMap(a => a.icd_codes))]
+                .filter(c => !form.diagnoses.find(d => d.icd10 === c))
+              return bodyCodes.length > 0 ? (
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--bb-text-secondary)', marginBottom: 6 }}>FROM BODY MAP</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {bodyCodes.map(code => (
+                      <button key={code} onClick={() => addDiag({ icd10: code, description: code })}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#EFF0FF', border: '1px solid #C7C8E8', borderRadius: 'var(--bb-radius)', cursor: 'pointer', fontSize: 13 }}>
+                        <Plus size={12} color="var(--bb-brand-blue)" />
+                        <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--bb-brand-blue)' }}>{code}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null
+            })()}
             {/* Quick picks */}
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--bb-text-secondary)', marginBottom: 8 }}>COMMON DIAGNOSES</div>
@@ -363,12 +462,34 @@ export function VisitComposerPage() {
           </div>
         )}
 
-        {/* ── Step 4: Procedures ── */}
+        {/* ── Step 5: Procedures ── */}
         {step === 'procedures' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Procedures / CPT Codes</h3>
             <Field label="Search CPT code or description">
-              <input value={procSearch} onChange={e => setProcSearch(e.target.value)} placeholder="e.g. 99213 or office visit…" style={inputStyle()} />
+              <div style={{ position: 'relative' }}>
+                <input value={procSearch} onChange={e => setProcSearch(e.target.value)} placeholder="e.g. 99213 or office visit…" style={inputStyle()} />
+                {(cptSearch.results.length > 0 || cptSearch.loading) && procSearch.length >= 2 && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '1px solid var(--bb-border)', borderRadius: 'var(--bb-radius)', boxShadow: '0 4px 16px rgba(0,0,0,0.12)', zIndex: 100, maxHeight: 240, overflowY: 'auto' }}>
+                    {cptSearch.loading && (
+                      <div style={{ padding: '10px 14px', fontSize: 13, color: 'var(--bb-text-secondary)' }}>Searching…</div>
+                    )}
+                    {cptSearch.results.map(r => (
+                      <button
+                        key={r.code}
+                        onClick={() => addProc({ cpt: r.code, description: r.description, fee: r.default_fee ?? 0 })}
+                        style={{ width: '100%', padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', borderBottom: '1px solid var(--bb-border)', display: 'flex', gap: 10, alignItems: 'center' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = '#EFF0FF')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                      >
+                        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--bb-brand-blue)', flexShrink: 0, width: 54 }}>{r.code}</span>
+                        <span style={{ fontSize: 13, color: 'var(--bb-text-primary)', flex: 1 }}>{r.description}</span>
+                        {r.default_fee != null && <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--bb-text-secondary)', flexShrink: 0 }}>${r.default_fee.toFixed(2)}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </Field>
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--bb-text-secondary)', marginBottom: 8 }}>COMMON PROCEDURES</div>

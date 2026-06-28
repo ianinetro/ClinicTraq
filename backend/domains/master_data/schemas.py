@@ -246,3 +246,64 @@ class NPIValidationResponse(BaseModel):
     npi: str
     valid: bool
     message: str
+
+
+class NPILookupResponse(BaseModel):
+    npi: str
+    valid: bool
+    status: Optional[str] = None
+    enumeration_type: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    organization_name: Optional[str] = None
+    credential: Optional[str] = None
+    taxonomy_code: Optional[str] = None
+    taxonomy_description: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip_code: Optional[str] = None
+    phone: Optional[str] = None
+    message: str
+
+
+class NCCIEditResponse(BaseModel):
+    column1_code: str
+    column2_code: str
+    modifier_indicator: int
+    effective_date: date
+    deletion_date: Optional[date]
+    model_config = {"from_attributes": True}
+
+
+class MUELimitResponse(BaseModel):
+    cpt_code: str
+    mue_value: int
+    adjudication_indicator: str
+    rationale: Optional[str]
+    effective_date: date
+    model_config = {"from_attributes": True}
+
+
+class CARCCodeResponse(BaseModel):
+    code: str
+    description: str
+    category: Optional[str]
+    notes: Optional[str]
+    effective_date: Optional[date]
+    model_config = {"from_attributes": True}
+
+
+class RARCCodeResponse(BaseModel):
+    code: str
+    description: str
+    remark_type: Optional[str]
+    effective_date: Optional[date]
+    model_config = {"from_attributes": True}
+
+
+class CodeSearchResult(BaseModel):
+    code: str
+    description: str
+    default_fee: Optional[float] = None
+    default_units: Optional[int] = None

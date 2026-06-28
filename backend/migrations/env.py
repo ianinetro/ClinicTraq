@@ -19,6 +19,7 @@ import domains.master_data.tfl_settings  # noqa: F401
 import domains.patients.models  # noqa: F401
 import domains.patients.deductible_tracker  # noqa: F401
 import domains.visits.models  # noqa: F401
+import domains.visits.body_map  # noqa: F401
 import domains.claims.models  # noqa: F401
 import domains.payments.models  # noqa: F401
 import domains.work_queue.models  # noqa: F401

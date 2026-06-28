@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Send, RotateCcw, AlertCircle, CheckCircle2, FileText, ChevronDown, ChevronUp } from 'lucide-react'
+import { ArrowLeft, Send, RotateCcw, AlertCircle, CheckCircle2, FileText, ChevronDown, ChevronUp, Download, ShieldAlert, MessageSquare } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
 
@@ -23,7 +23,8 @@ interface ClaimData {
   totalPaid: number
   totalBalance: number
   denialReason?: string
-  validationIssues: string[]
+  validationIssues: { severity: 'blocking' | 'warning' | 'info'; code: string; message: string }[]
+  denials: { id: string; carc_code: string; rarc_code?: string; denial_reason: string; appeal_status: string; appeal_due_date?: string; denied_amount?: number }[]
   submissionHistory: { date: string; event: string; note: string; status: string }[]
 }
 
@@ -49,7 +50,13 @@ const MOCK: ClaimData = {
   totalPaid: 0,
   totalBalance: 250.00,
   denialReason: 'CO-45: Charges exceed the fee schedule/maximum allowable or contracted rate',
-  validationIssues: [],
+  validationIssues: [
+    { severity: 'warning', code: 'NCCI_EDIT', message: 'NCCI edit: 97110 may bundle with 99214 — ensure modifier GP is documented' },
+    { severity: 'info', code: 'TFL_APPROACHING', message: 'Timely filing limit approaching — 45 days remaining' },
+  ],
+  denials: [
+    { id: '1', carc_code: 'CO-45', rarc_code: 'M15', denial_reason: 'Charge exceeds fee schedule/maximum allowable', appeal_status: 'draft', appeal_due_date: '2026-09-25', denied_amount: 250.00 },
+  ],
   submissionHistory: [
     { date: '2026-06-25 09:14', event: 'Submitted', note: 'EDI 837 sent to clearinghouse', status: 'info' },
     { date: '2026-06-25 11:02', event: 'Acknowledged', note: 'Clearinghouse accepted — 999 functional ACK', status: 'info' },
@@ -65,7 +72,7 @@ const statusVariant = (s: string): 'success' | 'warning' | 'danger' | 'info' | '
   return 'default'
 }
 
-type Section = 'overview' | 'diagnoses' | 'lines' | 'provider' | 'history'
+type Section = 'overview' | 'diagnoses' | 'lines' | 'validation' | 'denials' | 'provider' | 'history'
 
 export function ClaimDetailPage() {
   useParams<{ id: string }>()
@@ -107,6 +114,10 @@ export function ClaimDetailPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          <Button variant="ghost" size="sm" onClick={() => window.open(`/api/claims/${claim.claimId}/edi837`, '_blank')}>
+            <Download size={14} />
+            837
+          </Button>
           {claim.status === 'Denied' && (
             <Button variant="secondary">
               <RotateCcw size={14} />
@@ -265,6 +276,87 @@ export function ClaimDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Validation Issues */}
+      {claim.validationIssues.length > 0 && (
+        <div style={{ background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)', borderRadius: 'var(--bb-radius-lg)', overflow: 'hidden' }}>
+          <SectionHeader title={`Validation Issues (${claim.validationIssues.length})`} section="validation" icon={<ShieldAlert size={14} />} />
+          {openSection === 'validation' && (
+            <div style={{ padding: '12px 20px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {claim.validationIssues.map((issue, i) => {
+                const colors = issue.severity === 'blocking'
+                  ? { bg: '#FEF2F2', border: '#FECACA', text: '#991B1B', badge: '#DC2626' }
+                  : issue.severity === 'warning'
+                    ? { bg: '#FFFBEB', border: '#FDE68A', text: '#92400E', badge: '#D97706' }
+                    : { bg: '#EFF6FF', border: '#BFDBFE', text: '#1E40AF', badge: '#3B82F6' }
+                return (
+                  <div key={i} style={{ background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 8, padding: '10px 14px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, background: colors.badge, color: 'white', padding: '2px 7px', borderRadius: 4, whiteSpace: 'nowrap', marginTop: 1 }}>
+                      {issue.severity.toUpperCase()}
+                    </span>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: colors.text }}>{issue.code}</div>
+                      <div style={{ fontSize: 13, color: colors.text, marginTop: 2 }}>{issue.message}</div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Denial History */}
+      {claim.denials.length > 0 && (
+        <div style={{ background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)', borderRadius: 'var(--bb-radius-lg)', overflow: 'hidden' }}>
+          <SectionHeader title={`Denial History (${claim.denials.length})`} section="denials" icon={<MessageSquare size={14} />} />
+          {openSection === 'denials' && (
+            <div style={{ padding: '12px 20px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {claim.denials.map(denial => {
+                const dueDate = denial.appeal_due_date ? new Date(denial.appeal_due_date) : null
+                const isPastDue = dueDate ? dueDate < new Date() : false
+                const appealColors: Record<string, { bg: string; text: string }> = {
+                  draft: { bg: '#F3F4F6', text: '#374151' },
+                  submitted: { bg: '#DBEAFE', text: '#1E40AF' },
+                  won: { bg: '#DCFCE7', text: '#15803D' },
+                  lost: { bg: '#FEE2E2', text: '#991B1B' },
+                  write_off: { bg: '#F3F4F6', text: '#6B7280' },
+                }
+                const ac = appealColors[denial.appeal_status] || appealColors.draft
+                return (
+                  <div key={denial.id} style={{ border: '1px solid #FECACA', borderRadius: 10, overflow: 'hidden' }}>
+                    <div style={{ background: '#FEF2F2', borderBottom: '1px solid #FECACA', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 13, color: '#DC2626' }}>{denial.carc_code}</span>
+                        {denial.rarc_code && <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#6B7280' }}>{denial.rarc_code}</span>}
+                        {denial.denied_amount !== undefined && (
+                          <span style={{ fontSize: 13, fontWeight: 600, color: '#DC2626' }}>-${denial.denied_amount.toFixed(2)}</span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, background: ac.bg, color: ac.text, padding: '2px 8px', borderRadius: 4 }}>
+                          {denial.appeal_status.replace('_', ' ').toUpperCase()}
+                        </span>
+                        {dueDate && (
+                          <span style={{ fontSize: 11, color: isPastDue ? '#DC2626' : '#6B7280' }}>
+                            Due: {denial.appeal_due_date}
+                          </span>
+                        )}
+                        {denial.appeal_status === 'draft' && (
+                          <Button size="xs" variant="secondary">File Appeal</Button>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ padding: '10px 16px', fontSize: 13, color: 'var(--bb-text-secondary)' }}>
+                      {denial.denial_reason}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Provider & Facility */}
       <div style={{ background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)', borderRadius: 'var(--bb-radius-lg)', overflow: 'hidden' }}>

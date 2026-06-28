@@ -279,6 +279,158 @@ async def claim_events(
     return result.scalars().all()
 
 
+@router.get("/claims/{claim_id}/edi837")
+async def download_edi837(
+    claim_id: uuid.UUID,
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("claims:read")),
+):
+    """Generate and return an EDI 837P file for the claim."""
+    from fastapi.responses import PlainTextResponse
+    from domains.claims.edi837 import generate_837p
+    from domains.master_data.models import Provider, Payer, BillingProvider
+    from domains.patients.models import Patient, PatientInsurance
+
+    claim = await _load_claim(db, claim_id, ctx.tenant_id)
+
+    patient = (await db.execute(select(Patient).where(Patient.id == claim.patient_id))).scalar_one_or_none()
+    prov = None
+    if claim.provider_id:
+        prov = (await db.execute(select(Provider).where(Provider.id == claim.provider_id))).scalar_one_or_none()
+    payer = None
+    if claim.payer_id:
+        payer = (await db.execute(select(Payer).where(Payer.id == claim.payer_id))).scalar_one_or_none()
+    bp = None
+    if claim.billing_provider_id:
+        bp = (await db.execute(select(BillingProvider).where(BillingProvider.id == claim.billing_provider_id))).scalar_one_or_none()
+    ins = None
+    if claim.patient_insurance_id:
+        ins = (await db.execute(select(PatientInsurance).where(PatientInsurance.id == claim.patient_insurance_id))).scalar_one_or_none()
+
+    diagnoses = [d.get("icd_code", "") for d in (claim.diagnoses_snapshot or [])]
+    service_lines = [
+        {
+            "cpt_code": l.cpt_code,
+            "modifiers": l.modifiers or [],
+            "units": l.units,
+            "charge": float(l.charge_amount),
+            "diagnosis_pointers": l.diagnosis_pointers or [1],
+        }
+        for l in claim.lines
+    ]
+
+    edi = generate_837p(
+        submitter_id=bp.npi if bp else "0000000000",
+        submitter_name=bp.name if bp else "BILLING PROVIDER",
+        receiver_id="999999999",
+        receiver_name="CLEARINGHOUSE",
+        billing_npi=bp.npi if bp else (prov.npi if prov else "0000000000"),
+        billing_name=bp.name if bp else "BILLING PROVIDER",
+        billing_tax_id=bp.tax_id if bp else "000000000",
+        billing_address=bp.address_line1 if bp else "",
+        billing_city=bp.city if bp else "",
+        billing_state=bp.state if bp else "",
+        billing_zip=bp.zip_code if bp else "",
+        rendering_npi=prov.npi if prov else "0000000000",
+        rendering_last=prov.last_name if prov else "",
+        rendering_first=prov.first_name if prov else "",
+        payer_id=payer.payer_id if payer else "UNKNOWN",
+        payer_name=payer.name if payer else "UNKNOWN PAYER",
+        subscriber_id=ins.member_id if ins and hasattr(ins, "member_id") else "000000000",
+        subscriber_last=patient.last_name if patient else "",
+        subscriber_first=patient.first_name if patient else "",
+        subscriber_dob=getattr(patient, "date_of_birth", None) or getattr(patient, "dob", None),
+        subscriber_gender=getattr(patient, "sex", "U") or "U",
+        claim_number=claim.claim_number or str(claim.id),
+        claim_total=float(claim.total_charge),
+        date_of_service=claim.date_of_service,
+        authorization_number=claim.authorization_number or "",
+        diagnoses=diagnoses,
+        service_lines=service_lines,
+    )
+    return PlainTextResponse(content=edi, media_type="text/plain",
+                             headers={"Content-Disposition": f"attachment; filename=claim_{claim.claim_number}.837"})
+
+
+@router.post("/claims/{claim_id}/denial")
+async def create_denial(
+    claim_id: uuid.UUID,
+    body: dict,
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("claims:write")),
+):
+    """Record a denial for a claim with CARC/RARC codes."""
+    from domains.work_queue.models import DenialAppeal
+    denial = DenialAppeal(
+        tenant_id=ctx.tenant_id,
+        claim_id=claim_id,
+        carc_code=body.get("carc_code"),
+        rarc_code=body.get("rarc_code"),
+        denial_reason=body.get("denial_reason"),
+        denied_amount=body.get("denied_amount"),
+        appeal_status="draft",
+        appeal_due_date=body.get("appeal_due_date"),
+    )
+    db.add(denial)
+    claim = (await db.execute(select(Claim).where(Claim.id == claim_id, Claim.tenant_id == ctx.tenant_id))).scalar_one_or_none()
+    if claim:
+        claim.status = "denied"
+    await db.flush()
+    return {"id": str(denial.id), "status": "draft"}
+
+
+@router.get("/claims/{claim_id}/denials")
+async def list_denials(
+    claim_id: uuid.UUID,
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("claims:read")),
+):
+    from domains.work_queue.models import DenialAppeal
+    result = await db.execute(
+        select(DenialAppeal).where(DenialAppeal.claim_id == claim_id, DenialAppeal.tenant_id == ctx.tenant_id)
+        .order_by(DenialAppeal.created_at.desc())
+    )
+    appeals = result.scalars().all()
+    return [
+        {
+            "id": str(a.id),
+            "carc_code": a.carc_code,
+            "rarc_code": a.rarc_code,
+            "denial_reason": a.denial_reason,
+            "denied_amount": a.denied_amount,
+            "appeal_status": a.appeal_status,
+            "appeal_due_date": str(a.appeal_due_date) if a.appeal_due_date else None,
+            "appeal_submitted_date": str(a.appeal_submitted_date) if a.appeal_submitted_date else None,
+            "appeal_notes": a.appeal_notes,
+            "resolved_amount": a.resolved_amount,
+            "created_at": a.created_at.isoformat() if a.created_at else None,
+        }
+        for a in appeals
+    ]
+
+
+@router.patch("/denials/{denial_id}")
+async def update_denial(
+    denial_id: uuid.UUID,
+    body: dict,
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("claims:write")),
+):
+    from domains.work_queue.models import DenialAppeal
+    denial = (await db.execute(select(DenialAppeal).where(DenialAppeal.id == denial_id, DenialAppeal.tenant_id == ctx.tenant_id))).scalar_one_or_none()
+    if not denial:
+        raise HTTPException(status_code=404, detail="Denial not found")
+    for k, v in body.items():
+        if hasattr(denial, k):
+            setattr(denial, k, v)
+    await db.flush()
+    return {"id": str(denial.id), "appeal_status": denial.appeal_status}
+
+
 @router.post("/claims/batch-submit")
 async def batch_submit(
     body: BatchSubmitRequest,
