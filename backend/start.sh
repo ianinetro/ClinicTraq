@@ -44,7 +44,9 @@ except Exception as exc:
     sys.exit(1)
 PYEOF
 
-echo "=== Imports passed, starting gunicorn ===" >&2
+echo "=== Running database migrations ===" >&2
+alembic upgrade head
+echo "=== Migrations done, starting gunicorn ===" >&2
 exec gunicorn main:app \
     -k uvicorn.workers.UvicornWorker \
     --bind "0.0.0.0:${WEBSITES_PORT:-8000}" \
