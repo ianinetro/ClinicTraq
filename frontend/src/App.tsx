@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuthStore } from './stores/authStore'
 import { AppShell } from './components/layout/AppShell'
@@ -16,6 +17,13 @@ import { ERAReviewPage } from './modules/payments/ERAReviewPage'
 import { WorkQueuePage } from './modules/work-queue/WorkQueuePage'
 import { SettingsPage } from './modules/settings/SettingsPage'
 import { OrgManagementPage } from './modules/organization/OrgManagementPage'
+
+const AdminClinicsPage = lazy(() =>
+  import('./modules/admin/AdminClinicsPage').then(m => ({ default: m.AdminClinicsPage }))
+)
+const ARDashboardPage = lazy(() =>
+  import('./modules/ar/ARDashboardPage').then(m => ({ default: m.ARDashboardPage }))
+)
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore(s => s.isAuthenticated)
@@ -49,6 +57,8 @@ export default function App() {
         <Route path="/work-queue" element={<WorkQueuePage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/organization" element={<OrgManagementPage />} />
+        <Route path="/admin/clinics" element={<Suspense fallback={<div />}><AdminClinicsPage /></Suspense>} />
+        <Route path="/ar" element={<Suspense fallback={<div />}><ARDashboardPage /></Suspense>} />
       </Route>
     </Routes>
   )

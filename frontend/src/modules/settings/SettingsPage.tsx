@@ -2,6 +2,12 @@ import { NavLink, Routes, Route, Navigate } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { Building2, MapPin, Shield, Stethoscope, FileCode, BookOpen, UserCog, Clock, TrendingDown } from 'lucide-react'
 import { TFLSettings } from './TFLSettings'
+import { UsersSettings } from './UsersSettings'
+import { PracticeInfoSettings } from './PracticeInfoSettings'
+import { OfficesSettings } from './OfficesSettings'
+import { FacilitiesSettings } from './FacilitiesSettings'
+import { PayersSettings } from './PayersSettings'
+import { ProvidersSettings } from './ProvidersSettings'
 
 interface SettingsSection {
   id: string
@@ -95,17 +101,17 @@ export function SettingsPage() {
       <div className="flex-1 overflow-y-auto bg-[#F2F2F8]">
         <Routes>
           <Route index element={<Navigate to="practice/info" replace />} />
-          <Route path="practice/info" element={<GenericSettingsSection title="Practice Info" />} />
-          <Route path="practice/offices" element={<GenericSettingsSection title="Offices" />} />
-          <Route path="providers/rendering" element={<GenericSettingsSection title="Rendering Providers" />} />
-          <Route path="providers/billing" element={<GenericSettingsSection title="Billing Providers" />} />
-          <Route path="providers/referring" element={<GenericSettingsSection title="Referring Providers" />} />
-          <Route path="facilities" element={<GenericSettingsSection title="Facilities" />} />
-          <Route path="payers" element={<GenericSettingsSection title="Payers & Insurance" />} />
+          <Route path="practice/info" element={<PracticeInfoSettings />} />
+          <Route path="practice/offices" element={<OfficesSettings />} />
+          <Route path="providers/rendering" element={<ProvidersSettings />} />
+          <Route path="providers/billing" element={<ProvidersSettings />} />
+          <Route path="providers/referring" element={<ProvidersSettings />} />
+          <Route path="facilities" element={<FacilitiesSettings />} />
+          <Route path="payers" element={<PayersSettings />} />
           <Route path="codes/cpt" element={<GenericSettingsSection title="CPT Codes" />} />
           <Route path="codes/icd" element={<GenericSettingsSection title="Diagnosis Codes" />} />
           <Route path="codes/accounts" element={<GenericSettingsSection title="Chart of Accounts" />} />
-          <Route path="users" element={<GenericSettingsSection title="Users & Roles" />} />
+          <Route path="users" element={<UsersSettings />} />
           <Route path="billing/tfl" element={<TFLSettings />} />
           <Route path="billing/deductible" element={<GenericSettingsSection title="Deductible Tracker Settings" />} />
           <Route path="*" element={<Navigate to="practice/info" replace />} />

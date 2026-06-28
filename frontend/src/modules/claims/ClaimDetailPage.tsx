@@ -1,460 +1,771 @@
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { format } from 'date-fns'
-import { ArrowLeft, CheckCircle, XCircle, AlertTriangle, Send, RefreshCw, Clock, User, FileText } from 'lucide-react'
-import { Tabs, TabList, Tab, TabPanel } from '../../components/ui/Tabs'
+import { useQuery } from '@tanstack/react-query'
+import { ArrowLeft, Send, RotateCcw, AlertCircle, CheckCircle2, FileText, ChevronDown, ChevronUp, Download, ShieldAlert, MessageSquare, Printer, GitBranch } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
-import { StatusBadge } from '../../components/shared/StatusBadge'
-import { PHIField } from '../../components/shared/PHIField'
-import { Modal } from '../../components/ui/Modal'
-import { useClaim, useValidateClaim, useSubmitClaim } from '../../services/queries'
-import { useToast } from '../../components/ui/Toast'
-import { useState } from 'react'
-import type { ValidationError } from '../../types'
+import { Badge } from '../../components/ui/Badge'
+import { apiClient as api } from '../../services/api'
 
-// Fake audit events for display (real data would come from API)
-const mockLifecycle = [
-  { icon: FileText, label: 'Visit Created', time: '2024-01-15 09:00', by: 'System', color: '#676687' },
-  { icon: FileText, label: 'Claim Created', time: '2024-01-15 09:05', by: 'admin@practice.com', color: '#0410BD' },
-  { icon: RefreshCw, label: 'Validation Run — Passed', time: '2024-01-15 09:05', by: 'System', color: '#047857' },
-  { icon: Send, label: 'Submitted to Payer', time: '2024-01-15 09:10', by: 'admin@practice.com', color: '#0410BD' },
-  { icon: CheckCircle, label: 'Acknowledged by Payer (277CA)', time: '2024-01-16 14:22', by: 'System', color: '#047857' },
-]
+type ClaimStatus = 'Draft' | 'Pending' | 'Submitted' | 'Denied' | 'Paid' | 'Partial'
+
+interface ClaimData {
+  claimId: string
+  status: ClaimStatus
+  patient: { name: string; dob: string; mrn: string; memberId: string; groupNumber: string; sex: string }
+  payer: { name: string; payerId: string; planType: string; phone: string }
+  provider: { name: string; npi: string; taxonomy: string; tin: string }
+  facility: { name: string; npi: string; posCode: string; address: string }
+  diagnoses: { icd10: string; description: string; pointer: string }[]
+  serviceLines: { cpt: string; mods: string; dos: string; units: number; billed: number; allowed: number; paid: number; adjustment: number; adjReason: string }[]
+  submitDate: string
+  payerControlNumber: string
+  checkNumber: string
+  checkDate: string
+  totalBilled: number
+  totalPaid: number
+  totalBalance: number
+  denialReason?: string
+  validationIssues: { severity: 'blocking' | 'warning' | 'info'; code: string; message: string }[]
+  denials: { id: string; carc_code: string; rarc_code?: string; denial_reason: string; appeal_status: string; appeal_due_date?: string; denied_amount?: number }[]
+  submissionHistory: { date: string; event: string; note: string; status: string }[]
+}
+
+interface ValidationIssue {
+  severity: string
+  message: string
+  code?: string
+}
+
+interface DenialItem {
+  id: string
+  carc_code: string
+  rarc_code?: string
+  denial_reason: string
+  appeal_status: string
+  appeal_due_date?: string
+  denied_amount?: number
+}
+
+const statusVariant = (s: string): 'success' | 'warning' | 'danger' | 'info' | 'default' => {
+  if (s === 'Paid') return 'success'
+  if (s === 'Denied') return 'danger'
+  if (s === 'Pending' || s === 'Partial') return 'warning'
+  if (s === 'Submitted') return 'info'
+  return 'default'
+}
+
+type Section = 'overview' | 'diagnoses' | 'lines' | 'validation' | 'denials' | 'provider' | 'history'
+
+const EMPTY_CLAIM: ClaimData = {
+  claimId: '', status: 'Draft',
+  patient: { name: '', dob: '', mrn: '', memberId: '', groupNumber: '', sex: '' },
+  payer: { name: '', payerId: '', planType: '', phone: '' },
+  provider: { name: '', npi: '', taxonomy: '', tin: '' },
+  facility: { name: '', npi: '', posCode: '', address: '' },
+  diagnoses: [], serviceLines: [],
+  submitDate: '', payerControlNumber: '', checkNumber: '', checkDate: '',
+  totalBilled: 0, totalPaid: 0, totalBalance: 0,
+  validationIssues: [], denials: [], submissionHistory: [],
+}
 
 export function ClaimDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { addToast } = useToast()
-  const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false)
+  const claimId = id ?? ''
+  const [openSection, setOpenSection] = useState<Section | null>('lines')
 
-  const { data: claim, isLoading } = useClaim(id ?? '')
-  const validateClaim = useValidateClaim()
-  const submitClaim = useSubmitClaim()
+  // Validation state
+  const [validationIssues, setValidationIssues] = useState<ValidationIssue[] | null>(null)
+  const [validating, setValidating] = useState(false)
 
-  if (isLoading) {
-    return <div className="p-6 animate-pulse"><div className="h-8 bg-[#E3E3F1] rounded w-64" /></div>
-  }
+  // Denial state
+  const [denials, setDenials] = useState<DenialItem[]>([])
+  const [denialsLoaded, setDenialsLoaded] = useState(false)
+  const [showRecordDenialForm, setShowRecordDenialForm] = useState(false)
+  const [recordDenialForm, setRecordDenialForm] = useState({ carc_code: '', rarc_code: '', denial_reason: '', appeal_due_date: '' })
+  const [recordingDenial, setRecordingDenial] = useState(false)
 
-  if (!claim) {
-    return (
-      <div className="p-6">
-        <p className="text-sm text-[#676687]">Claim not found.</p>
-        <Button size="sm" variant="secondary" onClick={() => navigate('/claims')} className="mt-3">Back</Button>
-      </div>
-    )
-  }
+  // Per-denial appeal form state
+  const [appealForms, setAppealForms] = useState<Record<string, { open: boolean; appeal_notes: string; status: string }>>({})
+  const [savingAppeal, setSavingAppeal] = useState<string | null>(null)
 
-  const blockingErrors = claim.validationErrors?.filter(e => e.severity === 'error') ?? []
-  const validationWarnings = claim.validationErrors?.filter(e => e.severity === 'warning') ?? []
-  const canSubmit = blockingErrors.length === 0
+  // Secondary claim state
+  const [secondaryClaimId, setSecondaryClaimId] = useState<string | null>(null)
+  const [creatingSecondary, setCreatingSecondary] = useState(false)
 
-  async function handleValidate() {
+  const { data: claim = EMPTY_CLAIM, isLoading, isError } = useQuery<ClaimData>({
+    queryKey: ['claims', claimId],
+    queryFn: async () => (await api.get(`/claims/${claimId}`)).data,
+    enabled: !!claimId,
+  })
+
+  // Fetch denials on mount
+  useEffect(() => {
+    if (!claimId) return
+    api.get(`/claims/${claimId}/denials`)
+      .then(res => {
+        setDenials(res.data ?? [])
+        setDenialsLoaded(true)
+      })
+      .catch(() => setDenialsLoaded(true))
+  }, [claimId])
+
+  const toggle = (s: Section) => setOpenSection(prev => prev === s ? null : s)
+
+  const SectionHeader = ({ title, section, icon }: { title: string; section: Section; icon?: React.ReactNode }) => (
+    <button
+      onClick={() => toggle(section)}
+      style={{
+        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '14px 20px', background: 'none', border: 'none', cursor: 'pointer',
+        fontSize: 14, fontWeight: 600, color: 'var(--bb-text-primary)',
+        borderBottom: openSection === section ? '1px solid var(--bb-border)' : 'none',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{icon}{title}</div>
+      {openSection === section ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+    </button>
+  )
+
+  async function handleRunValidation() {
+    setValidating(true)
     try {
-      await validateClaim.mutateAsync(claim!.id)
-      addToast({ variant: 'success', message: 'Validation complete.' })
+      const res = await api.post(`/claims/${claimId}/validate`)
+      setValidationIssues(res.data?.issues ?? res.data ?? [])
     } catch {
-      addToast({ variant: 'error', message: 'Validation failed.' })
+      alert('Validation failed')
+    } finally {
+      setValidating(false)
     }
   }
 
-  async function handleSubmit() {
+  async function handlePrintCMS1500() {
     try {
-      await submitClaim.mutateAsync(claim!.id)
-      addToast({ variant: 'success', message: 'Claim submitted successfully.' })
-      setSubmitConfirmOpen(false)
+      const res = await api.get(`/claims/${claimId}/cms1500/pdf`, { responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      window.open(url, '_blank')
     } catch {
-      addToast({ variant: 'error', message: 'Submission failed. Please try again.' })
+      alert('PDF generation failed')
     }
   }
+
+  async function handleDownload837() {
+    try {
+      const res = await api.get(`/claims/${claimId}/edi837`, { responseType: 'text' })
+      const blob = new Blob([res.data], { type: 'text/plain' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `claim_${claimId}.837`
+      a.click()
+    } catch {
+      alert('EDI generation failed')
+    }
+  }
+
+  async function handleCreateSecondary() {
+    setCreatingSecondary(true)
+    try {
+      const res = await api.post(`/claims/${claimId}/crossover`)
+      setSecondaryClaimId(res.data?.claim_id ?? res.data?.id ?? null)
+    } catch {
+      alert('Failed to create secondary claim')
+    } finally {
+      setCreatingSecondary(false)
+    }
+  }
+
+  async function handleRecordDenial() {
+    if (!recordDenialForm.carc_code || !recordDenialForm.denial_reason) return
+    setRecordingDenial(true)
+    try {
+      await api.post(`/claims/${claimId}/denial`, recordDenialForm)
+      const res = await api.get(`/claims/${claimId}/denials`)
+      setDenials(res.data ?? [])
+      setRecordDenialForm({ carc_code: '', rarc_code: '', denial_reason: '', appeal_due_date: '' })
+      setShowRecordDenialForm(false)
+    } catch {
+      alert('Failed to record denial')
+    } finally {
+      setRecordingDenial(false)
+    }
+  }
+
+  function toggleAppealForm(denialId: string) {
+    setAppealForms(prev => ({
+      ...prev,
+      [denialId]: prev[denialId]?.open
+        ? { ...prev[denialId], open: false }
+        : { open: true, appeal_notes: '', status: 'draft' },
+    }))
+  }
+
+  async function handleSaveAppeal(denialId: string) {
+    const form = appealForms[denialId]
+    if (!form) return
+    setSavingAppeal(denialId)
+    try {
+      await api.patch(`/denials/${denialId}`, { appeal_notes: form.appeal_notes, appeal_status: form.status })
+      const res = await api.get(`/claims/${claimId}/denials`)
+      setDenials(res.data ?? [])
+      setAppealForms(prev => ({ ...prev, [denialId]: { ...prev[denialId], open: false } }))
+    } catch {
+      alert('Failed to save appeal')
+    } finally {
+      setSavingAppeal(null)
+    }
+  }
+
+  if (isLoading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--bb-text-secondary)' }}>Loading claim…</div>
+  if (isError) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--bb-status-danger)' }}>Failed to load claim. Check API connection.</div>
+
+  const showSecondaryButton = claim.status === 'Paid' || claim.status === 'Partial'
+  const today = new Date()
 
   return (
-    <div className="p-6 space-y-4 max-w-6xl">
-      <button onClick={() => navigate('/claims')} className="flex items-center gap-1.5 text-sm text-[#676687] hover:text-[#12122C]">
-        <ArrowLeft size={14} />Back to Claims
-      </button>
-
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#676687] mb-1">Claim</p>
-          <h1 className="text-2xl font-bold text-[#12122C] font-mono">{claim.claimNumber}</h1>
-          {claim.patient && (
-            <div className="mt-1">
-              <PHIField
-                value={`${claim.patient.firstName} ${claim.patient.lastName}`}
-                fieldName="Patient Name"
-                patientId={claim.patientId}
-                fieldType="name"
-                inline
-              />
-            </div>
-          )}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 1100 }}>
+      {/* Back + header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <Button variant="ghost" size="sm" onClick={() => navigate('/claims')}>
+          <ArrowLeft size={14} /> Claims
+        </Button>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Claim {claim.claimId}</h2>
+            <Badge variant={statusVariant(claim.status)}>{claim.status}</Badge>
+          </div>
+          <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--bb-text-secondary)' }}>
+            {claim.patient.name} · {claim.payer.name} · DOS {claim.serviceLines[0]?.dos}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <StatusBadge status={claim.status} />
-          <Button
-            size="sm"
-            variant="secondary"
-            leftIcon={<RefreshCw size={13} />}
-            loading={validateClaim.isPending}
-            onClick={handleValidate}
-          >
-            Validate
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <Button variant="ghost" size="sm" onClick={handlePrintCMS1500}>
+            <Printer size={14} />
+            CMS-1500
           </Button>
-          {canSubmit && claim.status !== 'submitted' && claim.status !== 'paid' && (
-            <Button
-              size="sm"
-              variant="primary"
-              leftIcon={<Send size={13} />}
-              onClick={() => setSubmitConfirmOpen(true)}
+          <Button variant="ghost" size="sm" onClick={handleDownload837}>
+            <Download size={14} />
+            837
+          </Button>
+          {showSecondaryButton && !secondaryClaimId && (
+            <Button variant="secondary" size="sm" onClick={handleCreateSecondary} disabled={creatingSecondary}>
+              <GitBranch size={14} />
+              {creatingSecondary ? 'Creating…' : 'Secondary Claim'}
+            </Button>
+          )}
+          {secondaryClaimId && (
+            <button
+              onClick={() => navigate(`/claims/${secondaryClaimId}`)}
+              style={{
+                fontSize: 13, padding: '6px 12px', borderRadius: 6,
+                background: 'var(--bb-status-success)', color: 'white',
+                border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+              }}
             >
-              Submit
+              Secondary claim created — view {secondaryClaimId}
+            </button>
+          )}
+          {claim.status === 'Denied' && (
+            <Button variant="secondary">
+              <RotateCcw size={14} />
+              Resubmit
+            </Button>
+          )}
+          {(claim.status === 'Draft' || claim.status === 'Pending') && (
+            <Button variant="primary">
+              <Send size={14} />
+              Submit Claim
             </Button>
           )}
         </div>
       </div>
 
-      {/* Blocking errors banner */}
-      {blockingErrors.length > 0 && (
-        <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-lg p-4">
-          <p className="text-sm font-semibold text-[#B91C1C] mb-2">
-            {blockingErrors.length} blocking {blockingErrors.length === 1 ? 'error' : 'errors'} — cannot submit
-          </p>
-          {blockingErrors.map((e: ValidationError) => (
-            <p key={e.id} className="text-xs text-[#B91C1C]">• {e.message}</p>
-          ))}
+      {/* Denial alert */}
+      {claim.denialReason && (
+        <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 'var(--bb-radius)', padding: '12px 16px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <AlertCircle size={16} color="var(--bb-status-danger)" style={{ marginTop: 1, flexShrink: 0 }} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--bb-status-danger)' }}>Claim Denied</div>
+            <div style={{ fontSize: 13, color: '#991B1B', marginTop: 2 }}>{claim.denialReason}</div>
+          </div>
         </div>
       )}
 
-      <Tabs defaultTab="summary">
-        <TabList>
-          <Tab id="summary">Summary</Tab>
-          <Tab id="validation">Validation</Tab>
-          <Tab id="lines">Service Lines</Tab>
-          <Tab id="providers">Providers</Tab>
-          <Tab id="submissions">Submission History</Tab>
-          <Tab id="payments">Payments</Tab>
-          <Tab id="notes">Notes</Tab>
-          <Tab id="cms1500">CMS-1500</Tab>
-          <Tab id="lifecycle">Lifecycle</Tab>
-        </TabList>
-
-        {/* Summary Tab */}
-        <TabPanel id="summary" className="pt-4">
-          <div className="grid grid-cols-4 gap-3 mb-4">
-            <div className="bg-white border border-[#E3E3F1] rounded-lg p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#676687] mb-1">Total Charges</p>
-              <p className="text-xl font-bold tabular-nums">${claim.totalCharges.toFixed(2)}</p>
-            </div>
-            <div className="bg-white border border-[#E3E3F1] rounded-lg p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#676687] mb-1">Total Paid</p>
-              <p className="text-xl font-bold tabular-nums text-[#047857]">${claim.totalPaid.toFixed(2)}</p>
-            </div>
-            <div className="bg-white border border-[#E3E3F1] rounded-lg p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#676687] mb-1">Balance</p>
-              <p className={`text-xl font-bold tabular-nums ${claim.balance > 0 ? 'text-[#B91C1C]' : 'text-[#676687]'}`}>
-                ${claim.balance.toFixed(2)}
-              </p>
-            </div>
-            <div className="bg-white border border-[#E3E3F1] rounded-lg p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#676687] mb-1">Payer</p>
-              <p className="text-sm font-medium text-[#12122C]">{claim.payerName}</p>
-            </div>
+      {/* Financial summary */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        {[
+          { label: 'Billed', value: `$${claim.totalBilled.toFixed(2)}`, sub: 'total charged' },
+          { label: 'Paid', value: `$${claim.totalPaid.toFixed(2)}`, sub: 'received', ok: claim.totalPaid > 0 },
+          { label: 'Balance', value: `$${claim.totalBalance.toFixed(2)}`, sub: 'outstanding', warn: claim.totalBalance > 0 },
+        ].map(k => (
+          <div key={k.label} style={{ background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)', borderRadius: 'var(--bb-radius-lg)', padding: '16px 20px' }}>
+            <div style={{ fontSize: 12, color: 'var(--bb-text-secondary)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{k.label}</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: k.warn ? 'var(--bb-status-danger)' : k.ok ? 'var(--bb-status-success)' : 'var(--bb-text-primary)', marginTop: 4 }}>{k.value}</div>
+            <div style={{ fontSize: 12, color: 'var(--bb-text-secondary)' }}>{k.sub}</div>
           </div>
-          <div className="bg-white border border-[#E3E3F1] rounded-lg p-4">
-            <div className="grid grid-cols-3 gap-4 text-sm">
-              <div>
-                <span className="text-[#676687]">DOS:</span>
-                <span className="ml-2 font-mono">{claim.dos ? format(new Date(claim.dos), 'MM/dd/yyyy') : '—'}</span>
+        ))}
+      </div>
+
+      {/* Patient & Payer side-by-side */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        {/* Patient */}
+        <div style={{ background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)', borderRadius: 'var(--bb-radius-lg)', padding: '18px 20px' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--bb-text-secondary)', marginBottom: 14 }}>Patient & Insured</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {[
+              { label: 'Patient Name', value: claim.patient.name },
+              { label: 'DOB', value: claim.patient.dob },
+              { label: 'MRN', value: claim.patient.mrn },
+              { label: 'Sex', value: claim.patient.sex },
+              { label: 'Member ID', value: claim.patient.memberId },
+              { label: 'Group Number', value: claim.patient.groupNumber },
+            ].map(f => (
+              <div key={f.label}>
+                <div style={{ fontSize: 11, color: 'var(--bb-text-secondary)', fontWeight: 500, marginBottom: 2 }}>{f.label}</div>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>{f.value}</div>
               </div>
-              <div>
-                <span className="text-[#676687]">Submitted:</span>
-                <span className="ml-2 font-mono">{claim.submittedAt ? format(new Date(claim.submittedAt), 'MM/dd/yyyy') : 'Not yet'}</span>
-              </div>
-              <div>
-                <span className="text-[#676687]">Adjudicated:</span>
-                <span className="ml-2 font-mono">{claim.adjudicatedAt ? format(new Date(claim.adjudicatedAt), 'MM/dd/yyyy') : '—'}</span>
-              </div>
-            </div>
+            ))}
           </div>
-        </TabPanel>
+        </div>
+        {/* Payer */}
+        <div style={{ background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)', borderRadius: 'var(--bb-radius-lg)', padding: '18px 20px' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--bb-text-secondary)', marginBottom: 14 }}>Payer & Plan</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {[
+              { label: 'Payer Name', value: claim.payer.name },
+              { label: 'Payer ID', value: claim.payer.payerId },
+              { label: 'Plan Type', value: claim.payer.planType },
+              { label: 'Payer Phone', value: claim.payer.phone },
+              { label: 'Submit Date', value: claim.submitDate },
+              { label: 'Payer Control #', value: claim.payerControlNumber || '—' },
+            ].map(f => (
+              <div key={f.label}>
+                <div style={{ fontSize: 11, color: 'var(--bb-text-secondary)', fontWeight: 500, marginBottom: 2 }}>{f.label}</div>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>{f.value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
-        {/* Validation Tab */}
-        <TabPanel id="validation" className="pt-4 space-y-3">
-          {claim.validationErrors.length === 0 ? (
-            <div className="flex items-center gap-3 bg-[#ECFDF5] border border-[#A7F3D0] rounded-lg p-4">
-              <CheckCircle size={18} className="text-[#047857]" />
-              <p className="text-sm text-[#047857] font-medium">No validation errors. Claim is ready to submit.</p>
-            </div>
-          ) : (
-            <>
-              {blockingErrors.length > 0 && (
-                <div className="border border-[#FECACA] rounded-lg overflow-hidden">
-                  <div className="bg-[#FEF2F2] px-4 py-2.5 flex items-center gap-2">
-                    <XCircle size={15} className="text-[#B91C1C]" />
-                    <span className="text-sm font-semibold text-[#B91C1C]">{blockingErrors.length} Blocking Errors</span>
-                  </div>
-                  <div className="divide-y divide-[#FECACA]">
-                    {blockingErrors.map((e: ValidationError) => (
-                      <div key={e.id} className="px-4 py-3 bg-white">
-                        <p className="text-sm text-[#B91C1C] font-medium">{e.message}</p>
-                        {e.field && <p className="text-xs text-[#676687] mt-0.5">Field: <span className="font-mono">{e.field}</span></p>}
-                        {e.suggestion && <p className="text-xs text-[#676687] mt-0.5">Suggestion: {e.suggestion}</p>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {validationWarnings.length > 0 && (
-                <div className="border border-[#FDE68A] rounded-lg overflow-hidden">
-                  <div className="bg-[#FFFBEB] px-4 py-2.5 flex items-center gap-2">
-                    <AlertTriangle size={15} className="text-[#B45309]" />
-                    <span className="text-sm font-semibold text-[#B45309]">{validationWarnings.length} Warnings</span>
-                  </div>
-                  <div className="divide-y divide-[#FDE68A]">
-                    {validationWarnings.map((w: ValidationError) => (
-                      <div key={w.id} className="px-4 py-3 bg-white">
-                        <p className="text-sm text-[#B45309] font-medium">{w.message}</p>
-                        {w.suggestion && <p className="text-xs text-[#676687] mt-0.5">{w.suggestion}</p>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </TabPanel>
-
-        {/* Service Lines Tab */}
-        <TabPanel id="lines" className="pt-4">
-          <div className="bg-white border border-[#E3E3F1] rounded-lg overflow-hidden">
-            <table className="w-full text-xs">
-              <thead className="bg-[#F2F2F8]">
-                <tr>
-                  {['#', 'CPT', 'Description', 'Modifiers', 'DX Ptrs', 'DOS', 'POS', 'Charge', 'Units', 'Paid', 'Adj', 'Balance', 'Status'].map(h => (
-                    <th key={h} className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[#676687] whitespace-nowrap">{h}</th>
+      {/* Diagnoses */}
+      <div style={{ background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)', borderRadius: 'var(--bb-radius-lg)', overflow: 'hidden' }}>
+        <SectionHeader title="Diagnoses" section="diagnoses" icon={<FileText size={14} />} />
+        {openSection === 'diagnoses' && (
+          <div style={{ padding: '0 0 4px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'var(--bb-surface-app)' }}>
+                  {['Ptr', 'ICD-10', 'Description'].map(h => (
+                    <th key={h} style={{ padding: '9px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--bb-text-secondary)' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E3E3F1]">
-                {claim.claimLines?.map(line => (
-                  <tr key={line.id} className="hover:bg-[#F2F2F8]">
-                    <td className="px-3 py-2 font-mono text-[#676687]">{line.seq}</td>
-                    <td className="px-3 py-2 font-mono font-semibold text-[#0410BD]">{line.cptCode}</td>
-                    <td className="px-3 py-2 text-[#676687] max-w-32 truncate">{line.cptDescription}</td>
-                    <td className="px-3 py-2 font-mono">{line.modifiers.filter(Boolean).join(' ') || '—'}</td>
-                    <td className="px-3 py-2 font-mono">{line.dxPointers.join('')}</td>
-                    <td className="px-3 py-2 font-mono text-[#676687] whitespace-nowrap">
-                      {line.dosFrom ? format(new Date(line.dosFrom), 'MM/dd/yy') : '—'}
-                    </td>
-                    <td className="px-3 py-2 font-mono">{line.pos}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">${line.charge.toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{line.units}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-[#047857]">
-                      {line.paid != null ? `$${line.paid.toFixed(2)}` : '—'}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-[#676687]">
-                      {line.adjustment != null ? `$${line.adjustment.toFixed(2)}` : '—'}
-                    </td>
-                    <td className={`px-3 py-2 text-right tabular-nums font-medium ${(line.balance ?? 0) > 0 ? 'text-[#B91C1C]' : 'text-[#676687]'}`}>
-                      ${(line.balance ?? line.charge).toFixed(2)}
-                    </td>
-                    <td className="px-3 py-2">
-                      {line.status ? <StatusBadge status={line.status} size="sm" /> : null}
-                    </td>
+              <tbody>
+                {claim.diagnoses.map(d => (
+                  <tr key={d.icd10} style={{ borderTop: '1px solid var(--bb-border)' }}>
+                    <td style={{ padding: '10px 16px', fontWeight: 700, color: 'var(--bb-brand-blue)', width: 48 }}>{d.pointer}</td>
+                    <td style={{ padding: '10px 16px', fontFamily: 'monospace', fontWeight: 600 }}>{d.icd10}</td>
+                    <td style={{ padding: '10px 16px', fontSize: 13 }}>{d.description}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </TabPanel>
+        )}
+      </div>
 
-        {/* Providers Tab */}
-        <TabPanel id="providers" className="pt-4">
-          <div className="bg-white border border-[#E3E3F1] rounded-lg p-4 space-y-3 max-w-md">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#676687] mb-1">Rendering Provider ID</p>
-                <p className="font-mono">{claim.renderingProviderId}</p>
-              </div>
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#676687] mb-1">Billing Provider ID</p>
-                <p className="font-mono">{claim.billingProviderId}</p>
-              </div>
-            </div>
+      {/* Service Lines */}
+      <div style={{ background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)', borderRadius: 'var(--bb-radius-lg)', overflow: 'hidden' }}>
+        <SectionHeader title="Service Lines" section="lines" />
+        {openSection === 'lines' && (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 780 }}>
+              <thead>
+                <tr style={{ background: 'var(--bb-surface-app)' }}>
+                  {['CPT', 'Mods', 'DOS', 'Units', 'Billed', 'Allowed', 'Paid', 'Adj', 'Reason'].map(h => (
+                    <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--bb-text-secondary)' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {claim.serviceLines.map((sl, i) => (
+                  <tr key={i} style={{ borderTop: '1px solid var(--bb-border)', background: i % 2 === 0 ? 'white' : 'var(--bb-surface-app)' }}>
+                    <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontWeight: 600 }}>{sl.cpt}</td>
+                    <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: 12 }}>{sl.mods || '—'}</td>
+                    <td style={{ padding: '10px 14px', fontSize: 13 }}>{sl.dos}</td>
+                    <td style={{ padding: '10px 14px', fontSize: 13 }}>{sl.units}</td>
+                    <td style={{ padding: '10px 14px', fontSize: 13 }}>${sl.billed.toFixed(2)}</td>
+                    <td style={{ padding: '10px 14px', fontSize: 13 }}>{sl.allowed > 0 ? `$${sl.allowed.toFixed(2)}` : '—'}</td>
+                    <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, color: sl.paid > 0 ? 'var(--bb-status-success)' : 'var(--bb-text-secondary)' }}>
+                      {sl.paid > 0 ? `$${sl.paid.toFixed(2)}` : '—'}
+                    </td>
+                    <td style={{ padding: '10px 14px', fontSize: 13, color: 'var(--bb-status-danger)' }}>
+                      {sl.adjustment > 0 ? `-$${sl.adjustment.toFixed(2)}` : '—'}
+                    </td>
+                    <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--bb-status-danger)', maxWidth: 220 }}>{sl.adjReason || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{ borderTop: '2px solid var(--bb-border)', background: 'var(--bb-surface-app)' }}>
+                  <td colSpan={4} style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13 }}>Totals</td>
+                  <td style={{ padding: '10px 14px', fontWeight: 700, fontSize: 13 }}>${claim.totalBilled.toFixed(2)}</td>
+                  <td />
+                  <td style={{ padding: '10px 14px', fontWeight: 700, fontSize: 13, color: 'var(--bb-status-success)' }}>${claim.totalPaid.toFixed(2)}</td>
+                  <td style={{ padding: '10px 14px', fontWeight: 700, fontSize: 13, color: 'var(--bb-status-danger)' }}>
+                    -${claim.serviceLines.reduce((s, sl) => s + sl.adjustment, 0).toFixed(2)}
+                  </td>
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
           </div>
-        </TabPanel>
+        )}
+      </div>
 
-        {/* Submission History Tab */}
-        <TabPanel id="submissions" className="pt-4">
-          <div className="bg-white border border-[#E3E3F1] rounded-lg overflow-hidden">
-            {claim.submittedAt ? (
-              <table className="w-full text-sm">
-                <thead className="bg-[#F2F2F8]">
-                  <tr>
-                    {['Submitted', 'By', 'Method', 'Status', 'Response'].map(h => (
-                      <th key={h} className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-[#676687]">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="hover:bg-[#F2F2F8]">
-                    <td className="px-4 py-3 font-mono text-[#676687]">{format(new Date(claim.submittedAt), 'MM/dd/yyyy HH:mm')}</td>
-                    <td className="px-4 py-3">System</td>
-                    <td className="px-4 py-3">EDI 837P</td>
-                    <td className="px-4 py-3"><StatusBadge status={claim.status} size="sm" /></td>
-                    <td className="px-4 py-3 text-[#676687]">—</td>
-                  </tr>
-                </tbody>
-              </table>
-            ) : (
-              <div className="py-10 text-center text-sm text-[#676687]">No submissions yet.</div>
+      {/* Validation Panel */}
+      <div style={{ background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)', borderRadius: 'var(--bb-radius-lg)', overflow: 'hidden' }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '14px 20px',
+          borderBottom: openSection === 'validation' ? '1px solid var(--bb-border)' : 'none',
+        }}>
+          <button
+            onClick={() => toggle('validation')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: 14, fontWeight: 600, color: 'var(--bb-text-primary)', padding: 0,
+            }}
+          >
+            <ShieldAlert size={14} />
+            Validation
+            {openSection === 'validation' ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
+          <button
+            onClick={handleRunValidation}
+            disabled={validating}
+            style={{
+              fontSize: 13, padding: '5px 14px', borderRadius: 6,
+              background: 'var(--bb-brand-blue)', color: 'white',
+              border: 'none', cursor: validating ? 'not-allowed' : 'pointer',
+              opacity: validating ? 0.7 : 1, fontWeight: 500,
+            }}
+          >
+            {validating ? 'Running…' : 'Run Validation'}
+          </button>
+        </div>
+        {openSection === 'validation' && (
+          <div style={{ padding: '12px 20px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {validationIssues === null && claim.validationIssues.length === 0 && (
+              <div style={{ fontSize: 13, color: 'var(--bb-text-secondary)' }}>Click "Run Validation" to check this claim.</div>
             )}
-          </div>
-        </TabPanel>
-
-        {/* Payments Tab */}
-        <TabPanel id="payments" className="pt-4">
-          <p className="text-sm text-[#676687]">Payment records for this claim will appear here.</p>
-        </TabPanel>
-
-        {/* Notes Tab */}
-        <TabPanel id="notes" className="pt-4">
-          <p className="text-sm text-[#676687]">Claim notes will appear here.</p>
-        </TabPanel>
-
-        {/* CMS-1500 Preview Tab */}
-        <TabPanel id="cms1500" className="pt-4">
-          <div className="bg-white border border-[#E3E3F1] rounded-lg p-6 font-mono text-xs max-w-4xl">
-            <div className="border-2 border-gray-800 p-4">
-              <div className="text-center font-bold text-sm mb-4 border-b border-gray-800 pb-2">
-                HEALTH INSURANCE CLAIM FORM
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <div className="border border-gray-300 p-2">
-                    <p className="text-[9px] text-gray-500 uppercase">1a. Insured's ID Number</p>
-                    <p className="mt-1">— — —</p>
-                  </div>
-                  <div className="border border-gray-300 p-2">
-                    <p className="text-[9px] text-gray-500 uppercase">2. Patient Name</p>
-                    <p className="mt-1">
-                      {claim.patient
-                        ? `${claim.patient.lastName.toUpperCase()}, ${claim.patient.firstName.toUpperCase()}`
-                        : '—'}
-                    </p>
-                  </div>
-                  <div className="border border-gray-300 p-2">
-                    <p className="text-[9px] text-gray-500 uppercase">3. Patient DOB / Sex</p>
-                    <p className="mt-1">
-                      {claim.patient
-                        ? `${claim.patient.dateOfBirth} / ${claim.patient.gender}`
-                        : '—'}
-                    </p>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="border border-gray-300 p-2">
-                    <p className="text-[9px] text-gray-500 uppercase">21. Diagnosis Codes</p>
-                    <div className="mt-1 grid grid-cols-2 gap-x-4">
-                      {claim.visit?.diagnoses?.map(dx => (
-                        <div key={dx.id}>{dx.pointer}. {dx.code}</div>
-                      )) ?? <span>—</span>}
-                    </div>
-                  </div>
-                  <div className="border border-gray-300 p-2">
-                    <p className="text-[9px] text-gray-500 uppercase">24. Service Lines</p>
-                    <div className="mt-1 space-y-0.5">
-                      {claim.claimLines?.map(line => (
-                        <div key={line.id} className="flex gap-2">
-                          <span>{line.dosFrom ? format(new Date(line.dosFrom), 'MM/dd/yy') : '—'}</span>
-                          <span>{line.pos}</span>
-                          <span className="font-bold">{line.cptCode}</span>
-                          <span>{line.modifiers.filter(Boolean).join(' ')}</span>
-                          <span>{line.dxPointers.join('')}</span>
-                          <span className="ml-auto">${line.charge.toFixed(2)}</span>
-                          <span>{line.units}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-3 border-t border-gray-300 pt-2 grid grid-cols-3 gap-4">
-                <div className="border border-gray-300 p-2">
-                  <p className="text-[9px] text-gray-500 uppercase">28. Total Charge</p>
-                  <p className="mt-1 font-bold">${claim.totalCharges.toFixed(2)}</p>
-                </div>
-                <div className="border border-gray-300 p-2">
-                  <p className="text-[9px] text-gray-500 uppercase">29. Amount Paid</p>
-                  <p className="mt-1">${claim.totalPaid.toFixed(2)}</p>
-                </div>
-                <div className="border border-gray-300 p-2">
-                  <p className="text-[9px] text-gray-500 uppercase">30. Balance Due</p>
-                  <p className="mt-1 font-bold text-[#B91C1C]">${claim.balance.toFixed(2)}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </TabPanel>
-
-        {/* Lifecycle Tab */}
-        <TabPanel id="lifecycle" className="pt-4">
-          <div className="relative max-w-lg">
-            <div className="absolute left-6 top-0 bottom-0 w-px bg-[#E3E3F1]" />
-            <div className="space-y-4">
-              {mockLifecycle.map((event, i) => {
-                const Icon = event.icon
+            {/* Show live-fetched issues if available, otherwise fall back to claim data */}
+            {(() => {
+              const issues = validationIssues ?? claim.validationIssues
+              if (validationIssues !== null && issues.length === 0) {
                 return (
-                  <div key={i} className="relative flex gap-4 items-start">
-                    <div
-                      className="relative z-10 w-12 h-12 rounded-full flex items-center justify-center bg-white border-2 flex-shrink-0"
-                      style={{ borderColor: event.color }}
-                    >
-                      <Icon size={18} style={{ color: event.color }} />
-                    </div>
-                    <div className="bg-white border border-[#E3E3F1] rounded-lg px-4 py-3 flex-1 shadow-sm">
-                      <p className="text-sm font-medium text-[#12122C]">{event.label}</p>
-                      <div className="flex items-center gap-3 mt-1">
-                        <span className="text-xs text-[#676687] flex items-center gap-1">
-                          <Clock size={11} />{event.time}
-                        </span>
-                        <span className="text-xs text-[#676687] flex items-center gap-1">
-                          <User size={11} />{event.by}
-                        </span>
-                      </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--bb-status-success)', fontSize: 13, fontWeight: 600 }}>
+                    <CheckCircle2 size={16} />
+                    No validation issues
+                  </div>
+                )
+              }
+              return issues.map((issue, i) => {
+                const colors = issue.severity === 'blocking'
+                  ? { bg: '#FEF2F2', border: '#FECACA', text: '#991B1B', badge: 'var(--bb-status-danger)' }
+                  : issue.severity === 'warning'
+                    ? { bg: '#FFFBEB', border: '#FDE68A', text: '#92400E', badge: 'var(--bb-status-warning)' }
+                    : { bg: '#EFF6FF', border: '#BFDBFE', text: '#1E40AF', badge: 'var(--bb-brand-blue)' }
+                return (
+                  <div key={i} style={{ background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 8, padding: '10px 14px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, background: colors.badge, color: 'white', padding: '2px 7px', borderRadius: 4, whiteSpace: 'nowrap', marginTop: 1 }}>
+                      {issue.severity.toUpperCase()}
+                    </span>
+                    <div>
+                      {issue.code && <div style={{ fontSize: 12, fontWeight: 600, color: colors.text }}>{issue.code}</div>}
+                      <div style={{ fontSize: 13, color: colors.text, marginTop: issue.code ? 2 : 0 }}>{issue.message}</div>
                     </div>
                   </div>
                 )
-              })}
+              })
+            })()}
+          </div>
+        )}
+      </div>
+
+      {/* Denial History */}
+      <div style={{ background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)', borderRadius: 'var(--bb-radius-lg)', overflow: 'hidden' }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '14px 20px',
+          borderBottom: openSection === 'denials' ? '1px solid var(--bb-border)' : 'none',
+        }}>
+          <button
+            onClick={() => toggle('denials')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: 14, fontWeight: 600, color: 'var(--bb-text-primary)', padding: 0,
+            }}
+          >
+            <MessageSquare size={14} />
+            Denial History {denialsLoaded && denials.length > 0 ? `(${denials.length})` : ''}
+            {openSection === 'denials' ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
+          <button
+            onClick={() => setShowRecordDenialForm(v => !v)}
+            style={{
+              fontSize: 13, padding: '5px 14px', borderRadius: 6,
+              background: 'none', color: 'var(--bb-brand-blue)',
+              border: '1px solid var(--bb-brand-blue)', cursor: 'pointer', fontWeight: 500,
+            }}
+          >
+            {showRecordDenialForm ? 'Cancel' : '+ Record Denial'}
+          </button>
+        </div>
+
+        {/* Record Denial inline form */}
+        {showRecordDenialForm && (
+          <div style={{ padding: '16px 20px', background: 'var(--bb-surface-app)', borderBottom: '1px solid var(--bb-border)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--bb-text-primary)' }}>Record New Denial</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--bb-text-secondary)', display: 'block', marginBottom: 4 }}>CARC Code *</label>
+                <input
+                  value={recordDenialForm.carc_code}
+                  onChange={e => setRecordDenialForm(f => ({ ...f, carc_code: e.target.value }))}
+                  placeholder="e.g. 4"
+                  style={{ width: '100%', padding: '7px 10px', border: '1px solid var(--bb-border)', borderRadius: 6, fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--bb-text-secondary)', display: 'block', marginBottom: 4 }}>RARC Code</label>
+                <input
+                  value={recordDenialForm.rarc_code}
+                  onChange={e => setRecordDenialForm(f => ({ ...f, rarc_code: e.target.value }))}
+                  placeholder="Optional"
+                  style={{ width: '100%', padding: '7px 10px', border: '1px solid var(--bb-border)', borderRadius: 6, fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--bb-text-secondary)', display: 'block', marginBottom: 4 }}>Denial Reason *</label>
+              <textarea
+                value={recordDenialForm.denial_reason}
+                onChange={e => setRecordDenialForm(f => ({ ...f, denial_reason: e.target.value }))}
+                rows={2}
+                placeholder="Describe the denial reason"
+                style={{ width: '100%', padding: '7px 10px', border: '1px solid var(--bb-border)', borderRadius: 6, fontSize: 13, resize: 'vertical', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--bb-text-secondary)', display: 'block', marginBottom: 4 }}>Appeal Due Date</label>
+              <input
+                type="date"
+                value={recordDenialForm.appeal_due_date}
+                onChange={e => setRecordDenialForm(f => ({ ...f, appeal_due_date: e.target.value }))}
+                style={{ padding: '7px 10px', border: '1px solid var(--bb-border)', borderRadius: 6, fontSize: 13 }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={handleRecordDenial}
+                disabled={recordingDenial || !recordDenialForm.carc_code || !recordDenialForm.denial_reason}
+                style={{
+                  fontSize: 13, padding: '6px 16px', borderRadius: 6,
+                  background: 'var(--bb-brand-blue)', color: 'white',
+                  border: 'none', cursor: recordingDenial ? 'not-allowed' : 'pointer',
+                  opacity: recordingDenial ? 0.7 : 1, fontWeight: 500,
+                }}
+              >
+                {recordingDenial ? 'Saving…' : 'Save Denial'}
+              </button>
+              <button
+                onClick={() => setShowRecordDenialForm(false)}
+                style={{
+                  fontSize: 13, padding: '6px 16px', borderRadius: 6,
+                  background: 'none', color: 'var(--bb-text-secondary)',
+                  border: '1px solid var(--bb-border)', cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
             </div>
           </div>
-        </TabPanel>
-      </Tabs>
+        )}
 
-      {/* Submit confirmation modal */}
-      <Modal
-        open={submitConfirmOpen}
-        onClose={() => setSubmitConfirmOpen(false)}
-        title="Submit Claim"
-        size="sm"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setSubmitConfirmOpen(false)}>Cancel</Button>
-            <Button variant="primary" loading={submitClaim.isPending} onClick={handleSubmit}>
-              Submit Claim
-            </Button>
-          </>
-        }
-      >
-        <p className="text-sm text-[#676687]">
-          Submit claim <span className="font-mono font-semibold text-[#12122C]">{claim.claimNumber}</span> to {claim.payerName}?
-          {validationWarnings.length > 0 && (
-            <span className="block mt-2 text-[#B45309]">
-              Note: {validationWarnings.length} warning{validationWarnings.length > 1 ? 's' : ''} were found. You may proceed, but review them first.
-            </span>
-          )}
-        </p>
-      </Modal>
+        {openSection === 'denials' && (
+          <div style={{ padding: '12px 20px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {denialsLoaded && denials.length === 0 && (
+              <div style={{ fontSize: 13, color: 'var(--bb-text-secondary)' }}>No denials recorded for this claim.</div>
+            )}
+            {denials.map(denial => {
+              const dueDate = denial.appeal_due_date ? new Date(denial.appeal_due_date) : null
+              const isPastDue = dueDate ? dueDate < today && denial.appeal_status !== 'won' && denial.appeal_status !== 'lost' : false
+              const appealColors: Record<string, { bg: string; text: string }> = {
+                draft: { bg: '#F3F4F6', text: '#374151' },
+                submitted: { bg: '#DBEAFE', text: '#1E40AF' },
+                won: { bg: '#DCFCE7', text: '#15803D' },
+                lost: { bg: '#FEE2E2', text: '#991B1B' },
+                write_off: { bg: '#F3F4F6', text: '#6B7280' },
+              }
+              const ac = appealColors[denial.appeal_status] || appealColors.draft
+              const appealForm = appealForms[denial.id]
+              return (
+                <div key={denial.id} style={{ border: '1px solid #FECACA', borderRadius: 10, overflow: 'hidden' }}>
+                  <div style={{ background: '#FEF2F2', borderBottom: '1px solid #FECACA', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                      <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 13, color: '#DC2626' }}>{denial.carc_code}</span>
+                      {denial.rarc_code && <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#6B7280' }}>{denial.rarc_code}</span>}
+                      {denial.denied_amount !== undefined && (
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#DC2626' }}>-${denial.denied_amount.toFixed(2)}</span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, background: ac.bg, color: ac.text, padding: '2px 8px', borderRadius: 4 }}>
+                        {denial.appeal_status.replace('_', ' ').toUpperCase()}
+                      </span>
+                      {dueDate && (
+                        <span style={{ fontSize: 11, color: isPastDue ? 'var(--bb-status-danger)' : 'var(--bb-text-secondary)' }}>
+                          Due: {denial.appeal_due_date}
+                        </span>
+                      )}
+                      <button
+                        onClick={() => toggleAppealForm(denial.id)}
+                        style={{
+                          fontSize: 12, padding: '3px 10px', borderRadius: 5,
+                          background: 'none', color: 'var(--bb-brand-blue)',
+                          border: '1px solid var(--bb-border)', cursor: 'pointer', fontWeight: 500,
+                        }}
+                      >
+                        {appealForm?.open ? 'Cancel' : 'File Appeal'}
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{ padding: '10px 16px', fontSize: 13, color: 'var(--bb-text-secondary)' }}>
+                    {denial.denial_reason}
+                  </div>
+                  {/* Inline appeal form */}
+                  {appealForm?.open && (
+                    <div style={{ padding: '12px 16px', background: 'var(--bb-surface-app)', borderTop: '1px solid var(--bb-border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--bb-text-secondary)', display: 'block', marginBottom: 4 }}>Appeal Notes</label>
+                        <textarea
+                          value={appealForm.appeal_notes}
+                          onChange={e => setAppealForms(prev => ({ ...prev, [denial.id]: { ...prev[denial.id], appeal_notes: e.target.value } }))}
+                          rows={3}
+                          placeholder="Describe the grounds for appeal…"
+                          style={{ width: '100%', padding: '7px 10px', border: '1px solid var(--bb-border)', borderRadius: 6, fontSize: 13, resize: 'vertical', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--bb-text-secondary)', display: 'block', marginBottom: 4 }}>Status</label>
+                        <select
+                          value={appealForm.status}
+                          onChange={e => setAppealForms(prev => ({ ...prev, [denial.id]: { ...prev[denial.id], status: e.target.value } }))}
+                          style={{ padding: '7px 10px', border: '1px solid var(--bb-border)', borderRadius: 6, fontSize: 13 }}
+                        >
+                          <option value="draft">Draft</option>
+                          <option value="submitted">Submitted</option>
+                        </select>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={() => handleSaveAppeal(denial.id)}
+                          disabled={savingAppeal === denial.id}
+                          style={{
+                            fontSize: 13, padding: '6px 16px', borderRadius: 6,
+                            background: 'var(--bb-brand-blue)', color: 'white',
+                            border: 'none', cursor: savingAppeal === denial.id ? 'not-allowed' : 'pointer',
+                            opacity: savingAppeal === denial.id ? 0.7 : 1, fontWeight: 500,
+                          }}
+                        >
+                          {savingAppeal === denial.id ? 'Saving…' : 'Save'}
+                        </button>
+                        <button
+                          onClick={() => toggleAppealForm(denial.id)}
+                          style={{
+                            fontSize: 13, padding: '6px 16px', borderRadius: 6,
+                            background: 'none', color: 'var(--bb-text-secondary)',
+                            border: '1px solid var(--bb-border)', cursor: 'pointer',
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Provider & Facility */}
+      <div style={{ background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)', borderRadius: 'var(--bb-radius-lg)', overflow: 'hidden' }}>
+        <SectionHeader title="Rendering Provider & Facility" section="provider" />
+        {openSection === 'provider' && (
+          <div style={{ padding: '16px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--bb-text-secondary)', marginBottom: 12 }}>Rendering Provider</div>
+              {[
+                { label: 'Name', value: claim.provider.name },
+                { label: 'NPI', value: claim.provider.npi },
+                { label: 'Taxonomy', value: claim.provider.taxonomy },
+                { label: 'TIN', value: claim.provider.tin },
+              ].map(f => (
+                <div key={f.label} style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, color: 'var(--bb-text-secondary)', fontWeight: 500 }}>{f.label}</div>
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>{f.value}</div>
+                </div>
+              ))}
+            </div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--bb-text-secondary)', marginBottom: 12 }}>Facility</div>
+              {[
+                { label: 'Name', value: claim.facility.name },
+                { label: 'NPI', value: claim.facility.npi },
+                { label: 'POS Code', value: claim.facility.posCode },
+                { label: 'Address', value: claim.facility.address },
+              ].map(f => (
+                <div key={f.label} style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, color: 'var(--bb-text-secondary)', fontWeight: 500 }}>{f.label}</div>
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>{f.value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Submission History */}
+      <div style={{ background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)', borderRadius: 'var(--bb-radius-lg)', overflow: 'hidden' }}>
+        <SectionHeader title="Submission History" section="history" />
+        {openSection === 'history' && (
+          <div style={{ padding: '12px 20px 16px' }}>
+            {claim.submissionHistory.map((h, i) => (
+              <div key={i} style={{ display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: 12 }}>
+                <div style={{ marginTop: 2 }}>
+                  {h.status === 'danger'
+                    ? <AlertCircle size={16} color="var(--bb-status-danger)" />
+                    : <CheckCircle2 size={16} color="var(--bb-status-success)" />
+                  }
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>{h.event}</span>
+                    <span style={{ fontSize: 12, color: 'var(--bb-text-secondary)' }}>{h.date}</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: 'var(--bb-text-secondary)', marginTop: 2 }}>{h.note}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

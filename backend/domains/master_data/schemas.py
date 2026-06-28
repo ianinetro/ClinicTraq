@@ -44,10 +44,12 @@ class PracticeResponse(BaseModel):
     tax_id: Optional[str]
     taxonomy_code: Optional[str]
     address_line1: Optional[str]
+    address_line2: Optional[str]
     city: Optional[str]
     state: Optional[str]
     zip_code: Optional[str]
     phone: Optional[str]
+    fax: Optional[str]
     is_active: bool
     created_at: datetime
     model_config = {"from_attributes": True}
@@ -84,9 +86,49 @@ class OfficeResponse(BaseModel):
     practice_id: uuid.UUID
     name: str
     npi: Optional[str]
+    address_line1: Optional[str]
+    address_line2: Optional[str]
     city: Optional[str]
     state: Optional[str]
+    zip_code: Optional[str]
+    phone: Optional[str]
     place_of_service_code: Optional[str]
+    is_active: bool
+    created_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class FacilityCreate(BaseModel):
+    name: str
+    npi: Optional[str] = None
+    place_of_service_code: Optional[str] = None
+    address_line1: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip_code: Optional[str] = None
+
+
+class FacilityUpdate(BaseModel):
+    name: Optional[str] = None
+    npi: Optional[str] = None
+    place_of_service_code: Optional[str] = None
+    address_line1: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip_code: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class FacilityResponse(BaseModel):
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    name: str
+    npi: Optional[str]
+    place_of_service_code: Optional[str]
+    address_line1: Optional[str]
+    city: Optional[str]
+    state: Optional[str]
+    zip_code: Optional[str]
     is_active: bool
     created_at: datetime
     model_config = {"from_attributes": True}

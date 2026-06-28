@@ -3,6 +3,8 @@ import { ArrowLeft, CheckCircle, SkipForward, Link2 } from 'lucide-react'
 import { PageHeader } from '../../components/shell/PageHeader'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
+// StatusBadge imported for future use
+// import { StatusBadge } from '../../components/shared/StatusBadge'
 import { useToast } from '../../components/ui/Toast'
 import { api } from '../../services/api'
 import { clsx } from 'clsx'
@@ -41,7 +43,7 @@ const MOCK_ERA_PAYMENTS = [
 ]
 
 export function ERAReviewPage() {
-  useParams<{ id: string }>()
+  const { id: _id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { addToast } = useToast()
   const [processing, setProcessing] = useState<Record<string, boolean>>({})

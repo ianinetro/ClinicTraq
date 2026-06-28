@@ -38,6 +38,9 @@ from domains.master_data.schemas import (
     DiagnosisCodeCreate,
     DiagnosisCodeResponse,
     DiagnosisCodeUpdate,
+    FacilityCreate,
+    FacilityResponse,
+    FacilityUpdate,
     MUELimitResponse,
     NCCIEditResponse,
     NPILookupResponse,
@@ -178,6 +181,51 @@ async def update_office(
     obj = result.scalar_one_or_none()
     if not obj:
         raise HTTPException(status_code=404, detail="Office not found")
+    for k, v in body.model_dump(exclude_none=True).items():
+        setattr(obj, k, v)
+    await db.flush()
+    return obj
+
+
+# ── Facility ─────────────────────────────────────────────────────────────────
+
+@router.get("/facilities", response_model=List[FacilityResponse])
+async def list_facilities(
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("master_data:read")),
+):
+    result = await db.execute(select(Facility).where(Facility.tenant_id == ctx.tenant_id))
+    return result.scalars().all()
+
+
+@router.post("/facilities", response_model=FacilityResponse, status_code=status.HTTP_201_CREATED)
+async def create_facility(
+    body: FacilityCreate,
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("master_data:write")),
+):
+    obj = Facility(tenant_id=ctx.tenant_id, **body.model_dump())
+    db.add(obj)
+    await db.flush()
+    return obj
+
+
+@router.patch("/facilities/{facility_id}", response_model=FacilityResponse)
+async def update_facility(
+    facility_id: uuid.UUID,
+    body: FacilityUpdate,
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("master_data:write")),
+):
+    result = await db.execute(
+        select(Facility).where(Facility.id == facility_id, Facility.tenant_id == ctx.tenant_id)
+    )
+    obj = result.scalar_one_or_none()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Facility not found")
     for k, v in body.model_dump(exclude_none=True).items():
         setattr(obj, k, v)
     await db.flush()

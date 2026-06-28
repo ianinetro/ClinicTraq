@@ -5,6 +5,8 @@ import { Upload, Eye } from 'lucide-react'
 import { PageHeader } from '../../components/shell/PageHeader'
 import { Table, type ColumnDef } from '../../components/ui/Table'
 import { Button } from '../../components/ui/Button'
+// Badge is available but not currently used directly
+// import { Badge } from '../../components/ui/Badge'
 import { Tabs, TabList, Tab, TabPanel } from '../../components/ui/Tabs'
 import { SearchInput } from '../../components/shared/SearchInput'
 import { StatusBadge } from '../../components/shared/StatusBadge'
@@ -216,7 +218,7 @@ export function PaymentsPage() {
         <TabPanel id="unapplied" className="pt-4">
           <Table<Payment>
             columns={paymentColumns}
-            data={(paymentsData?.items ?? []).filter((p: Payment) => p.unappliedAmount > 0)}
+            data={(paymentsData?.items ?? [] as Payment[]).filter((p) => p.unappliedAmount > 0)}
             loading={paymentsLoading}
             total={0}
             getRowId={(row) => row.id}
