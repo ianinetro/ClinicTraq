@@ -17,11 +17,11 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  isAuthenticated: !!localStorage.getItem('access_token'),
+  isAuthenticated: !!localStorage.getItem('auth_token'),
   login: async (email, password) => {
     const res = await api.post('/auth/login', { email, password })
     const { access_token, refresh_token, user } = res.data
-    localStorage.setItem('access_token', access_token)
+    localStorage.setItem('auth_token', access_token)
     localStorage.setItem('refresh_token', refresh_token)
     set({ user, isAuthenticated: true })
   },

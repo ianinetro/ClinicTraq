@@ -118,10 +118,20 @@ async def login(
     user.last_login = datetime.now(timezone.utc)
     await db.flush()
 
+    from domains.identity.schemas import UserInToken
+    role_name = "superuser" if user.is_superuser else (
+        user.user_roles[0].role.name if user.user_roles else "user"
+    )
     return TokenResponse(
         access_token=access_token,
         refresh_token=raw_refresh,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        user=UserInToken(
+            id=str(user.id),
+            email=user.email,
+            name=f"{user.first_name} {user.last_name}",
+            role=role_name,
+        ),
     )
 
 
