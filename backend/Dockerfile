@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONFAULTHANDLER=1
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
@@ -32,6 +33,9 @@ COPY . .
 
 EXPOSE 8000
 
-# Gunicorn manages worker processes; uvicorn worker class handles async.
-# Port is hardcoded to 8000 to match WEBSITES_PORT in Azure App Settings.
-CMD ["sh", "-c", "exec gunicorn main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --workers ${WEB_WORKERS:-2} --timeout 120 --access-logfile - --error-logfile - --log-level info"]
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+# start.sh: tests imports (so errors appear in logs), then runs gunicorn with
+# --preload (app loads in master, not silently-crashing workers).
+CMD ["/app/start.sh"]
