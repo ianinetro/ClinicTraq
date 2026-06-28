@@ -1,295 +1,115 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Plus, Save, Trash2, Edit2, AlertTriangle } from 'lucide-react'
-import { Button } from '../../components/ui/Button'
-import { Input } from '../../components/ui/Input'
-import { Badge } from '../../components/ui/Badge'
-import { DataTable } from '../../components/ui/DataTable'
-import { apiClient as api } from '../../services/api'
+import { NavLink, Routes, Route, Navigate } from 'react-router-dom'
+import { clsx } from 'clsx'
+import { Building2, MapPin, Shield, Stethoscope, FileCode, BookOpen, UserCog, Clock, TrendingDown } from 'lucide-react'
+import { TFLSettings } from './TFLSettings'
 
-const TABS = ['Practice Info', 'Providers', 'Facilities', 'Payers', 'Fee Schedules', 'CPT Codes', 'Users & Roles', 'Timely Filing'] as const
-type Tab = typeof TABS[number]
+interface SettingsSection {
+  id: string
+  label: string
+  icon: React.ElementType
+  group: string
+  path: string
+}
 
-const TFL_RULES = [
-  { payer: 'BlueCross BlueShield', days: 180, notes: '180 days from DOS' },
-  { payer: 'Aetna', days: 180, notes: '180 days from DOS' },
-  { payer: 'United Healthcare', days: 365, notes: '12 months from DOS' },
-  { payer: 'Medicare', days: 365, notes: '12 months from DOS' },
-  { payer: 'Medicaid IL', days: 180, notes: '180 days from DOS' },
+const sections: SettingsSection[] = [
+  // Practice
+  { id: 'practice-info', label: 'Practice Info', icon: Building2, group: 'Practice', path: 'practice/info' },
+  { id: 'offices', label: 'Offices', icon: MapPin, group: 'Practice', path: 'practice/offices' },
+  // Providers
+  { id: 'rendering', label: 'Rendering Providers', icon: Stethoscope, group: 'Providers', path: 'providers/rendering' },
+  { id: 'billing-providers', label: 'Billing Providers', icon: Stethoscope, group: 'Providers', path: 'providers/billing' },
+  { id: 'referring', label: 'Referring Providers', icon: Stethoscope, group: 'Providers', path: 'providers/referring' },
+  // Facilities
+  { id: 'facilities', label: 'Facilities', icon: Building2, group: 'Facilities', path: 'facilities' },
+  // Payers
+  { id: 'payers', label: 'Payers & Insurance', icon: Shield, group: 'Payers & Insurance', path: 'payers' },
+  // Codes
+  { id: 'cpt-codes', label: 'CPT Codes', icon: FileCode, group: 'Codes', path: 'codes/cpt' },
+  { id: 'icd-codes', label: 'Diagnosis Codes', icon: BookOpen, group: 'Codes', path: 'codes/icd' },
+  { id: 'chart-of-accounts', label: 'Chart of Accounts', icon: BookOpen, group: 'Codes', path: 'codes/accounts' },
+  // Users
+  { id: 'users', label: 'Users & Roles', icon: UserCog, group: 'Users', path: 'users' },
+  // Billing Rules
+  { id: 'tfl', label: 'Timely Filing Limits', icon: Clock, group: 'Billing Rules', path: 'billing/tfl' },
+  { id: 'deductible', label: 'Deductible Tracker', icon: TrendingDown, group: 'Billing Rules', path: 'billing/deductible' },
 ]
 
-export function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('Practice Info')
-  const [savedPractice, setSavedPractice] = useState(false)
+const groups = Array.from(new Set(sections.map(s => s.group)))
 
-  const { data: providers = [] } = useQuery({ queryKey: ['settings', 'providers'], queryFn: async () => (await api.get('/providers')).data?.items ?? [] })
-  const { data: facilities = [] } = useQuery({ queryKey: ['settings', 'facilities'], queryFn: async () => (await api.get('/facilities')).data?.items ?? [] })
-  const { data: payers = [] } = useQuery({ queryKey: ['settings', 'payers'], queryFn: async () => (await api.get('/payers')).data?.items ?? [] })
-  const { data: users = [] } = useQuery({ queryKey: ['settings', 'users'], queryFn: async () => (await api.get('/users')).data?.items ?? [] })
-  const { data: cptCodes = [] } = useQuery({ queryKey: ['settings', 'cpt'], queryFn: async () => (await api.get('/cpt/search?limit=100')).data?.items ?? [] })
-
+function GenericSettingsSection({ title }: { title: string }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--bb-text-primary)' }}>Settings</h2>
-        <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--bb-text-secondary)' }}>Manage your practice configuration</p>
+    <div className="p-6">
+      <div className="mb-4">
+        <h2 className="text-xl font-semibold text-[#12122C]">{title}</h2>
+        <p className="text-sm text-[#676687] mt-1">
+          Manage {title.toLowerCase()} settings for your practice.
+        </p>
+        <div className="mt-2 bg-[#D9FCFF] border border-[#94F2FA] rounded-lg px-3 py-2 text-xs text-[#007998]">
+          Changes here affect billing workflows, claim generation, and downstream reporting.
+        </div>
       </div>
+      <div className="bg-white border border-[#E3E3F1] rounded-lg p-6 text-center">
+        <p className="text-sm text-[#676687]">{title} configuration coming soon.</p>
+      </div>
+    </div>
+  )
+}
 
-      {/* Tab bar */}
-      <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid var(--bb-border)', overflowX: 'auto' }}>
-        {TABS.map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} style={{
-            padding: '10px 18px', background: 'none', border: 'none', cursor: 'pointer',
-            fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap',
-            color: activeTab === tab ? 'var(--bb-brand-blue)' : 'var(--bb-text-secondary)',
-            borderBottom: activeTab === tab ? '2px solid var(--bb-brand-blue)' : '2px solid transparent',
-            marginBottom: -2,
-          }}>
-            {tab}
-          </button>
+export function SettingsPage() {
+  return (
+    <div className="flex h-full">
+      {/* Left settings nav */}
+      <nav className="w-56 flex-shrink-0 border-r border-[#E3E3F1] bg-white py-4 overflow-y-auto">
+        {groups.map(group => (
+          <div key={group} className="mb-3">
+            <p className="px-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-[#BABACE]">
+              {group}
+            </p>
+            {sections
+              .filter(s => s.group === group)
+              .map(section => {
+                const Icon = section.icon
+                return (
+                  <NavLink
+                    key={section.id}
+                    to={`/settings/${section.path}`}
+                    className={({ isActive }) =>
+                      clsx(
+                        'flex items-center gap-2.5 px-4 py-2 text-sm transition-colors',
+                        isActive
+                          ? 'bg-[#EFF0FF] text-[#0410BD] font-medium border-l-[3px] border-l-[#0410BD] pl-[13px]'
+                          : 'text-[#676687] hover:bg-[#F2F2F8] hover:text-[#12122C]',
+                      )
+                    }
+                  >
+                    <Icon size={14} className="flex-shrink-0" />
+                    {section.label}
+                  </NavLink>
+                )
+              })}
+          </div>
         ))}
-      </div>
+      </nav>
 
-      <div style={{ background: 'var(--bb-surface-card)', borderRadius: 'var(--bb-radius-lg)', padding: 24, border: '1px solid var(--bb-border)', boxShadow: 'var(--bb-shadow-sm)' }}>
-
-        {/* ── Practice Info ── */}
-        {activeTab === 'Practice Info' && (
-          <div style={{ maxWidth: 560 }}>
-            <h3 style={{ margin: '0 0 20px', fontSize: 15, fontWeight: 600 }}>Practice Information</h3>
-            {savedPractice && (
-              <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#15803D', fontWeight: 500 }}>
-                ✓ Changes saved successfully
-              </div>
-            )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <Input label="Practice Name" defaultValue="Springfield Medical Group" />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <Input label="Group NPI" defaultValue="0987654321" />
-                <Input label="Tax ID (EIN)" defaultValue="**-***8901" />
-              </div>
-              <Input label="Address" defaultValue="456 Medical Drive, Springfield, IL 62701" />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <Input label="Phone" defaultValue="(555) 100-2000" />
-                <Input label="Fax" defaultValue="(555) 100-2001" />
-              </div>
-              <Input label="Billing Email" defaultValue="billing@springfieldmed.com" />
-              <Input label="Clearinghouse" defaultValue="Office Ally" />
-              <div style={{ marginTop: 8 }}>
-                <Button variant="primary" onClick={() => { setSavedPractice(true); setTimeout(() => setSavedPractice(false), 3000) }}>
-                  <Save size={14} />
-                  Save Changes
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Providers ── */}
-        {activeTab === 'Providers' && (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Rendering Providers</h3>
-              <Button variant="primary" size="sm"><Plus size={14} />Add Provider</Button>
-            </div>
-            <DataTable
-              columns={[
-                { key: 'name', header: 'Provider Name', render: (r: Record<string, unknown>) => <span style={{ fontWeight: 600 }}>{String(r.name)}</span> },
-                { key: 'npi', header: 'NPI', render: (r: Record<string, unknown>) => <span style={{ fontFamily: 'monospace' }}>{String(r.npi)}</span> },
-                { key: 'specialty', header: 'Specialty' },
-                { key: 'taxonomy', header: 'Taxonomy', render: (r: Record<string, unknown>) => <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{String(r.taxonomy)}</span> },
-                { key: 'status', header: 'Status', render: (r: Record<string, unknown>) => <Badge variant={r.status === 'active' ? 'success' : 'default'}>{String(r.status)}</Badge> },
-                { key: 'actions', header: '', render: () => (
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--bb-brand-blue)', padding: 4 }}><Edit2 size={14} /></button>
-                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--bb-status-danger)', padding: 4 }}><Trash2 size={14} /></button>
-                  </div>
-                )},
-              ]}
-              data={providers}
-            />
-          </div>
-        )}
-
-        {/* ── Facilities ── */}
-        {activeTab === 'Facilities' && (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Facilities / Practice Locations</h3>
-              <Button variant="primary" size="sm"><Plus size={14} />Add Facility</Button>
-            </div>
-            <DataTable
-              columns={[
-                { key: 'name', header: 'Facility Name', render: (r: Record<string, unknown>) => <span style={{ fontWeight: 600 }}>{String(r.name)}</span> },
-                { key: 'npi', header: 'NPI', render: (r: Record<string, unknown>) => <span style={{ fontFamily: 'monospace' }}>{String(r.npi)}</span> },
-                { key: 'posCode', header: 'POS Code' },
-                { key: 'address', header: 'Address', render: (r: Record<string, unknown>) => <span style={{ fontSize: 12, color: 'var(--bb-text-secondary)' }}>{String(r.address)}</span> },
-                { key: 'status', header: 'Status', render: (r: Record<string, unknown>) => <Badge variant={r.status === 'active' ? 'success' : 'default'}>{String(r.status)}</Badge> },
-                { key: 'actions', header: '', render: () => (
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--bb-brand-blue)', padding: 4 }}><Edit2 size={14} /></button>
-                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--bb-status-danger)', padding: 4 }}><Trash2 size={14} /></button>
-                  </div>
-                )},
-              ]}
-              data={facilities}
-            />
-          </div>
-        )}
-
-        {/* ── Payers ── */}
-        {activeTab === 'Payers' && (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Payer Configuration</h3>
-              <Button variant="primary" size="sm"><Plus size={14} />Add Payer</Button>
-            </div>
-            <DataTable
-              columns={[
-                { key: 'name', header: 'Payer Name', render: (r: Record<string, unknown>) => <span style={{ fontWeight: 600 }}>{String(r.name)}</span> },
-                { key: 'payerId', header: 'Payer ID', render: (r: Record<string, unknown>) => <span style={{ fontFamily: 'monospace' }}>{String(r.payerId)}</span> },
-                { key: 'type', header: 'Type' },
-                { key: 'submissionMethod', header: 'Submission' },
-                { key: 'phone', header: 'Phone', render: (r: Record<string, unknown>) => <span style={{ fontSize: 12 }}>{String(r.phone)}</span> },
-                { key: 'actions', header: '', render: () => (
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--bb-brand-blue)', padding: 4 }}><Edit2 size={14} /></button>
-                  </div>
-                )},
-              ]}
-              data={payers}
-            />
-          </div>
-        )}
-
-        {/* ── Fee Schedules ── */}
-        {activeTab === 'Fee Schedules' && (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Fee Schedules</h3>
-              <Button variant="primary" size="sm"><Plus size={14} />Add Schedule</Button>
-            </div>
-            <DataTable
-              columns={[
-                { key: 'name', header: 'Schedule Name', render: (r: Record<string, unknown>) => <span style={{ fontWeight: 600 }}>{String(r.name)}</span> },
-                { key: 'payer', header: 'Payer' },
-                { key: 'effective', header: 'Effective Date' },
-                { key: 'cptCount', header: 'CPT Codes', render: (r: Record<string, unknown>) => <Badge variant="info">{String(r.cptCount)}</Badge> },
-              ]}
-              data={[
-                { name: 'Standard Fee Schedule 2026', payer: 'All Payers', effective: '2026-01-01', cptCount: 1204 },
-                { name: 'BlueCross Contracted 2026', payer: 'BlueCross PPO', effective: '2026-01-01', cptCount: 847 },
-                { name: 'Medicare 2026 (Noridian)', payer: 'Medicare', effective: '2026-01-01', cptCount: 1102 },
-              ]}
-            />
-          </div>
-        )}
-
-        {/* ── CPT Codes ── */}
-        {activeTab === 'CPT Codes' && (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>CPT / Procedure Codes</h3>
-              <Button variant="primary" size="sm"><Plus size={14} />Add CPT Code</Button>
-            </div>
-            <DataTable
-              columns={[
-                { key: 'code', header: 'CPT Code', render: (r: Record<string, unknown>) => <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--bb-brand-blue)' }}>{String(r.code)}</span> },
-                { key: 'description', header: 'Description' },
-                { key: 'fee', header: 'Standard Fee', render: (r: Record<string, unknown>) => `$${(r.fee as number).toFixed(2)}` },
-                { key: 'rvu', header: 'RVU', render: (r: Record<string, unknown>) => (r.rvu as number) > 0 ? (r.rvu as number).toFixed(2) : '—' },
-                { key: 'actions', header: '', render: () => (
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--bb-brand-blue)', padding: 4 }}><Edit2 size={14} /></button>
-                  </div>
-                )},
-              ]}
-              data={cptCodes}
-            />
-          </div>
-        )}
-
-        {/* ── Users & Roles ── */}
-        {activeTab === 'Users & Roles' && (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Users & Access Control</h3>
-              <Button variant="primary" size="sm"><Plus size={14} />Invite User</Button>
-            </div>
-            <DataTable
-              columns={[
-                { key: 'name', header: 'Name', render: (r: Record<string, unknown>) => <span style={{ fontWeight: 600 }}>{String(r.name)}</span> },
-                { key: 'email', header: 'Email', render: (r: Record<string, unknown>) => <span style={{ fontSize: 13, color: 'var(--bb-text-secondary)' }}>{String(r.email)}</span> },
-                { key: 'role', header: 'Role', render: (r: Record<string, unknown>) => <Badge variant="info">{String(r.role)}</Badge> },
-                { key: 'lastLogin', header: 'Last Login', render: (r: Record<string, unknown>) => <span style={{ fontSize: 12, color: 'var(--bb-text-secondary)' }}>{String(r.lastLogin)}</span> },
-                { key: 'status', header: 'Status', render: (r: Record<string, unknown>) => <Badge variant={r.status === 'active' ? 'success' : 'default'}>{String(r.status)}</Badge> },
-                { key: 'actions', header: '', render: () => (
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--bb-brand-blue)', padding: 4 }}><Edit2 size={14} /></button>
-                  </div>
-                )},
-              ]}
-              data={users}
-            />
-            <div style={{ marginTop: 20, padding: 16, background: 'var(--bb-surface-app)', borderRadius: 8, border: '1px solid var(--bb-border)' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Role Permissions Overview</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-                {[
-                  { role: 'Admin', perms: ['Full access', 'User management', 'Settings', 'Billing'] },
-                  { role: 'Biller', perms: ['Claims', 'Payments', 'ERA import', 'Work Queue'] },
-                  { role: 'Provider', perms: ['Visits', 'Patient chart', 'Orders', 'Body Map'] },
-                  { role: 'Front Desk', perms: ['Patients', 'Scheduling', 'Demographics', 'Insurance'] },
-                ].map(r => (
-                  <div key={r.role}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--bb-brand-blue)', marginBottom: 6 }}>{r.role}</div>
-                    {r.perms.map(p => (
-                      <div key={p} style={{ fontSize: 12, color: 'var(--bb-text-secondary)', marginBottom: 3 }}>✓ {p}</div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Timely Filing ── */}
-        {activeTab === 'Timely Filing' && (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Timely Filing Limits</h3>
-              <Button variant="secondary" size="sm"><Plus size={14} />Add Rule</Button>
-            </div>
-            <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 14px', marginBottom: 16, display: 'flex', gap: 8, alignItems: 'center' }}>
-              <AlertTriangle size={14} color="#D97706" />
-              <span style={{ fontSize: 13, color: '#92400E' }}>Claims approaching their timely filing deadline will appear in the Work Queue automatically.</span>
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: 'var(--bb-surface-app)', borderBottom: '2px solid var(--bb-border)' }}>
-                  {['Payer', 'Filing Limit (Days)', 'Notes', ''].map(h => (
-                    <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--bb-text-secondary)' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {TFL_RULES.map((r, i) => (
-                  <tr key={r.payer} style={{ borderBottom: '1px solid var(--bb-border)', background: i % 2 === 0 ? 'white' : 'var(--bb-surface-app)' }}>
-                    <td style={{ padding: '11px 16px', fontWeight: 600 }}>{r.payer}</td>
-                    <td style={{ padding: '11px 16px' }}>
-                      <span style={{ background: r.days <= 180 ? '#FEF3C7' : '#DCFCE7', color: r.days <= 180 ? '#92400E' : '#15803D', padding: '3px 10px', borderRadius: 12, fontSize: 13, fontWeight: 600 }}>
-                        {r.days} days
-                      </span>
-                    </td>
-                    <td style={{ padding: '11px 16px', fontSize: 13, color: 'var(--bb-text-secondary)' }}>{r.notes}</td>
-                    <td style={{ padding: '11px 16px' }}>
-                      <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--bb-brand-blue)', padding: 4 }}><Edit2 size={14} /></button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
+      {/* Content area */}
+      <div className="flex-1 overflow-y-auto bg-[#F2F2F8]">
+        <Routes>
+          <Route index element={<Navigate to="practice/info" replace />} />
+          <Route path="practice/info" element={<GenericSettingsSection title="Practice Info" />} />
+          <Route path="practice/offices" element={<GenericSettingsSection title="Offices" />} />
+          <Route path="providers/rendering" element={<GenericSettingsSection title="Rendering Providers" />} />
+          <Route path="providers/billing" element={<GenericSettingsSection title="Billing Providers" />} />
+          <Route path="providers/referring" element={<GenericSettingsSection title="Referring Providers" />} />
+          <Route path="facilities" element={<GenericSettingsSection title="Facilities" />} />
+          <Route path="payers" element={<GenericSettingsSection title="Payers & Insurance" />} />
+          <Route path="codes/cpt" element={<GenericSettingsSection title="CPT Codes" />} />
+          <Route path="codes/icd" element={<GenericSettingsSection title="Diagnosis Codes" />} />
+          <Route path="codes/accounts" element={<GenericSettingsSection title="Chart of Accounts" />} />
+          <Route path="users" element={<GenericSettingsSection title="Users & Roles" />} />
+          <Route path="billing/tfl" element={<TFLSettings />} />
+          <Route path="billing/deductible" element={<GenericSettingsSection title="Deductible Tracker Settings" />} />
+          <Route path="*" element={<Navigate to="practice/info" replace />} />
+        </Routes>
       </div>
     </div>
   )

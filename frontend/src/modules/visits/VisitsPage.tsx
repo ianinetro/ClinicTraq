@@ -1,170 +1,146 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Plus, ChevronRight, Search, Calendar } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { Badge } from '../../components/ui/Badge'
-import { Select } from '../../components/ui/Select'
+import { Plus } from 'lucide-react'
+import { format } from 'date-fns'
+import { PageHeader } from '../../components/shell/PageHeader'
+import { Table, type ColumnDef } from '../../components/ui/Table'
 import { Button } from '../../components/ui/Button'
-import { apiClient as api } from '../../services/api'
-
-interface Visit {
-  id: string
-  visitDate: string
-  patientName: string
-  provider: string
-  procedureCodes: string
-  diagnosisCodes: string
-  status: string
-  billingStatus: string
-  billedAmount: number
-}
-
-type StatusFilter = 'all' | 'Scheduled' | 'Completed' | 'Cancelled' | 'In Progress'
-
-const statusVariant = (s: string): 'success' | 'warning' | 'danger' | 'info' | 'default' => {
-  if (s === 'Completed') return 'success'
-  if (s === 'Scheduled') return 'info'
-  if (s === 'In Progress') return 'warning'
-  if (s === 'Cancelled') return 'danger'
-  return 'default'
-}
-
-const billingVariant = (s: string): 'success' | 'warning' | 'danger' | 'info' | 'default' => {
-  if (s === 'Billed') return 'success'
-  if (s === 'Ready to Bill') return 'warning'
-  if (s === 'Unbilled') return 'default'
-  if (s === 'Denied') return 'danger'
-  return 'default'
-}
-
-const STATUS_CHIPS: { key: StatusFilter; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'Scheduled', label: 'Scheduled' },
-  { key: 'In Progress', label: 'In Progress' },
-  { key: 'Completed', label: 'Completed' },
-  { key: 'Cancelled', label: 'Cancelled' },
-]
+import { SearchInput } from '../../components/shared/SearchInput'
+import { StatusBadge } from '../../components/shared/StatusBadge'
+import { PHIField } from '../../components/shared/PHIField'
+import { useVisits } from '../../services/queries'
+import type { Visit } from '../../types'
 
 export function VisitsPage() {
   const navigate = useNavigate()
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
-  const [provider, setProvider] = useState('')
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [statusFilter, setStatusFilter] = useState('')
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['visits', statusFilter, provider, search],
-    queryFn: async () => {
-      const res = await api.get('/visits', { params: { status: statusFilter !== 'all' ? statusFilter : undefined, provider, search: search || undefined } })
-      return res.data
-    },
+  const { data, isLoading, error } = useVisits({
+    search: search || undefined,
+    status: statusFilter || undefined,
+    page,
+    pageSize: 25,
   })
 
-  const items: Visit[] = data?.items || []
-  const readyToBill = items.filter(v => v.billingStatus === 'Ready to Bill').length
+  const columns: ColumnDef<Visit>[] = [
+    {
+      id: 'visitDate',
+      header: 'Visit Date',
+      sortable: true,
+      width: '120px',
+      cell: (row) => (
+        <span className="text-sm text-[#12122C] tabular-nums">
+          {row.visitDate ? format(new Date(row.visitDate), 'MM/dd/yyyy') : '—'}
+        </span>
+      ),
+    },
+    {
+      id: 'patient',
+      header: 'Patient',
+      cell: (row) => row.patient ? (
+        <PHIField
+          value={`${row.patient.firstName} ${row.patient.lastName}`}
+          fieldName="Patient Name"
+          patientId={row.patientId}
+          fieldType="name"
+          inline
+        />
+      ) : <span className="text-[#BABACE]">—</span>,
+    },
+    {
+      id: 'provider',
+      header: 'Provider',
+      cell: (row) => row.provider ? (
+        <span className="text-sm text-[#12122C]">
+          {row.provider.firstName} {row.provider.lastName}{row.provider.credentials ? `, ${row.provider.credentials}` : ''}
+        </span>
+      ) : <span className="text-[#BABACE]">—</span>,
+    },
+    {
+      id: 'visitType',
+      header: 'Type',
+      cell: (row) => <span className="text-sm text-[#676687]">{row.visitType}</span>,
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: (row) => <StatusBadge status={row.status} size="sm" />,
+    },
+    {
+      id: 'totalCharges',
+      header: 'Charges',
+      align: 'right',
+      cell: (row) => (
+        <span className="text-sm tabular-nums">
+          {row.totalCharges > 0 ? `$${row.totalCharges.toFixed(2)}` : '—'}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: '',
+      width: '80px',
+      cell: (row) => (
+        <Button
+          size="xs"
+          variant="secondary"
+          onClick={(e) => { e.stopPropagation(); navigate(`/visits/${row.id}`) }}
+        >
+          View
+        </Button>
+      ),
+    },
+  ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--bb-text-primary)' }}>Visits</h2>
-          <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--bb-text-secondary)' }}>Encounter management</p>
-        </div>
-        <Button variant="primary" onClick={() => navigate('/visits/new')}>
-          <Plus size={14} />
-          New Visit
-        </Button>
-      </div>
+    <div className="p-6 space-y-4">
+      <PageHeader
+        title="Visits"
+        description="Manage clinical visits and charge entries"
+        primaryAction={{
+          label: 'New Visit',
+          icon: <Plus size={15} />,
+          onClick: () => navigate('/visits/new'),
+        }}
+      />
 
-      {readyToBill > 0 && (
-        <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-          <Calendar size={14} color="#D97706" />
-          <span style={{ color: '#92400E', fontWeight: 500 }}>{readyToBill} visit{readyToBill !== 1 ? 's' : ''} ready to bill</span>
-          <button onClick={() => setStatusFilter('Completed')} style={{ marginLeft: 'auto', color: '#D97706', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, textDecoration: 'underline', fontWeight: 500 }}>
-            View
-          </button>
-        </div>
-      )}
-
-      <div style={{ background: 'var(--bb-surface-card)', borderRadius: 'var(--bb-radius-lg)', border: '1px solid var(--bb-border)', boxShadow: 'var(--bb-shadow-sm)', overflow: 'hidden' }}>
-        {/* Toolbar */}
-        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--bb-border)', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {STATUS_CHIPS.map(chip => (
-              <button
-                key={chip.key}
-                onClick={() => setStatusFilter(chip.key)}
-                style={{
-                  padding: '5px 12px', borderRadius: 16,
-                  border: `1.5px solid ${statusFilter === chip.key ? 'var(--bb-brand-blue)' : 'var(--bb-border)'}`,
-                  background: statusFilter === chip.key ? '#EFF0FF' : 'transparent',
-                  color: statusFilter === chip.key ? 'var(--bb-brand-blue)' : 'var(--bb-text-secondary)',
-                  fontSize: 12, fontWeight: 500, cursor: 'pointer',
-                }}
-              >
-                {chip.label}
-              </button>
-            ))}
-          </div>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            <div style={{ position: 'relative' }}>
-              <Search size={14} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--bb-text-secondary)' }} />
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search patient, CPT…"
-                style={{ height: 34, paddingLeft: 30, paddingRight: 12, border: '1px solid var(--bb-border)', borderRadius: 'var(--bb-radius)', fontSize: 13, background: 'var(--bb-surface-app)', color: 'var(--bb-text-primary)', outline: 'none', width: 220 }}
-              />
-            </div>
-            <Select
-              options={[{ value: '', label: 'All Providers' }, { value: 'Dr. Smith', label: 'Dr. Smith' }, { value: 'Dr. Johnson', label: 'Dr. Johnson' }]}
-              value={provider}
-              onChange={e => setProvider(e.target.value)}
-              style={{ width: 160, height: 34 }}
+      <Table<Visit>
+        columns={columns}
+        data={data?.items ?? []}
+        loading={isLoading}
+        error={error ? 'Failed to load visits.' : undefined}
+        total={data?.total ?? 0}
+        page={page}
+        pageSize={25}
+        onPageChange={setPage}
+        onRowClick={(row) => navigate(`/visits/${row.id}`)}
+        getRowId={(row) => row.id}
+        emptyTitle="No visits found"
+        emptyDescription="Try adjusting your search or create a new visit."
+        emptyAction={{ label: 'New Visit', onClick: () => navigate('/visits/new') }}
+        toolbar={
+          <div className="flex items-center gap-3 w-full">
+            <SearchInput
+              value={search}
+              onChange={(v) => { setSearch(v); setPage(1) }}
+              placeholder="Search visits…"
+              className="w-72"
             />
+            <select
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
+              className="h-9 border border-[#BABACE] rounded-md text-sm px-2 text-[#12122C] bg-white outline-none focus:border-[#3F4CFF]"
+            >
+              <option value="">All Statuses</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
           </div>
-        </div>
-
-        {isLoading ? (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--bb-text-secondary)', fontSize: 14 }}>Loading visits…</div>
-        ) : isError ? (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--bb-status-danger)', fontSize: 14 }}>Failed to load visits. Check API connection.</div>
-        ) : items.length === 0 ? (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--bb-text-secondary)', fontSize: 14 }}>No visits found</div>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: 'var(--bb-surface-app)' }}>
-                {['Visit Date', 'Patient', 'Provider', 'CPT Codes', 'Diagnoses', 'Visit Status', 'Billing', 'Billed', ''].map(h => (
-                  <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--bb-text-secondary)', borderBottom: '1px solid var(--bb-border)', whiteSpace: 'nowrap' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((v, i) => (
-                <tr
-                  key={v.id}
-                  style={{ background: i % 2 === 0 ? 'white' : 'var(--bb-surface-app)', borderBottom: '1px solid var(--bb-border)', cursor: 'pointer' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#EFF0FF')}
-                  onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? 'white' : 'var(--bb-surface-app)')}
-                  onClick={() => navigate(`/visits/${v.id}`)}
-                >
-                  <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 500 }}>{v.visitDate}</td>
-                  <td style={{ padding: '11px 14px', fontWeight: 600, fontSize: 14 }}>{v.patientName}</td>
-                  <td style={{ padding: '11px 14px', fontSize: 13, color: 'var(--bb-text-secondary)' }}>{v.provider}</td>
-                  <td style={{ padding: '11px 14px', fontFamily: 'monospace', fontSize: 12, color: 'var(--bb-brand-blue)' }}>{v.procedureCodes}</td>
-                  <td style={{ padding: '11px 14px', fontFamily: 'monospace', fontSize: 12 }}>{v.diagnosisCodes}</td>
-                  <td style={{ padding: '11px 14px' }}><Badge variant={statusVariant(v.status)}>{v.status}</Badge></td>
-                  <td style={{ padding: '11px 14px' }}><Badge variant={billingVariant(v.billingStatus)}>{v.billingStatus}</Badge></td>
-                  <td style={{ padding: '11px 14px', fontSize: 13, color: v.billedAmount > 0 ? 'var(--bb-text-primary)' : 'var(--bb-text-secondary)' }}>
-                    {v.billedAmount > 0 ? `$${v.billedAmount.toFixed(2)}` : '—'}
-                  </td>
-                  <td style={{ padding: '11px 14px' }}><ChevronRight size={14} color="var(--bb-text-secondary)" /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+        }
+      />
     </div>
   )
 }

@@ -5,6 +5,12 @@ interface PHIFieldProps {
   value: string
   label?: string
   onReveal?: () => void
+  // Extended props used by some pages (kept for compatibility)
+  fieldName?: string
+  patientId?: string
+  fieldType?: string
+  inline?: boolean
+  className?: string
 }
 
 export function PHIField({ value, label, onReveal }: PHIFieldProps) {

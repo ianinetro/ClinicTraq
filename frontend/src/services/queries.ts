@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { Patient, Claim, WorkItem, WorkQueueSummary } from '../types'
+import type { Patient, Claim, WorkItem, WorkQueueSummary, Payment, ERAFile, Visit } from '../types'
 
 // ---------------------------------------------------------------------------
 // Search
@@ -176,5 +176,72 @@ export function useWorkQueueSummary() {
     queryKey: ['work-queue-summary'],
     queryFn: () => apiFetch('/api/v1/work-queue/summary'),
     staleTime: 60_000,
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Payments
+// ---------------------------------------------------------------------------
+
+interface PaymentsParams {
+  search?: string
+  page?: number
+  pageSize?: number
+}
+
+export function usePayments(params: PaymentsParams = {}) {
+  const qs = new URLSearchParams()
+  if (params.search) qs.set('search', params.search)
+  if (params.page) qs.set('page', String(params.page))
+  if (params.pageSize) qs.set('pageSize', String(params.pageSize))
+  return useQuery<PaginatedResponse<Payment>>({
+    queryKey: ['payments', params],
+    queryFn: () => apiFetch(`/api/v1/payments?${qs}`),
+  })
+}
+
+interface ERAFilesParams {
+  page?: number
+  pageSize?: number
+}
+
+export function useERAFiles(params: ERAFilesParams = {}) {
+  const qs = new URLSearchParams()
+  if (params.page) qs.set('page', String(params.page))
+  if (params.pageSize) qs.set('pageSize', String(params.pageSize))
+  return useQuery<PaginatedResponse<ERAFile>>({
+    queryKey: ['era-files', params],
+    queryFn: () => apiFetch(`/api/v1/payments/era?${qs}`),
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Visits
+// ---------------------------------------------------------------------------
+
+interface VisitsParams {
+  search?: string
+  status?: string
+  page?: number
+  pageSize?: number
+}
+
+export function useVisits(params: VisitsParams = {}) {
+  const qs = new URLSearchParams()
+  if (params.search) qs.set('search', params.search)
+  if (params.status) qs.set('status', params.status)
+  if (params.page) qs.set('page', String(params.page))
+  if (params.pageSize) qs.set('pageSize', String(params.pageSize))
+  return useQuery<PaginatedResponse<Visit>>({
+    queryKey: ['visits', params],
+    queryFn: () => apiFetch(`/api/v1/visits?${qs}`),
+  })
+}
+
+export function useVisit(id: string) {
+  return useQuery<Visit>({
+    queryKey: ['visit', id],
+    queryFn: () => apiFetch(`/api/v1/visits/${id}`),
+    enabled: !!id,
   })
 }

@@ -18,10 +18,14 @@ from domains.work_queue.models import (
     WORK_ITEM_STATUS_RESOLVED,
     WORK_ITEM_PRIORITY_URGENT,
     ALL_WORK_ITEM_TYPES,
+    DenialAppeal,
     WorkItem,
     WorkItemNote,
 )
 from domains.work_queue.schemas import (
+    DenialAppealCreate,
+    DenialAppealResponse,
+    DenialAppealUpdate,
     WorkItemCreate,
     WorkItemNoteCreate,
     WorkItemNoteResponse,
@@ -235,3 +239,64 @@ async def add_note(
     item.last_action_at = datetime.now(timezone.utc)
     await db.flush()
     return note
+
+
+# ── DenialAppeal endpoints ────────────────────────────────────────────────────
+
+@router.post("/claims/{claim_id}/denial", response_model=DenialAppealResponse, status_code=status.HTTP_201_CREATED)
+async def create_denial_appeal(
+    claim_id: uuid.UUID,
+    body: DenialAppealCreate,
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("claims:write")),
+):
+    appeal = DenialAppeal(
+        tenant_id=ctx.tenant_id,
+        claim_id=claim_id,
+        **body.model_dump(),
+    )
+    db.add(appeal)
+    await db.flush()
+    return appeal
+
+
+@router.get("/claims/{claim_id}/denials", response_model=List[DenialAppealResponse])
+async def list_denial_appeals(
+    claim_id: uuid.UUID,
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("claims:read")),
+):
+    result = await db.execute(
+        select(DenialAppeal).where(
+            DenialAppeal.tenant_id == ctx.tenant_id,
+            DenialAppeal.claim_id == claim_id,
+        ).order_by(DenialAppeal.created_at.desc())
+    )
+    return result.scalars().all()
+
+
+@router.patch("/denials/{denial_id}", response_model=DenialAppealResponse)
+async def update_denial_appeal(
+    denial_id: uuid.UUID,
+    body: DenialAppealUpdate,
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("claims:write")),
+):
+    result = await db.execute(
+        select(DenialAppeal).where(
+            DenialAppeal.id == denial_id,
+            DenialAppeal.tenant_id == ctx.tenant_id,
+        )
+    )
+    appeal = result.scalar_one_or_none()
+    if not appeal:
+        raise HTTPException(status_code=404, detail="Denial appeal not found")
+
+    for k, v in body.model_dump(exclude_none=True).items():
+        setattr(appeal, k, v)
+
+    await db.flush()
+    return appeal

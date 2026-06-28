@@ -73,9 +73,8 @@ function useCodeSearch(endpoint: string, query: string): { results: CodeResult[]
     }
     let cancelled = false
     setLoading(true)
-    fetch(`/api${endpoint}?q=${encodeURIComponent(debouncedQuery)}&limit=10`)
-      .then(r => r.json())
-      .then(data => { if (!cancelled) setResults(data) })
+    api.get(endpoint, { params: { q: debouncedQuery, limit: 10 } })
+      .then(r => { if (!cancelled) setResults(r.data) })
       .catch(() => { if (!cancelled) setResults([]) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
@@ -139,6 +138,7 @@ export function VisitComposerPage() {
   const [diagSearch, setDiagSearch] = useState('')
   const [procSearch, setProcSearch] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [eligibility, setEligibility] = useState<{ coverage_active?: boolean; copay?: number; deductible?: number; plan_name?: string } | null>(null)
 
   const icdSearch = useCodeSearch('/icd10/search', diagSearch)
   const cptSearch = useCodeSearch('/cpt/search', procSearch)
@@ -169,6 +169,10 @@ export function VisitComposerPage() {
   function selectPatient(p: PatientResult) {
     set({ patientName: p.name, patientId: p.id, dob: p.dob, mrn: p.mrn, insurance: p.insurance, patientSearch: p.name })
     setPatientResults([])
+    setEligibility(null)
+    api.post('/eligibility/check', { patient_id: p.id, dos: form.visitDate })
+      .then(r => setEligibility(r.data))
+      .catch(() => {}) // silent fail — eligibility is informational
   }
 
   function addDiag(d: typeof COMMON_ICD10[number]) {
@@ -326,6 +330,20 @@ export function VisitComposerPage() {
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{f.value}</div>
                   </div>
                 ))}
+              </div>
+            )}
+            {eligibility != null && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {eligibility.coverage_active ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 'var(--bb-radius-sm)', background: 'var(--bb-status-success-bg)', border: '1px solid var(--bb-status-success)', color: 'var(--bb-status-success)', fontSize: 12, fontWeight: 600 }}>
+                    Coverage Active
+                    {eligibility.copay != null && <span style={{ fontWeight: 400 }}>· Copay ${eligibility.copay}</span>}
+                  </span>
+                ) : (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 'var(--bb-radius-sm)', background: 'var(--bb-status-danger-bg)', border: '1px solid var(--bb-status-danger)', color: 'var(--bb-status-danger)', fontSize: 12, fontWeight: 600 }}>
+                    Coverage Inactive
+                  </span>
+                )}
               </div>
             )}
             <div style={{ fontSize: 13, color: 'var(--bb-text-secondary)' }}>

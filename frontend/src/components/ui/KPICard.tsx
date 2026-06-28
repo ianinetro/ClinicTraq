@@ -2,15 +2,22 @@ import React from 'react'
 import { TrendingUp, TrendingDown } from 'lucide-react'
 
 interface KPICardProps {
-  title: string
+  title?: string
+  label?: string  // alias for title
   value: string | number
   subtitle?: string
   trend?: string
   trendUp?: boolean
   icon?: React.ReactNode
+  loading?: boolean
+  accentColor?: string
+  onClick?: () => void
+  className?: string
+  key?: string
 }
 
-export function KPICard({ title, value, subtitle, trend, trendUp, icon }: KPICardProps) {
+export function KPICard({ title, label, value, subtitle, trend, trendUp, icon }: KPICardProps) {
+  const displayTitle = title ?? label
   return (
     <div style={{
       background: 'var(--bb-surface-card)',
@@ -22,7 +29,7 @@ export function KPICard({ title, value, subtitle, trend, trendUp, icon }: KPICar
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
         <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--bb-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          {title}
+          {displayTitle}
         </span>
         {icon && (
           <span style={{ color: 'var(--bb-brand-blue)', opacity: 0.8 }}>{icon}</span>

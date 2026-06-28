@@ -1,10 +1,11 @@
 import React from 'react'
 
-type Variant = 'success' | 'warning' | 'danger' | 'info' | 'default'
+type Variant = 'success' | 'warning' | 'danger' | 'info' | 'default' | 'active' | 'inactive' | 'failed'
 
 interface BadgeProps {
   variant?: Variant
   children: React.ReactNode
+  size?: string  // kept for compat, ignored
 }
 
 const styles: Record<Variant, React.CSSProperties> = {
@@ -13,6 +14,9 @@ const styles: Record<Variant, React.CSSProperties> = {
   danger: { background: 'var(--bb-status-danger-bg)', color: 'var(--bb-status-danger)' },
   info: { background: 'var(--bb-status-info-bg)', color: 'var(--bb-status-info)' },
   default: { background: 'var(--bb-border)', color: 'var(--bb-text-secondary)' },
+  active: { background: 'var(--bb-status-success-bg)', color: 'var(--bb-status-success)' },
+  inactive: { background: 'var(--bb-border)', color: 'var(--bb-text-secondary)' },
+  failed: { background: 'var(--bb-status-danger-bg)', color: 'var(--bb-status-danger)' },
 }
 
 export function Badge({ variant = 'default', children }: BadgeProps) {

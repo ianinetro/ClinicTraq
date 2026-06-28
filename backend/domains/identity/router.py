@@ -478,6 +478,82 @@ async def update_role(
     return role
 
 
+# ── NPI Lookup endpoint ───────────────────────────────────────────────────────
+
+@router.get("/npi/lookup")
+async def npi_lookup(
+    number: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Proxy lookup against the NPPES NPI registry."""
+    if not number.isdigit() or len(number) != 10:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Invalid NPI format: must be exactly 10 digits")
+
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                "https://npiregistry.cms.hhs.gov/api/",
+                params={"number": number, "version": "2.1"},
+            )
+            data = resp.json()
+    except ImportError:
+        try:
+            import aiohttp
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    "https://npiregistry.cms.hhs.gov/api/",
+                    params={"number": number, "version": "2.1"},
+                    timeout=aiohttp.ClientTimeout(total=10),
+                ) as resp:
+                    data = await resp.json()
+        except ImportError:
+            return {"found": False, "message": "NPPES lookup unavailable"}
+    except Exception:
+        return {"found": False, "message": "NPPES lookup unavailable"}
+
+    results = data.get("results", [])
+    if not results:
+        return {"found": False}
+
+    result = results[0]
+    basic = result.get("basic", {})
+    taxonomies = result.get("taxonomies", [])
+    addresses = result.get("addresses", [])
+
+    # Determine provider name
+    org_name = basic.get("organization_name")
+    if org_name:
+        provider_name = org_name
+    else:
+        first = basic.get("first_name", "")
+        last = basic.get("last_name", "")
+        provider_name = f"{first} {last}".strip()
+
+    taxonomy = taxonomies[0].get("desc") if taxonomies else None
+
+    address_obj = addresses[0] if addresses else {}
+    address = None
+    if address_obj:
+        parts = [
+            address_obj.get("address_1", ""),
+            address_obj.get("city", ""),
+            address_obj.get("state", ""),
+            address_obj.get("postal_code", ""),
+        ]
+        address = " ".join(p for p in parts if p) or None
+
+    return {
+        "found": True,
+        "provider_name": provider_name,
+        "npi_type": basic.get("enumeration_type"),
+        "taxonomy": taxonomy,
+        "address": address,
+        "status": basic.get("status"),
+    }
+
+
 @router.delete("/roles/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_role(
     role_id: uuid.UUID,

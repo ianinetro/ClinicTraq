@@ -353,6 +353,206 @@ async def download_edi837(
                              headers={"Content-Disposition": f"attachment; filename=claim_{claim.claim_number}.837"})
 
 
+@router.get("/claims/{claim_id}/cms1500/pdf")
+async def download_cms1500_pdf(
+    claim_id: uuid.UUID,
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("claims:read")),
+):
+    """Render CMS-1500 form as PDF and return as attachment."""
+    import os
+    from fastapi.responses import Response
+    from jinja2 import Environment, FileSystemLoader
+    from weasyprint import HTML as WeasyHTML
+    from domains.patients.models import Patient, PatientInsurance
+    from domains.master_data.models import Provider, Payer, BillingProvider
+
+    claim = await _load_claim(db, claim_id, ctx.tenant_id)
+
+    patient = (await db.execute(select(Patient).where(Patient.id == claim.patient_id))).scalar_one_or_none()
+
+    prov = None
+    if claim.provider_id:
+        prov = (await db.execute(select(Provider).where(Provider.id == claim.provider_id))).scalar_one_or_none()
+
+    bp = None
+    if claim.billing_provider_id:
+        bp = (await db.execute(select(BillingProvider).where(BillingProvider.id == claim.billing_provider_id))).scalar_one_or_none()
+
+    payer = None
+    if claim.payer_id:
+        payer = (await db.execute(select(Payer).where(Payer.id == claim.payer_id))).scalar_one_or_none()
+
+    ins = None
+    if claim.patient_insurance_id:
+        ins = (await db.execute(select(PatientInsurance).where(PatientInsurance.id == claim.patient_insurance_id))).scalar_one_or_none()
+
+    diagnosis_codes = [d.get("icd_code", "") for d in (claim.diagnoses_snapshot or [])]
+    service_lines = [
+        {
+            "dos_from": str(claim.date_of_service) if claim.date_of_service else "",
+            "dos_to": str(claim.date_of_service) if claim.date_of_service else "",
+            "pos": l.place_of_service_code or "11",
+            "cpt_code": l.cpt_code,
+            "modifiers": l.modifiers or [],
+            "diagnosis_pointers": l.diagnosis_pointers or [1],
+            "charge_amount": float(l.charge_amount),
+            "units": l.units,
+        }
+        for l in claim.lines
+    ]
+
+    dob_str = ""
+    if patient:
+        dob_val = getattr(patient, "dob", None)
+        if dob_val:
+            dob_str = dob_val.strftime("%m/%d/%Y")
+
+    templates_dir = os.path.join(os.path.dirname(__file__), "..", "..", "templates")
+    templates_dir = os.path.abspath(templates_dir)
+    jinja_env = Environment(loader=FileSystemLoader(templates_dir))
+    template = jinja_env.get_template("cms1500.html")
+
+    rendered_html = template.render(
+        claim_number=claim.claim_number or str(claim.id),
+        patient_name=f"{patient.last_name}, {patient.first_name}" if patient else "",
+        patient_account_number=patient.account_number if patient else "",
+        patient_address=patient.address_line1 if patient else "",
+        patient_city=patient.city if patient else "",
+        patient_state=patient.state if patient else "",
+        patient_zip=patient.zip if patient else "",
+        patient_phone=patient.phone_home or patient.phone_cell or "" if patient else "",
+        dob=dob_str,
+        sex=getattr(patient, "sex", "") if patient else "",
+        insured_id=ins.subscriber_id if ins else "",
+        group_number=ins.group_number if ins else "",
+        payer_name=payer.name if payer else "",
+        authorization_number=claim.authorization_number or "",
+        date_of_service=str(claim.date_of_service) if claim.date_of_service else "",
+        place_of_service="11",
+        diagnosis_codes=diagnosis_codes,
+        service_lines=service_lines,
+        total_charge=float(claim.total_charge),
+        total_paid=float(claim.total_paid),
+        provider_name=f"{prov.first_name} {prov.last_name}" if prov else "",
+        provider_npi=prov.npi if prov else "",
+        rendering_provider_npi=prov.npi if prov else "",
+        billing_provider_name=bp.name if bp else (f"{prov.first_name} {prov.last_name}" if prov else ""),
+        billing_provider_npi=bp.npi if bp else (prov.npi if prov else ""),
+        billing_address=bp.address_line1 if bp else "",
+        billing_tax_id=bp.tax_id if bp else "",
+        relationship_to_insured=ins.relationship_to_insured or "Self" if ins else "Self",
+        has_secondary="NO",
+        employment_related="NO",
+        auto_accident="NO",
+        other_accident="NO",
+        signature_date=str(claim.date_of_service) if claim.date_of_service else "",
+    )
+
+    pdf_bytes = WeasyHTML(string=rendered_html).write_pdf()
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=cms1500_{claim_id}.pdf"},
+    )
+
+
+@router.post("/claims/{claim_id}/crossover")
+async def crossover_claim(
+    claim_id: uuid.UUID,
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("claims:write")),
+):
+    """Create a secondary (crossover) claim from the original primary claim."""
+    from datetime import date
+    from domains.patients.models import PatientInsurance
+
+    claim = await _load_claim(db, claim_id, ctx.tenant_id)
+
+    # Look for secondary insurance
+    try:
+        sec_ins_result = await db.execute(
+            select(PatientInsurance).where(
+                PatientInsurance.patient_id == claim.patient_id,
+                PatientInsurance.priority == "secondary",
+                PatientInsurance.is_active == True,
+            )
+        )
+        sec_ins = sec_ins_result.scalar_one_or_none()
+    except Exception:
+        sec_ins = None
+
+    if not sec_ins:
+        return {"message": "no secondary insurance on file"}
+
+    today = date.today()
+    new_claim_number = f"CT-{today.strftime('%Y%m%d')}-{str(uuid.uuid4())[:6].upper()}-X"
+
+    secondary_claim = Claim(
+        tenant_id=ctx.tenant_id,
+        claim_number=new_claim_number,
+        patient_id=claim.patient_id,
+        visit_id=claim.visit_id,
+        provider_id=claim.provider_id,
+        billing_provider_id=claim.billing_provider_id,
+        referring_provider_id=claim.referring_provider_id,
+        payer_id=sec_ins.payer_id,
+        patient_insurance_id=sec_ins.id,
+        claim_type=claim.claim_type,
+        date_of_service=claim.date_of_service,
+        total_charge=claim.total_charge,
+        status="draft",
+        validation_status="pending",
+        diagnoses_snapshot=claim.diagnoses_snapshot,
+        is_secondary=True,
+        primary_claim_id=claim.id,
+    )
+    db.add(secondary_claim)
+    await db.flush()
+
+    # Copy claim lines
+    for line in claim.lines:
+        new_line = ClaimLine(
+            tenant_id=ctx.tenant_id,
+            claim_id=secondary_claim.id,
+            cpt_code=line.cpt_code,
+            modifiers=line.modifiers,
+            units=line.units,
+            charge_amount=line.charge_amount,
+            revenue_code=line.revenue_code,
+            sequence=line.sequence,
+            diagnosis_pointers=line.diagnosis_pointers,
+            rendering_provider_id=line.rendering_provider_id,
+            place_of_service_code=line.place_of_service_code,
+        )
+        db.add(new_line)
+
+    db.add(ClaimStatusEvent(
+        tenant_id=ctx.tenant_id,
+        claim_id=secondary_claim.id,
+        from_status=None,
+        to_status="draft",
+        changed_by=current_user.id,
+        note=f"Secondary (crossover) claim created from primary claim {claim.claim_number or str(claim.id)}. "
+             f"Primary paid: {float(claim.total_paid):.2f}",
+    ))
+    await db.flush()
+
+    return {
+        "id": str(secondary_claim.id),
+        "claim_number": secondary_claim.claim_number,
+        "status": secondary_claim.status,
+        "payer_id": str(secondary_claim.payer_id) if secondary_claim.payer_id else None,
+        "patient_insurance_id": str(secondary_claim.patient_insurance_id),
+        "primary_claim_id": str(claim.id),
+        "other_payer_paid": float(claim.total_paid),
+        "total_charge": float(secondary_claim.total_charge),
+        "is_secondary": True,
+    }
+
+
 @router.post("/claims/{claim_id}/denial")
 async def create_denial(
     claim_id: uuid.UUID,

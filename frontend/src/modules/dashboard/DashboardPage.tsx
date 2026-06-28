@@ -1,255 +1,321 @@
-import { useQuery } from '@tanstack/react-query'
-import { Users, FileText, AlertCircle, DollarSign, TrendingUp, Clock, CheckCircle2, XCircle, RotateCcw } from 'lucide-react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { apiClient as api } from '../../services/api'
-import { useAuthStore } from '../../stores/authStore'
+import {
+  AlertTriangle, FileX, ShieldAlert, XCircle, Ban, Unlink,
+  CircleDollarSign, Copy, Clock, UserCheck, Timer, Archive, ClipboardList,
+  UserPlus, AlarmClock,
+} from 'lucide-react'
+import { PageHeader } from '../../components/shell/PageHeader'
+import { KPICard } from '../../components/ui/KPICard'
+import { Table, type ColumnDef } from '../../components/ui/Table'
+import { Button } from '../../components/ui/Button'
+import { Drawer } from '../../components/ui/Drawer'
+import { StatusBadge } from '../../components/shared/StatusBadge'
+import { PHIField } from '../../components/shared/PHIField'
+import { useWorkQueue, useWorkQueueSummary } from '../../services/queries'
+import { api } from '../../services/api'
+import { useToast } from '../../components/ui/Toast'
+import type { WorkItem, WorkQueueSummary } from '../../types'
 
-interface Stats {
-  todayVisits: number
-  claimsThisWeek: number
-  paymentsToday: number
-  workQueueOpen: number
-  arAging: { '0-30': number; '31-60': number; '61-90': number; '90+': number }
-  claimsByStatus: { submitted: number; pending: number; denied: number; paid: number }
-  recentActivity: { id: string; description: string; user: string; time: string; type: string }[]
-  queueSummary: { type: string; count: number; priority: 'high' | 'medium' | 'low' }[]
-}
+const kpiDefs: {
+  key: keyof WorkQueueSummary
+  label: string
+  icon: React.ElementType
+  accentColor: string
+  filterType: string
+}[] = [
+  { key: 'visitMissingInsurance', label: 'Visit Missing Insurance', icon: AlertTriangle, accentColor: '#B45309', filterType: 'visit-missing-insurance' },
+  { key: 'visitChargesNoClaim', label: 'Visit Charges No Claim', icon: FileX, accentColor: '#B45309', filterType: 'visit-charges-no-claim' },
+  { key: 'claimValidationFailed', label: 'Claim Validation Failed', icon: ShieldAlert, accentColor: '#B91C1C', filterType: 'claim-validation-failed' },
+  { key: 'claimRejected', label: 'Claim Rejected', icon: XCircle, accentColor: '#B91C1C', filterType: 'claim-rejected' },
+  { key: 'claimDenied', label: 'Claim Denied', icon: Ban, accentColor: '#B91C1C', filterType: 'claim-denied' },
+  { key: 'eraUnmatched', label: 'ERA Unmatched', icon: Unlink, accentColor: '#007998', filterType: 'era-unmatched' },
+  { key: 'paymentUnapplied', label: 'Payment Unapplied', icon: CircleDollarSign, accentColor: '#007998', filterType: 'payment-unapplied' },
+  { key: 'secondaryClaimNeeded', label: 'Secondary Claim Needed', icon: Copy, accentColor: '#676687', filterType: 'secondary-claim-needed' },
+  { key: 'noPay', label: 'No Payer Response', icon: Clock, accentColor: '#676687', filterType: 'no-payer-response' },
+  { key: 'patientBalance', label: 'Patient Balance Remaining', icon: UserCheck, accentColor: '#047857', filterType: 'patient-balance-remaining' },
+  { key: 'nearTfl', label: 'Near TFL', icon: Timer, accentColor: '#DC2626', filterType: 'near-tfl' },
+  { key: 'staleClaim', label: 'Stale Claims', icon: Archive, accentColor: '#676687', filterType: 'stale-claim' },
+  { key: 'missingSuperBill', label: 'Missing Superbills', icon: ClipboardList, accentColor: '#B45309', filterType: 'missing-superbill' },
+]
 
-const EMPTY_STATS: Stats = {
-  todayVisits: 0, claimsThisWeek: 0, paymentsToday: 0, workQueueOpen: 0,
-  arAging: { '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0 },
-  claimsByStatus: { submitted: 0, pending: 0, denied: 0, paid: 0 },
-  recentActivity: [],
-  queueSummary: [],
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  Paid: '#16A34A', Submitted: '#0410BD', Pending: '#D97706', Denied: '#DC2626',
-}
-
-const ACTIVITY_ICONS: Record<string, React.ReactNode> = {
-  submit: <FileText size={14} color="#0410BD" />,
-  payment: <DollarSign size={14} color="#16A34A" />,
-  patient: <Users size={14} color="#007998" />,
-  denial: <RotateCcw size={14} color="#D97706" />,
-  visit: <CheckCircle2 size={14} color="#16A34A" />,
-  eligibility: <AlertCircle size={14} color="#676687" />,
-}
-
-const PRIORITY_COLORS: Record<string, string> = {
-  high: '#DC2626', medium: '#D97706', low: '#007998',
+const priorityColors: Record<string, string> = {
+  critical: 'text-[#B91C1C] font-semibold',
+  high: 'text-[#B45309] font-semibold',
+  medium: 'text-[#676687]',
+  low: 'text-[#BABACE]',
 }
 
 export function DashboardPage() {
   const navigate = useNavigate()
-  const user = useAuthStore(s => s.user)
+  const { addToast } = useToast()
+  const [typeFilter, setTypeFilter] = useState<string | undefined>()
+  const [page, setPage] = useState(1)
+  const [selectedItem, setSelectedItem] = useState<WorkItem | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
-  const { data = EMPTY_STATS } = useQuery<Stats>({
-    queryKey: ['dashboard', 'stats'],
-    queryFn: async () => (await api.get('/dashboard/stats')).data,
-    staleTime: 60_000,
+  const { data: summary, isLoading: summaryLoading } = useWorkQueueSummary()
+  const { data: workQueue, isLoading: queueLoading } = useWorkQueue({
+    type: typeFilter,
+    page,
+    pageSize: 25,
   })
 
-  const statusEntries = Object.entries({
-    Paid: data.claimsByStatus.paid,
-    Submitted: data.claimsByStatus.submitted,
-    Pending: data.claimsByStatus.pending,
-    Denied: data.claimsByStatus.denied,
-  })
-  const totalClaims = statusEntries.reduce((s, [, v]) => s + v, 0)
-  const totalAR = Object.values(data.arAging).reduce((s, v) => s + v, 0)
+  const columns: ColumnDef<WorkItem>[] = [
+    {
+      id: 'priority',
+      header: 'Priority',
+      sortable: true,
+      width: '90px',
+      cell: (row) => (
+        <span className={priorityColors[row.priority] ?? ''}>
+          {row.priority.charAt(0).toUpperCase() + row.priority.slice(1)}
+        </span>
+      ),
+    },
+    {
+      id: 'patient',
+      header: 'Patient',
+      cell: (row) => row.patient ? (
+        <PHIField
+          value={`${row.patient.firstName} ${row.patient.lastName}`}
+          fieldName="Patient Name"
+          patientId={row.patientId}
+          fieldType="name"
+          inline
+        />
+      ) : <span className="text-[#BABACE]">—</span>,
+    },
+    {
+      id: 'type',
+      header: 'Issue',
+      cell: (row) => <span className="text-sm text-[#12122C]">{row.description}</span>,
+    },
+    {
+      id: 'payer',
+      header: 'Payer',
+      cell: (row) => <span className="text-sm text-[#676687]">{row.payerName ?? '—'}</span>,
+    },
+    {
+      id: 'amount',
+      header: 'Amount',
+      align: 'right',
+      cell: (row) => row.amount != null ? (
+        <span className="text-sm tabular-nums">${row.amount.toFixed(2)}</span>
+      ) : <span className="text-[#BABACE]">—</span>,
+    },
+    {
+      id: 'age',
+      header: 'Age',
+      align: 'right',
+      sortable: true,
+      cell: (row) => (
+        <span className={`text-sm tabular-nums ${row.ageInDays > 30 ? 'text-[#B91C1C]' : row.ageInDays > 14 ? 'text-[#B45309]' : 'text-[#676687]'}`}>
+          {row.ageInDays}d
+        </span>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: (row) => <StatusBadge status={row.status} size="sm" />,
+    },
+    {
+      id: 'actions',
+      header: '',
+      width: '120px',
+      cell: (row) => (
+        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          <Button
+            size="xs"
+            variant="secondary"
+            onClick={() => handleAssign(row)}
+          >
+            Assign
+          </Button>
+          <Button
+            size="xs"
+            variant="tertiary"
+            onClick={() => handleSnooze(row)}
+          >
+            <AlarmClock size={12} />
+          </Button>
+        </div>
+      ),
+    },
+  ]
 
-  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  async function handleAssign(item: WorkItem) {
+    try {
+      await api.workQueue.assign(item.id, 'me')
+      addToast({ variant: 'success', message: 'Item assigned successfully.' })
+    } catch {
+      addToast({ variant: 'error', message: 'Failed to assign item.' })
+    }
+  }
+
+  async function handleSnooze(item: WorkItem) {
+    const until = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    try {
+      await api.workQueue.snooze(item.id, until)
+      addToast({ variant: 'success', message: 'Item snoozed for 24 hours.' })
+    } catch {
+      addToast({ variant: 'error', message: 'Failed to snooze item.' })
+    }
+  }
+
+  function handleRowClick(item: WorkItem) {
+    setSelectedItem(item)
+    setDrawerOpen(true)
+  }
+
+  const totalOpen = summary ? Object.values(summary as unknown as Record<string, number>).reduce((a, b) => a + b, 0) : 0
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {/* Page header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#676687', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Dashboard</div>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: '#12122C', letterSpacing: '-0.3px' }}>
-            Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}, {user?.name?.split(' ')[0] ?? 'Admin'}
-          </h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: '#676687' }}>{today}</p>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => navigate('/work-queue')} style={{
-            height: 36, padding: '0 16px', background: data.workQueueOpen > 0 ? '#DC2626' : '#0410BD',
-            color: 'white', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600,
-            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-          }}>
-            <AlertCircle size={14} />
-            {data.workQueueOpen} open task{data.workQueueOpen !== 1 ? 's' : ''}
-          </button>
-        </div>
-      </div>
+    <div className="p-6 space-y-6">
+      <PageHeader
+        eyebrow="Billing Operations"
+        title="Work Queue"
+        description={`${totalOpen} open items across all categories`}
+      />
 
-      {/* KPI row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-        {[
-          { title: "Today's Visits", value: data.todayVisits, trend: '+3 vs yesterday', up: true, icon: <Users size={18} />, path: '/visits', color: '#0410BD' },
-          { title: 'Claims This Week', value: data.claimsThisWeek, trend: '+12% vs last week', up: true, icon: <FileText size={18} />, path: '/claims', color: '#007998' },
-          { title: 'Payments Today', value: `$${data.paymentsToday.toLocaleString()}`, trend: '+8%', up: true, icon: <DollarSign size={18} />, path: '/payments', color: '#16A34A' },
-          { title: 'Work Queue', value: data.workQueueOpen, trend: data.workQueueOpen > 5 ? 'Needs attention' : 'Looks good', up: data.workQueueOpen <= 5, icon: <AlertCircle size={18} />, path: '/work-queue', color: data.workQueueOpen > 5 ? '#DC2626' : '#16A34A' },
-        ].map(kpi => (
-          <div key={kpi.title} onClick={() => navigate(kpi.path)} style={{
-            background: 'white', border: '1px solid #E3E3F1', borderRadius: 10,
-            padding: '18px 20px', cursor: 'pointer', transition: 'box-shadow 0.15s',
-          }}
-            onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 12px rgba(18,18,44,0.10)')}
-            onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#676687', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{kpi.title}</span>
-              <span style={{ color: kpi.color, opacity: 0.85 }}>{kpi.icon}</span>
-            </div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: '#12122C', marginBottom: 6, fontVariantNumeric: 'tabular-nums' }}>{kpi.value}</div>
-            <div style={{ fontSize: 12, color: kpi.up ? '#16A34A' : '#DC2626', display: 'flex', alignItems: 'center', gap: 3 }}>
-              <TrendingUp size={11} /> {kpi.trend}
-            </div>
-          </div>
+      {/* KPI Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+        {kpiDefs.map((kpi) => (
+          <KPICard
+            key={kpi.key}
+            label={kpi.label}
+            value={summaryLoading ? '—' : (summary?.[kpi.key] ?? 0)}
+            loading={summaryLoading}
+            accentColor={kpi.accentColor}
+            onClick={() => setTypeFilter(typeFilter === kpi.filterType ? undefined : kpi.filterType)}
+            className={typeFilter === kpi.filterType ? 'ring-2 ring-[#0410BD]' : ''}
+          />
         ))}
       </div>
 
-      {/* Main 2-col grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-        {/* AR Aging */}
-        <div style={{ background: 'white', border: '1px solid #E3E3F1', borderRadius: 10, padding: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#12122C' }}>AR Aging Summary</h3>
-              <p style={{ margin: '2px 0 0', fontSize: 12, color: '#676687' }}>Total outstanding: ${totalAR.toLocaleString()}</p>
+      {/* Work Queue Table */}
+      <Table<WorkItem>
+        columns={columns}
+        data={workQueue?.items ?? []}
+        loading={queueLoading}
+        total={workQueue?.total ?? 0}
+        page={page}
+        pageSize={25}
+        onPageChange={setPage}
+        onRowClick={handleRowClick}
+        getRowId={(row) => row.id}
+        emptyTitle="No open work items"
+        emptyDescription="All billing items are up to date."
+        toolbar={
+          typeFilter ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-[#676687]">Filtered:</span>
+              <span className="text-sm font-medium text-[#0410BD]">
+                {kpiDefs.find(k => k.filterType === typeFilter)?.label}
+              </span>
+              <Button size="xs" variant="tertiary" onClick={() => setTypeFilter(undefined)}>
+                Clear filter
+              </Button>
             </div>
-            <button onClick={() => navigate('/claims')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#0410BD', fontWeight: 500 }}>View claims →</button>
-          </div>
-          {Object.entries(data.arAging).map(([bucket, amt]) => {
-            const pct = totalAR ? (amt / totalAR) * 100 : 0
-            const color = bucket === '90+' ? '#DC2626' : bucket === '61-90' ? '#D97706' : bucket === '31-60' ? '#F59E0B' : '#16A34A'
-            return (
-              <div key={bucket} style={{ marginBottom: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}>
-                  <span style={{ color: '#12122C', fontWeight: 500 }}>{bucket} days</span>
-                  <span style={{ color: '#12122C', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>${amt.toLocaleString()}</span>
-                </div>
-                <div style={{ height: 7, background: '#F2F2F8', borderRadius: 4 }}>
-                  <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 4, transition: 'width 0.5s ease' }} />
-                </div>
-                <div style={{ fontSize: 11, color: '#676687', marginTop: 2 }}>{pct.toFixed(0)}% of total</div>
-              </div>
-            )
-          })}
-        </div>
+          ) : null
+        }
+      />
 
-        {/* Claims by status */}
-        <div style={{ background: 'white', border: '1px solid #E3E3F1', borderRadius: 10, padding: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#12122C' }}>Claims by Status</h3>
-              <p style={{ margin: '2px 0 0', fontSize: 12, color: '#676687' }}>{totalClaims} claims this period</p>
-            </div>
-            <button onClick={() => navigate('/claims')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#0410BD', fontWeight: 500 }}>View all →</button>
-          </div>
-          {statusEntries.map(([label, value]) => {
-            const pct = totalClaims ? (value / totalClaims) * 100 : 0
-            return (
-              <div key={label} style={{ marginBottom: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}>
-                  <span style={{ fontWeight: 500, color: '#12122C' }}>{label}</span>
-                  <div style={{ display: 'flex', gap: 12 }}>
-                    <span style={{ color: STATUS_COLORS[label], fontWeight: 600 }}>{value}</span>
-                    <span style={{ color: '#BABACE', width: 36, textAlign: 'right' }}>{pct.toFixed(0)}%</span>
-                  </div>
-                </div>
-                <div style={{ height: 7, background: '#F2F2F8', borderRadius: 4 }}>
-                  <div style={{ height: '100%', width: `${pct}%`, background: STATUS_COLORS[label], borderRadius: 4, transition: 'width 0.5s ease' }} />
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Bottom 2-col */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-        {/* Work Queue Summary */}
-        <div style={{ background: 'white', border: '1px solid #E3E3F1', borderRadius: 10, padding: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#12122C' }}>Open Work Queue</h3>
-            <button onClick={() => navigate('/work-queue')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#0410BD', fontWeight: 500 }}>Work queue →</button>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {data.queueSummary.map(item => (
-              <div key={item.type} onClick={() => navigate('/work-queue')} style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '10px 12px', background: '#F2F2F8', borderRadius: 8, cursor: 'pointer',
-                border: `1px solid transparent`,
-                transition: 'border-color 0.12s',
-              }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = '#E3E3F1')}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = 'transparent')}
+      {/* Detail Drawer */}
+      <Drawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        title="Work Item Detail"
+        width={480}
+        footer={
+          <>
+            <Button variant="secondary" size="sm" onClick={() => setDrawerOpen(false)}>Close</Button>
+            {selectedItem?.claimId && (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => { navigate(`/claims/${selectedItem.claimId}`); setDrawerOpen(false) }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: PRIORITY_COLORS[item.priority], flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, color: '#12122C' }}>{item.type}</span>
-                </div>
-                <span style={{
-                  minWidth: 22, height: 22, borderRadius: 11, background: PRIORITY_COLORS[item.priority],
-                  color: 'white', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>{item.count}</span>
+                View Claim
+              </Button>
+            )}
+            {selectedItem?.visitId && (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => { navigate(`/visits/${selectedItem.visitId}`); setDrawerOpen(false) }}
+              >
+                View Visit
+              </Button>
+            )}
+          </>
+        }
+      >
+        {selectedItem && (
+          <div className="space-y-4">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#676687] mb-1">Issue</p>
+              <p className="text-sm text-[#12122C]">{selectedItem.description}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#676687] mb-1">Priority</p>
+                <StatusBadge status={selectedItem.priority} />
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Recent Activity */}
-        <div style={{ background: 'white', border: '1px solid #E3E3F1', borderRadius: 10, padding: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#12122C' }}>Recent Activity</h3>
-            <Clock size={14} color="#676687" />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {data.recentActivity.map((event, i) => (
-              <div key={event.id} style={{
-                padding: '10px 0', borderBottom: i < data.recentActivity.length - 1 ? '1px solid #F2F2F8' : 'none',
-                display: 'flex', gap: 10, alignItems: 'flex-start',
-              }}>
-                <div style={{ marginTop: 1, flexShrink: 0, width: 20, height: 20, borderRadius: 6, background: '#F2F2F8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {ACTIVITY_ICONS[event.type]}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <p style={{ margin: 0, fontSize: 13, color: '#12122C', lineHeight: 1.4 }}>{event.description}</p>
-                  <div style={{ display: 'flex', gap: 6, marginTop: 3, fontSize: 11, color: '#676687' }}>
-                    <span>{event.user}</span>
-                    <span>·</span>
-                    <span>{event.time}</span>
-                  </div>
-                </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#676687] mb-1">Status</p>
+                <StatusBadge status={selectedItem.status} />
               </div>
-            ))}
+            </div>
+            {selectedItem.patient && (
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#676687] mb-1">Patient</p>
+                <PHIField
+                  value={`${selectedItem.patient.firstName} ${selectedItem.patient.lastName}`}
+                  fieldName="Patient Name"
+                  patientId={selectedItem.patientId}
+                  fieldType="name"
+                />
+              </div>
+            )}
+            {selectedItem.payerName && (
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#676687] mb-1">Payer</p>
+                <p className="text-sm">{selectedItem.payerName}</p>
+              </div>
+            )}
+            {selectedItem.amount != null && (
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#676687] mb-1">Amount</p>
+                <p className="text-sm tabular-nums">${selectedItem.amount.toFixed(2)}</p>
+              </div>
+            )}
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#676687] mb-1">Age</p>
+              <p className={`text-sm ${selectedItem.ageInDays > 30 ? 'text-[#B91C1C] font-semibold' : ''}`}>
+                {selectedItem.ageInDays} days
+              </p>
+            </div>
+            {selectedItem.nextAction && (
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#676687] mb-1">Next Action</p>
+                <p className="text-sm">{selectedItem.nextAction}</p>
+              </div>
+            )}
+            <div className="flex gap-2 pt-2">
+              <Button size="sm" variant="secondary" className="flex-1" onClick={() => handleAssign(selectedItem)}>
+                <UserPlus size={14} />
+                Assign to Me
+              </Button>
+              <Button size="sm" variant="secondary" className="flex-1" onClick={() => handleSnooze(selectedItem)}>
+                <AlarmClock size={14} />
+                Snooze 24h
+              </Button>
+            </div>
           </div>
-        </div>
-      </div>
-
-      {/* Quick action alerts */}
-      {data.claimsByStatus.denied > 0 && (
-        <div style={{
-          background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '14px 20px',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <XCircle size={18} color="#DC2626" />
-            <span style={{ fontSize: 14, color: '#12122C', fontWeight: 500 }}>
-              {data.claimsByStatus.denied} denied claim{data.claimsByStatus.denied !== 1 ? 's' : ''} need attention
-            </span>
-          </div>
-          <button onClick={() => navigate('/claims?status=Denied')} style={{
-            height: 32, padding: '0 14px', background: '#DC2626', color: 'white',
-            border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-          }}>
-            Review denials
-          </button>
-        </div>
-      )}
+        )}
+      </Drawer>
     </div>
   )
 }

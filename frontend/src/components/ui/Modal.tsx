@@ -3,22 +3,25 @@ import ReactDOM from 'react-dom'
 import { X } from 'lucide-react'
 
 interface ModalProps {
-  isOpen: boolean
+  isOpen?: boolean
+  open?: boolean  // alias for isOpen
   onClose: () => void
   title?: string
   children: React.ReactNode
   footer?: React.ReactNode
   maxWidth?: number
+  size?: string  // ignored, kept for compat
 }
 
-export function Modal({ isOpen, onClose, title, children, footer, maxWidth = 600 }: ModalProps) {
+export function Modal({ isOpen, open, onClose, title, children, footer, maxWidth = 600 }: ModalProps) {
+  const isVisible = isOpen ?? open ?? false
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    if (isOpen) document.addEventListener('keydown', handler)
+    if (isVisible) document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [isOpen, onClose])
+  }, [isVisible, onClose])
 
-  if (!isOpen) return null
+  if (!isVisible) return null
 
   return ReactDOM.createPortal(
     <div
@@ -65,5 +68,38 @@ export function Modal({ isOpen, onClose, title, children, footer, maxWidth = 600
       </div>
     </div>,
     document.body
+  )
+}
+
+interface ConfirmModalProps {
+  isOpen?: boolean
+  open?: boolean
+  onClose: () => void
+  onConfirm: () => void | Promise<void>
+  title?: string
+  message?: string
+  confirmLabel?: string
+  cancelLabel?: string
+  loading?: boolean
+}
+
+export function ConfirmModal({ isOpen, open, onClose, onConfirm, title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel', loading }: ConfirmModalProps) {
+  const isVisible = isOpen ?? open ?? false
+  return (
+    <Modal
+      isOpen={isVisible}
+      onClose={onClose}
+      title={title}
+      footer={
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 'var(--bb-radius-sm)', border: '1px solid var(--bb-border)', background: 'none', cursor: 'pointer', fontSize: 14 }}>{cancelLabel}</button>
+          <button onClick={onConfirm} disabled={loading} style={{ padding: '8px 16px', borderRadius: 'var(--bb-radius-sm)', border: 'none', background: 'var(--bb-brand-blue)', color: '#fff', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, fontSize: 14 }}>
+            {loading ? 'Loading…' : confirmLabel}
+          </button>
+        </div>
+      }
+    >
+      {message ? <p style={{ fontSize: 14, color: 'var(--bb-text-secondary)' }}>{message}</p> : null}
+    </Modal>
   )
 }

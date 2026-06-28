@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
@@ -70,3 +70,35 @@ class WorkQueueSummary(BaseModel):
     total_escalated: int
     by_type: Dict[str, int]
     by_priority: Dict[str, int]
+
+
+class DenialAppealCreate(BaseModel):
+    carc_code: Optional[str] = None
+    rarc_code: Optional[str] = None
+    denial_reason: Optional[str] = None
+    appeal_due_date: Optional[date] = None
+    appeal_notes: Optional[str] = None
+
+
+class DenialAppealUpdate(BaseModel):
+    appeal_status: Optional[str] = None
+    appeal_notes: Optional[str] = None
+    carc_code: Optional[str] = None
+    rarc_code: Optional[str] = None
+    denial_reason: Optional[str] = None
+    appeal_due_date: Optional[date] = None
+
+
+class DenialAppealResponse(BaseModel):
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    claim_id: uuid.UUID
+    carc_code: Optional[str]
+    rarc_code: Optional[str]
+    denial_reason: Optional[str]
+    appeal_due_date: Optional[date]
+    appeal_status: str
+    appeal_notes: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+    model_config = {"from_attributes": True}
