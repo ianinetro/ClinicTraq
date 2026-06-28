@@ -1,100 +1,253 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { DataTable, Column } from '../../components/ui/DataTable'
+import { useNavigate } from 'react-router-dom'
+import { AlertCircle, Clock, User, Search, Filter, RotateCcw, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react'
 import { Badge } from '../../components/ui/Badge'
-import { Button } from '../../components/ui/Button'
-import { Select } from '../../components/ui/Select'
 import { apiClient as api } from '../../services/api'
 
 interface WorkItem {
   id: string
   priority: 'high' | 'medium' | 'low'
   taskType: string
+  category: string
   patient: string
   claimId: string
   assignedTo: string
   dueDate: string
   ageDays: number
+  payer: string
+  denialReason?: string
+  nextAction?: string
+  status: 'open' | 'in_progress' | 'resolved'
 }
 
-const priorityVariant = (p: string): 'danger' | 'warning' | 'info' | 'default' => {
-  if (p === 'high') return 'danger'
-  if (p === 'medium') return 'warning'
-  return 'info'
+const MOCK_ITEMS: WorkItem[] = [
+  { id: '1', priority: 'high', taskType: 'Denial Follow-up', category: 'Denials', patient: 'Davis, Susan', claimId: 'A10044', payer: 'United Healthcare', assignedTo: 'J. Martinez', dueDate: '2026-06-28', ageDays: 5, denialReason: 'CO-97: Payment included in allowance for another service', nextAction: 'Review claim lines and resubmit with corrected procedure codes', status: 'open' },
+  { id: '2', priority: 'high', taskType: 'Denial Follow-up', category: 'Denials', patient: 'Brown, James', claimId: 'A10045', payer: 'Cigna PPO', assignedTo: 'K. Thompson', dueDate: '2026-06-28', ageDays: 4, denialReason: 'CO-4: Service inconsistent with patient age', nextAction: 'Verify date of birth on file and resubmit', status: 'open' },
+  { id: '3', priority: 'high', taskType: 'Missing Information', category: 'Missing Info', patient: 'Wilson, George', claimId: 'A10047', payer: 'BlueCross PPO', assignedTo: 'J. Martinez', dueDate: '2026-06-29', ageDays: 3, nextAction: 'Obtain referring provider NPI and update claim', status: 'open' },
+  { id: '4', priority: 'medium', taskType: 'Authorization Required', category: 'Auth', patient: 'Johnson, Mary', claimId: 'A10046', payer: 'BlueCross PPO', assignedTo: 'J. Martinez', dueDate: '2026-06-30', ageDays: 2, nextAction: 'Call BlueCross to obtain retroactive auth #', status: 'in_progress' },
+  { id: '5', priority: 'medium', taskType: 'Claim Resubmission', category: 'Resubmission', patient: 'Williams, Robert', claimId: 'A10043', payer: 'Aetna HMO', assignedTo: 'Unassigned', dueDate: '2026-07-01', ageDays: 3, denialReason: 'CO-18: Duplicate claim', nextAction: 'Confirm original claim status and adjust DOS if needed', status: 'open' },
+  { id: '6', priority: 'medium', taskType: 'Timely Filing', category: 'Timely Filing', patient: 'Anderson, Lisa', claimId: 'A10032', payer: 'United Healthcare', assignedTo: 'K. Thompson', dueDate: '2026-07-02', ageDays: 6, nextAction: 'Gather proof of timely filing and submit appeal', status: 'open' },
+  { id: '7', priority: 'low', taskType: 'Patient Statement', category: 'Patient Balance', patient: 'Garcia, Maria', claimId: '—', payer: '—', assignedTo: 'K. Thompson', dueDate: '2026-07-05', ageDays: 1, nextAction: 'Generate and mail patient statement for $125.00 balance', status: 'open' },
+  { id: '8', priority: 'low', taskType: 'ERA Reconciliation', category: 'Payments', patient: 'Multiple', claimId: '—', payer: 'BlueCross PPO', assignedTo: 'Unassigned', dueDate: '2026-07-06', ageDays: 1, nextAction: 'Match 3 unposted ERA payments to claims', status: 'open' },
+]
+
+const CATEGORIES = ['All', 'Denials', 'Missing Info', 'Auth', 'Resubmission', 'Timely Filing', 'Patient Balance', 'Payments']
+
+const PRIORITY_CONFIG: Record<string, { label: string; bg: string; text: string; dot: string }> = {
+  high:   { label: 'High', bg: '#FEF2F2', text: '#DC2626', dot: '#DC2626' },
+  medium: { label: 'Medium', bg: '#FFFBEB', text: '#D97706', dot: '#D97706' },
+  low:    { label: 'Low', bg: '#D9FCFF', text: '#007998', dot: '#007998' },
 }
 
 export function WorkQueuePage() {
-  const [priority, setPriority] = useState('')
-  const [type, setType] = useState('')
+  const navigate = useNavigate()
+  const [category, setCategory] = useState('All')
+  const [search, setSearch] = useState('')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [assignFilter, setAssignFilter] = useState('')
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['work-queue', priority, type],
+  const { data } = useQuery({
+    queryKey: ['work-queue'],
     queryFn: async () => {
-      try {
-        const res = await api.get('/work-queue', { params: { priority, type } })
-        return res.data
-      } catch {
-        return {
-          items: [
-            { id: '1', priority: 'high', taskType: 'Denial Follow-up', patient: 'Davis, Susan', claimId: 'A10044', assignedTo: 'J. Martinez', dueDate: '2026-06-28', ageDays: 5 },
-            { id: '2', priority: 'high', taskType: 'Missing Information', patient: 'Brown, James', claimId: 'A10045', assignedTo: 'K. Thompson', dueDate: '2026-06-28', ageDays: 4 },
-            { id: '3', priority: 'medium', taskType: 'Authorization Required', patient: 'Johnson, Mary', claimId: 'A10046', assignedTo: 'J. Martinez', dueDate: '2026-06-30', ageDays: 2 },
-            { id: '4', priority: 'medium', taskType: 'Claim Resubmission', patient: 'Williams, Robert', claimId: 'A10043', assignedTo: 'Unassigned', dueDate: '2026-07-01', ageDays: 3 },
-            { id: '5', priority: 'low', taskType: 'Patient Statement', patient: 'Anderson, Lisa', claimId: '—', assignedTo: 'K. Thompson', dueDate: '2026-07-05', ageDays: 1 },
-          ],
-          total: 5,
-        }
-      }
+      try { return (await api.get('/work-queue')).data }
+      catch { return { items: MOCK_ITEMS, total: MOCK_ITEMS.length } }
     },
   })
 
-  const columns: Column<WorkItem>[] = [
-    { key: 'priority', header: 'Priority', render: r => <Badge variant={priorityVariant(r.priority)}>{r.priority.toUpperCase()}</Badge> },
-    { key: 'taskType', header: 'Task Type', render: r => <span style={{ fontWeight: 500 }}>{r.taskType}</span> },
-    { key: 'patient', header: 'Patient' },
-    { key: 'claimId', header: 'Claim', render: r => r.claimId !== '—' ? <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--bb-brand-blue)' }}>{r.claimId}</span> : <span style={{ color: 'var(--bb-text-secondary)' }}>—</span> },
-    { key: 'assignedTo', header: 'Assigned To' },
-    { key: 'dueDate', header: 'Due Date' },
-    { key: 'ageDays', header: 'Age', render: r => <span style={{ color: r.ageDays > 3 ? 'var(--bb-status-danger)' : 'var(--bb-text-secondary)', fontWeight: r.ageDays > 3 ? 600 : 400 }}>{r.ageDays}d</span> },
-    {
-      key: 'actions', header: 'Actions',
-      render: () => (
-        <div style={{ display: 'flex', gap: 6 }}>
-          <Button variant="ghost" size="sm">View</Button>
-          <Button variant="secondary" size="sm">Reassign</Button>
-        </div>
-      ),
-    },
-  ]
+  const allItems: WorkItem[] = data?.items ?? MOCK_ITEMS
+
+  const filtered = allItems.filter(item => {
+    if (category !== 'All' && item.category !== category) return false
+    if (assignFilter && item.assignedTo !== assignFilter) return false
+    if (search) {
+      const q = search.toLowerCase()
+      return item.patient.toLowerCase().includes(q) || item.claimId.toLowerCase().includes(q) || item.taskType.toLowerCase().includes(q)
+    }
+    return true
+  })
+
+  const countByCategory = (cat: string) => cat === 'All' ? allItems.length : allItems.filter(i => i.category === cat).length
+  const highCount = allItems.filter(i => i.priority === 'high' && i.status === 'open').length
+
+  const assignees = [...new Set(allItems.map(i => i.assignedTo))]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div>
-        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Work Queue</h2>
-        <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--bb-text-secondary)' }}>Denial management and follow-up tasks</p>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#676687', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Billing</div>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#12122C' }}>Work Queue</h1>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: '#676687' }}>Denial management, authorization follow-ups, and billing tasks.</p>
+        </div>
+        {highCount > 0 && (
+          <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <AlertCircle size={16} color="#DC2626" />
+            <span style={{ fontSize: 14, fontWeight: 600, color: '#DC2626' }}>{highCount} high-priority task{highCount !== 1 ? 's' : ''} need attention</span>
+          </div>
+        )}
       </div>
 
-      <div style={{ background: 'var(--bb-surface-card)', borderRadius: 'var(--bb-radius-lg)', border: '1px solid var(--bb-border)', boxShadow: 'var(--bb-shadow-sm)', overflow: 'hidden' }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--bb-border)', display: 'flex', gap: 12 }}>
-          <Select
-            options={[{ value: '', label: 'All Priorities' }, { value: 'high', label: 'High' }, { value: 'medium', label: 'Medium' }, { value: 'low', label: 'Low' }]}
-            value={priority}
-            onChange={e => setPriority(e.target.value)}
-            style={{ width: 160 }}
-          />
-          <Select
-            options={[{ value: '', label: 'All Types' }, { value: 'denial', label: 'Denial Follow-up' }, { value: 'auth', label: 'Authorization' }, { value: 'missing', label: 'Missing Info' }]}
-            value={type}
-            onChange={e => setType(e.target.value)}
-            style={{ width: 180 }}
-          />
+      {/* Summary cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+        {[
+          { label: 'Total Open', value: allItems.filter(i => i.status === 'open').length, color: '#12122C' },
+          { label: 'High Priority', value: highCount, color: '#DC2626' },
+          { label: 'In Progress', value: allItems.filter(i => i.status === 'in_progress').length, color: '#007998' },
+          { label: 'Overdue (5+ days)', value: allItems.filter(i => i.ageDays >= 5).length, color: '#D97706' },
+        ].map(s => (
+          <div key={s.label} style={{ background: 'white', border: '1px solid #E3E3F1', borderRadius: 8, padding: '14px 18px' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#676687', textTransform: 'uppercase', marginBottom: 6 }}>{s.label}</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: s.color }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Toolbar */}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative' }}>
+          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#BABACE' }} />
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search patient, claim, task…"
+            style={{ height: 36, paddingLeft: 32, paddingRight: 12, border: '1px solid #BABACE', borderRadius: 6, fontSize: 13, outline: 'none', width: 260 }} />
         </div>
-        <DataTable
-          columns={columns}
-          data={data?.items || []}
-          isLoading={isLoading}
-          emptyMessage="Work queue is empty"
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#676687' }}>
+          <User size={14} />
+          <select value={assignFilter} onChange={e => setAssignFilter(e.target.value)}
+            style={{ height: 36, padding: '0 10px', border: '1px solid #BABACE', borderRadius: 6, fontSize: 13, outline: 'none', background: 'white' }}>
+            <option value="">All assignees</option>
+            {assignees.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </div>
+        <div style={{ marginLeft: 'auto', fontSize: 13, color: '#676687' }}>
+          {filtered.length} task{filtered.length !== 1 ? 's' : ''}
+        </div>
+      </div>
+
+      {/* Category tabs */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {CATEGORIES.map(cat => {
+          const count = countByCategory(cat)
+          const isActive = category === cat
+          return (
+            <button key={cat} onClick={() => setCategory(cat)} style={{
+              padding: '5px 12px', borderRadius: 20, border: `1px solid ${isActive ? '#0410BD' : '#BABACE'}`,
+              background: isActive ? '#EFF0FF' : 'white', color: isActive ? '#0410BD' : '#676687',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+            }}>
+              {cat}
+              {count > 0 && (
+                <span style={{
+                  minWidth: 18, height: 18, borderRadius: 9,
+                  background: isActive ? '#0410BD' : '#F2F2F8',
+                  color: isActive ? 'white' : '#676687',
+                  fontSize: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px',
+                }}>{count}</span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Queue list */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 0, background: 'white', border: '1px solid #E3E3F1', borderRadius: 10, overflow: 'hidden' }}>
+        {filtered.length === 0 ? (
+          <div style={{ padding: '48px 0', textAlign: 'center', color: '#BABACE', fontSize: 13 }}>
+            <CheckCircle2 size={32} color="#BABACE" style={{ display: 'block', margin: '0 auto 12px' }} />
+            Work queue is empty for this filter.
+          </div>
+        ) : filtered.map((item, idx) => {
+          const pc = PRIORITY_CONFIG[item.priority]
+          const isExpanded = expandedId === item.id
+          return (
+            <div key={item.id} style={{ borderBottom: idx < filtered.length - 1 ? '1px solid #F2F2F8' : 'none' }}>
+              {/* Row */}
+              <div
+                onClick={() => setExpandedId(isExpanded ? null : item.id)}
+                style={{
+                  padding: '14px 20px', display: 'flex', gap: 14, alignItems: 'flex-start',
+                  cursor: 'pointer', transition: 'background 0.1s',
+                  background: isExpanded ? '#FAFAFA' : 'transparent',
+                }}
+                onMouseEnter={e => { if (!isExpanded) e.currentTarget.style.background = '#FAFAFA' }}
+                onMouseLeave={e => { if (!isExpanded) e.currentTarget.style.background = 'transparent' }}
+              >
+                {/* Priority dot */}
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: pc.dot, flexShrink: 0, marginTop: 5 }} />
+
+                {/* Main info */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: '#12122C' }}>{item.taskType}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: pc.text, background: pc.bg, borderRadius: 4, padding: '1px 7px' }}>{pc.label}</span>
+                    <Badge variant={item.status === 'in_progress' ? 'info' : 'default'} style={{ fontSize: 11 }}>
+                      {item.status === 'in_progress' ? 'In Progress' : 'Open'}
+                    </Badge>
+                  </div>
+                  <div style={{ display: 'flex', gap: 16, fontSize: 12, color: '#676687', flexWrap: 'wrap' }}>
+                    <span><strong style={{ color: '#12122C' }}>{item.patient}</strong></span>
+                    {item.claimId !== '—' && (
+                      <span style={{ fontFamily: 'monospace', color: '#0410BD', fontWeight: 700 }}>{item.claimId}</span>
+                    )}
+                    <span>{item.payer}</span>
+                  </div>
+                </div>
+
+                {/* Meta */}
+                <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexShrink: 0 }}>
+                  <div style={{ textAlign: 'right', fontSize: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: item.ageDays >= 5 ? '#DC2626' : '#676687' }}>
+                      <Clock size={12} />
+                      <span style={{ fontWeight: item.ageDays >= 5 ? 700 : 400 }}>{item.ageDays}d old</span>
+                    </div>
+                    <div style={{ color: '#BABACE', marginTop: 2 }}>Due {item.dueDate}</div>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#676687', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <User size={12} />
+                    {item.assignedTo === 'Unassigned' ? <span style={{ color: '#DC2626' }}>Unassigned</span> : item.assignedTo}
+                  </div>
+                  {isExpanded ? <ChevronUp size={16} color="#676687" /> : <ChevronDown size={16} color="#676687" />}
+                </div>
+              </div>
+
+              {/* Expanded detail */}
+              {isExpanded && (
+                <div style={{ padding: '16px 20px 20px 42px', background: '#FAFAFA', borderTop: '1px solid #F2F2F8' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                    {item.denialReason && (
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: '#676687', textTransform: 'uppercase', marginBottom: 4 }}>Denial / Issue Reason</div>
+                        <div style={{ fontSize: 13, color: '#12122C', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 6, padding: '8px 12px' }}>{item.denialReason}</div>
+                      </div>
+                    )}
+                    {item.nextAction && (
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: '#676687', textTransform: 'uppercase', marginBottom: 4 }}>Recommended Next Action</div>
+                        <div style={{ fontSize: 13, color: '#12122C', background: '#D9FCFF', border: '1px solid #94F2FA', borderRadius: 6, padding: '8px 12px' }}>{item.nextAction}</div>
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => navigate(`/claims/${item.claimId}`)} style={{
+                      height: 32, padding: '0 14px', background: '#0410BD', color: 'white',
+                      border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    }}>View claim</button>
+                    <button style={{ height: 32, padding: '0 14px', background: '#EFF0FF', color: '#0410BD', border: '1px solid #BABACE', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <User size={12} /> Reassign
+                    </button>
+                    <button style={{ height: 32, padding: '0 14px', background: 'white', color: '#676687', border: '1px solid #BABACE', borderRadius: 6, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <RotateCcw size={12} /> Log action
+                    </button>
+                    <button style={{ height: 32, padding: '0 14px', background: '#ECFDF5', color: '#047857', border: '1px solid #A7F3D0', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <CheckCircle2 size={12} /> Mark resolved
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )

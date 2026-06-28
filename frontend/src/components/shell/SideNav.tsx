@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import {
-  LayoutDashboard, Users, Calendar, FileText, DollarSign, Settings,
+  LayoutDashboard, Users, Calendar, FileText, DollarSign, Settings, ClipboardList,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -10,6 +10,7 @@ const navItems = [
   { path: '/visits', label: 'Visits', icon: Calendar },
   { path: '/claims', label: 'Claims', icon: FileText },
   { path: '/payments', label: 'Payments', icon: DollarSign },
+  { path: '/work-queue', label: 'Work Queue', icon: ClipboardList },
 ]
 
 const bottomItems = [

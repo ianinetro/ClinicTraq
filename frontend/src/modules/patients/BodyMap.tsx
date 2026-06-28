@@ -1,310 +1,318 @@
 import { useState } from 'react'
-import { Plus, X } from 'lucide-react'
-import { clsx } from 'clsx'
+import { Plus, X, AlertCircle } from 'lucide-react'
 
+export type BodySex = 'male' | 'female'
+type AnnotationType = 'symptom' | 'finding' | 'diagnosis' | 'injury' | 'note'
+type SeverityType = 'mild' | 'moderate' | 'severe'
+
+export interface BodyAnnotation {
+  id: string
+  region: string
+  type: AnnotationType
+  text: string
+  severity: SeverityType
+  icd10Code?: string
+}
 
 interface BodyRegion {
   id: string
   label: string
   view: 'front' | 'back'
   shape: 'rect' | 'ellipse' | 'path'
-  d?: string
-  x?: number; y?: number; width?: number; height?: number
+  // ellipse
   cx?: number; cy?: number; rx?: number; ry?: number
+  // rect
+  x?: number; y?: number; width?: number; height?: number
+  // for male vs female specific overrides
+  male?: Partial<BodyRegion>
+  female?: Partial<BodyRegion>
 }
 
+// Shared regions, some with sex-specific adjustments
 const FRONT_REGIONS: BodyRegion[] = [
-  { id: 'head-front', label: 'Head', view: 'front', shape: 'ellipse', cx: 100, cy: 40, rx: 28, ry: 32 },
-  { id: 'neck-front', label: 'Neck', view: 'front', shape: 'rect', x: 86, y: 70, width: 28, height: 20 },
-  { id: 'chest-left', label: 'Chest Left', view: 'front', shape: 'rect', x: 72, y: 92, width: 30, height: 38 },
-  { id: 'chest-right', label: 'Chest Right', view: 'front', shape: 'rect', x: 98, y: 92, width: 30, height: 38 },
-  { id: 'abdomen-upper', label: 'Abdomen Upper', view: 'front', shape: 'rect', x: 72, y: 130, width: 56, height: 28 },
-  { id: 'abdomen-lower', label: 'Abdomen Lower', view: 'front', shape: 'rect', x: 72, y: 158, width: 56, height: 28 },
-  { id: 'shoulder-left', label: 'Left Shoulder', view: 'front', shape: 'ellipse', cx: 60, cy: 102, rx: 16, ry: 14 },
-  { id: 'shoulder-right', label: 'Right Shoulder', view: 'front', shape: 'ellipse', cx: 140, cy: 102, rx: 16, ry: 14 },
-  { id: 'arm-left', label: 'Left Arm', view: 'front', shape: 'rect', x: 44, y: 116, width: 22, height: 44 },
-  { id: 'arm-right', label: 'Right Arm', view: 'front', shape: 'rect', x: 134, y: 116, width: 22, height: 44 },
-  { id: 'forearm-left', label: 'Left Forearm', view: 'front', shape: 'rect', x: 44, y: 162, width: 22, height: 38 },
-  { id: 'forearm-right', label: 'Right Forearm', view: 'front', shape: 'rect', x: 134, y: 162, width: 22, height: 38 },
-  { id: 'hand-left', label: 'Left Hand', view: 'front', shape: 'ellipse', cx: 55, cy: 210, rx: 14, ry: 18 },
-  { id: 'hand-right', label: 'Right Hand', view: 'front', shape: 'ellipse', cx: 145, cy: 210, rx: 14, ry: 18 },
-  { id: 'hip-left', label: 'Left Hip', view: 'front', shape: 'rect', x: 72, y: 186, width: 26, height: 28 },
-  { id: 'hip-right', label: 'Right Hip', view: 'front', shape: 'rect', x: 102, y: 186, width: 26, height: 28 },
-  { id: 'thigh-left', label: 'Left Thigh', view: 'front', shape: 'rect', x: 74, y: 214, width: 24, height: 50 },
-  { id: 'thigh-right', label: 'Right Thigh', view: 'front', shape: 'rect', x: 102, y: 214, width: 24, height: 50 },
-  { id: 'knee-left', label: 'Left Knee', view: 'front', shape: 'ellipse', cx: 86, cy: 270, rx: 14, ry: 12 },
-  { id: 'knee-right', label: 'Right Knee', view: 'front', shape: 'ellipse', cx: 114, cy: 270, rx: 14, ry: 12 },
-  { id: 'lower-leg-left', label: 'Left Lower Leg', view: 'front', shape: 'rect', x: 74, y: 282, width: 22, height: 50 },
-  { id: 'lower-leg-right', label: 'Right Lower Leg', view: 'front', shape: 'rect', x: 104, y: 282, width: 22, height: 50 },
-  { id: 'foot-left', label: 'Left Foot', view: 'front', shape: 'ellipse', cx: 85, cy: 340, rx: 18, ry: 12 },
-  { id: 'foot-right', label: 'Right Foot', view: 'front', shape: 'ellipse', cx: 115, cy: 340, rx: 18, ry: 12 },
+  { id: 'head', label: 'Head', view: 'front', shape: 'ellipse', cx: 100, cy: 36, rx: 24, ry: 28, female: { ry: 27, rx: 22 } },
+  { id: 'neck', label: 'Neck', view: 'front', shape: 'rect', x: 90, y: 63, width: 20, height: 16 },
+  { id: 'chest-left', label: 'Left Chest', view: 'front', shape: 'rect', x: 74, y: 82, width: 26, height: 32, female: { height: 36 } },
+  { id: 'chest-right', label: 'Right Chest', view: 'front', shape: 'rect', x: 100, y: 82, width: 26, height: 32, female: { height: 36 } },
+  { id: 'abdomen', label: 'Abdomen', view: 'front', shape: 'rect', x: 76, y: 116, width: 48, height: 30, male: { x: 74, width: 52 }, female: { x: 78, width: 44, y: 120 } },
+  { id: 'pelvis', label: 'Pelvis / Groin', view: 'front', shape: 'rect', x: 76, y: 148, width: 48, height: 22, male: { x: 74, width: 52 }, female: { x: 70, width: 60, y: 152 } },
+  { id: 'shoulder-left', label: 'Left Shoulder', view: 'front', shape: 'ellipse', cx: 62, cy: 92, rx: 14, ry: 12, male: { rx: 16, ry: 13 }, female: { rx: 12, ry: 11 } },
+  { id: 'shoulder-right', label: 'Right Shoulder', view: 'front', shape: 'ellipse', cx: 138, cy: 92, rx: 14, ry: 12, male: { rx: 16, ry: 13 }, female: { rx: 12, ry: 11 } },
+  { id: 'upperarm-left', label: 'Left Upper Arm', view: 'front', shape: 'rect', x: 47, y: 104, width: 18, height: 40 },
+  { id: 'upperarm-right', label: 'Right Upper Arm', view: 'front', shape: 'rect', x: 135, y: 104, width: 18, height: 40 },
+  { id: 'forearm-left', label: 'Left Forearm', view: 'front', shape: 'rect', x: 47, y: 146, width: 18, height: 34 },
+  { id: 'forearm-right', label: 'Right Forearm', view: 'front', shape: 'rect', x: 135, y: 146, width: 18, height: 34 },
+  { id: 'hand-left', label: 'Left Hand', view: 'front', shape: 'ellipse', cx: 56, cy: 192, rx: 12, ry: 14 },
+  { id: 'hand-right', label: 'Right Hand', view: 'front', shape: 'ellipse', cx: 144, cy: 192, rx: 12, ry: 14 },
+  { id: 'thigh-left', label: 'Left Thigh', view: 'front', shape: 'rect', x: 76, y: 173, width: 21, height: 46, female: { x: 72, width: 22 } },
+  { id: 'thigh-right', label: 'Right Thigh', view: 'front', shape: 'rect', x: 103, y: 173, width: 21, height: 46, female: { x: 106, width: 22 } },
+  { id: 'knee-left', label: 'Left Knee', view: 'front', shape: 'ellipse', cx: 87, cy: 224, rx: 12, ry: 10 },
+  { id: 'knee-right', label: 'Right Knee', view: 'front', shape: 'ellipse', cx: 113, cy: 224, rx: 12, ry: 10 },
+  { id: 'lowerleg-left', label: 'Left Lower Leg', view: 'front', shape: 'rect', x: 77, y: 234, width: 19, height: 44 },
+  { id: 'lowerleg-right', label: 'Right Lower Leg', view: 'front', shape: 'rect', x: 104, y: 234, width: 19, height: 44 },
+  { id: 'foot-left', label: 'Left Foot', view: 'front', shape: 'ellipse', cx: 87, cy: 287, rx: 16, ry: 10 },
+  { id: 'foot-right', label: 'Right Foot', view: 'front', shape: 'ellipse', cx: 113, cy: 287, rx: 16, ry: 10 },
 ]
 
 const BACK_REGIONS: BodyRegion[] = [
-  { id: 'head-back', label: 'Head', view: 'back', shape: 'ellipse', cx: 100, cy: 40, rx: 28, ry: 32 },
-  { id: 'neck-back', label: 'Neck', view: 'back', shape: 'rect', x: 86, y: 70, width: 28, height: 20 },
-  { id: 'upper-back', label: 'Upper Back', view: 'back', shape: 'rect', x: 72, y: 92, width: 56, height: 40 },
-  { id: 'lower-back', label: 'Lower Back', view: 'back', shape: 'rect', x: 72, y: 132, width: 56, height: 35 },
-  { id: 'spine', label: 'Spine', view: 'back', shape: 'rect', x: 94, y: 92, width: 12, height: 75 },
-  { id: 'buttock-left', label: 'Left Buttock', view: 'back', shape: 'ellipse', cx: 85, cy: 185, rx: 20, ry: 18 },
-  { id: 'buttock-right', label: 'Right Buttock', view: 'back', shape: 'ellipse', cx: 115, cy: 185, rx: 20, ry: 18 },
-  { id: 'shoulder-back-left', label: 'Left Shoulder (Back)', view: 'back', shape: 'ellipse', cx: 60, cy: 100, rx: 16, ry: 14 },
-  { id: 'shoulder-back-right', label: 'Right Shoulder (Back)', view: 'back', shape: 'ellipse', cx: 140, cy: 100, rx: 16, ry: 14 },
-  { id: 'arm-back-left', label: 'Left Arm (Back)', view: 'back', shape: 'rect', x: 44, y: 114, width: 22, height: 46 },
-  { id: 'arm-back-right', label: 'Right Arm (Back)', view: 'back', shape: 'rect', x: 134, y: 114, width: 22, height: 46 },
-  { id: 'hamstring-left', label: 'Left Hamstring', view: 'back', shape: 'rect', x: 74, y: 210, width: 24, height: 50 },
-  { id: 'hamstring-right', label: 'Right Hamstring', view: 'back', shape: 'rect', x: 102, y: 210, width: 24, height: 50 },
-  { id: 'calf-left', label: 'Left Calf', view: 'back', shape: 'rect', x: 74, y: 270, width: 22, height: 50 },
-  { id: 'calf-right', label: 'Right Calf', view: 'back', shape: 'rect', x: 104, y: 270, width: 22, height: 50 },
+  { id: 'head-back', label: 'Head (Back)', view: 'back', shape: 'ellipse', cx: 100, cy: 36, rx: 24, ry: 28 },
+  { id: 'neck-back', label: 'Neck (Back)', view: 'back', shape: 'rect', x: 90, y: 63, width: 20, height: 16 },
+  { id: 'upper-back', label: 'Upper Back', view: 'back', shape: 'rect', x: 74, y: 82, width: 52, height: 36, male: { width: 56, x: 72 }, female: { width: 46, x: 77 } },
+  { id: 'mid-back', label: 'Mid Back', view: 'back', shape: 'rect', x: 76, y: 118, width: 48, height: 28, female: { x: 80, width: 40 } },
+  { id: 'lower-back', label: 'Lower Back', view: 'back', shape: 'rect', x: 76, y: 146, width: 48, height: 24, female: { x: 72, width: 56 } },
+  { id: 'shoulder-back-left', label: 'Left Shoulder (Back)', view: 'back', shape: 'ellipse', cx: 62, cy: 92, rx: 14, ry: 12, male: { rx: 16 } },
+  { id: 'shoulder-back-right', label: 'Right Shoulder (Back)', view: 'back', shape: 'ellipse', cx: 138, cy: 92, rx: 14, ry: 12, male: { rx: 16 } },
+  { id: 'upperarm-back-left', label: 'Left Upper Arm (Back)', view: 'back', shape: 'rect', x: 47, y: 104, width: 18, height: 40 },
+  { id: 'upperarm-back-right', label: 'Right Upper Arm (Back)', view: 'back', shape: 'rect', x: 135, y: 104, width: 18, height: 40 },
+  { id: 'forearm-back-left', label: 'Left Forearm (Back)', view: 'back', shape: 'rect', x: 47, y: 146, width: 18, height: 34 },
+  { id: 'forearm-back-right', label: 'Right Forearm (Back)', view: 'back', shape: 'rect', x: 135, y: 146, width: 18, height: 34 },
+  { id: 'buttock-left', label: 'Left Buttock', view: 'back', shape: 'ellipse', cx: 86, cy: 178, rx: 18, ry: 16, female: { rx: 22, ry: 19 } },
+  { id: 'buttock-right', label: 'Right Buttock', view: 'back', shape: 'ellipse', cx: 114, cy: 178, rx: 18, ry: 16, female: { rx: 22, ry: 19 } },
+  { id: 'hamstring-left', label: 'Left Hamstring', view: 'back', shape: 'rect', x: 76, y: 194, width: 21, height: 44 },
+  { id: 'hamstring-right', label: 'Right Hamstring', view: 'back', shape: 'rect', x: 103, y: 194, width: 21, height: 44 },
+  { id: 'calf-left', label: 'Left Calf', view: 'back', shape: 'rect', x: 77, y: 244, width: 19, height: 40 },
+  { id: 'calf-right', label: 'Right Calf', view: 'back', shape: 'rect', x: 104, y: 244, width: 19, height: 40 },
+  { id: 'heel-left', label: 'Left Heel', view: 'back', shape: 'ellipse', cx: 87, cy: 293, rx: 15, ry: 9 },
+  { id: 'heel-right', label: 'Right Heel', view: 'back', shape: 'ellipse', cx: 113, cy: 293, rx: 15, ry: 9 },
 ]
 
-type AnnotationType = 'note' | 'symptom' | 'finding' | 'diagnosis'
-type SeverityType = 'mild' | 'moderate' | 'severe'
+const SEVERITY_COLORS: Record<SeverityType, { fill: string; stroke: string; dot: string }> = {
+  mild:     { fill: '#FED7AA', stroke: '#F97316', dot: '#F97316' },
+  moderate: { fill: '#FCA5A5', stroke: '#EF4444', dot: '#EF4444' },
+  severe:   { fill: '#FCA5A5', stroke: '#DC2626', dot: '#DC2626' },
+}
 
-interface LocalAnnotation {
-  id: string
-  region: string
-  type: AnnotationType
-  text: string
-  severity?: SeverityType
-  icd10Code?: string
+const TYPE_LABELS: Record<AnnotationType, string> = {
+  symptom: 'Symptom', finding: 'Finding', diagnosis: 'Diagnosis', injury: 'Injury', note: 'Note',
+}
+
+function getRegionProps(region: BodyRegion, sex: BodySex): BodyRegion {
+  const override = sex === 'male' ? region.male : region.female
+  return override ? { ...region, ...override } : region
 }
 
 interface BodyMapProps {
-  patientId: string
+  sex?: BodySex
+  patientId?: string
   compact?: boolean
+  annotations?: BodyAnnotation[]
+  onAnnotationsChange?: (a: BodyAnnotation[]) => void
 }
 
-interface PopoverState {
-  regionId: string
-  x: number
-  y: number
-}
-
-export function BodyMap({ patientId: _patientId, compact = false }: BodyMapProps) {
+export function BodyMap({ sex = 'male', compact = false, annotations: externalAnnos, onAnnotationsChange }: BodyMapProps) {
   const [view, setView] = useState<'front' | 'back'>('front')
-  const [annotations, setAnnotations] = useState<LocalAnnotation[]>([])
-  const [selectedRegion, setSelectedRegion] = useState<string | null>(null)
-  const [popover, setPopover] = useState<PopoverState | null>(null)
-  const [addingAnnotation, setAddingAnnotation] = useState(false)
-  const [newAnnotation, setNewAnnotation] = useState<{
-    type: AnnotationType; text: string; severity: SeverityType; icd10Code: string
-  }>({ type: 'note', text: '', severity: 'mild', icd10Code: '' })
+  const [internalAnnos, setInternalAnnos] = useState<BodyAnnotation[]>([])
+  const annotations = externalAnnos ?? internalAnnos
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [popoverId, setPopoverId] = useState<string | null>(null)
+  const [popoverPos, setPopoverPos] = useState({ x: 0, y: 0 })
+  const [adding, setAdding] = useState(false)
+  const [form, setForm] = useState({ type: 'symptom' as AnnotationType, text: '', severity: 'mild' as SeverityType, icd10: '' })
 
-  const regions = view === 'front' ? FRONT_REGIONS : BACK_REGIONS
+  const regions = (view === 'front' ? FRONT_REGIONS : BACK_REGIONS).map(r => getRegionProps(r, sex))
 
-  function getRegionFill(regionId: string) {
-    const hasAnnotation = annotations.some(a => a.region === regionId)
-    if (selectedRegion === regionId) return '#0410BD'
-    if (hasAnnotation) return '#D9FCFF'
-    return '#E3E3F1'
+  function updateAnnotations(next: BodyAnnotation[]) {
+    if (onAnnotationsChange) onAnnotationsChange(next)
+    else setInternalAnnos(next)
   }
 
-  function getRegionStroke(regionId: string) {
-    const hasAnnotation = annotations.some(a => a.region === regionId)
-    if (selectedRegion === regionId) return '#0410BD'
-    if (hasAnnotation) return '#94F2FA'
-    return '#BABACE'
+  function getRegionFill(id: string) {
+    const annos = annotations.filter(a => a.region === id)
+    if (!annos.length) return selectedId === id ? '#EFF0FF' : sex === 'female' ? '#F9E7F5' : '#E8EDF8'
+    const worst = annos.reduce((acc, a) => ({ mild: 0, moderate: 1, severe: 2 }[a.severity] > ({ mild: 0, moderate: 1, severe: 2 }[acc.severity]) ? a : acc))
+    return SEVERITY_COLORS[worst.severity].fill
   }
 
-  function handleRegionClick(region: BodyRegion, e: React.MouseEvent) {
-    const svg = (e.currentTarget as SVGElement).closest('svg')
+  function getRegionStroke(id: string) {
+    const annos = annotations.filter(a => a.region === id)
+    if (!annos.length) return selectedId === id ? '#0410BD' : sex === 'female' ? '#C084C4' : '#93A8D4'
+    const worst = annos.reduce((acc, a) => ({ mild: 0, moderate: 1, severe: 2 }[a.severity] > ({ mild: 0, moderate: 1, severe: 2 }[acc.severity]) ? a : acc))
+    return SEVERITY_COLORS[worst.severity].stroke
+  }
+
+  function handleRegionClick(region: BodyRegion, e: React.MouseEvent<SVGElement>) {
+    const svg = e.currentTarget.closest('svg')
     const rect = svg?.getBoundingClientRect()
     if (!rect) return
-
-    setSelectedRegion(region.id)
-    const svgX = e.clientX - rect.left
-    const svgY = e.clientY - rect.top
-    setPopover({ regionId: region.id, x: svgX, y: svgY })
-    setAddingAnnotation(false)
+    setSelectedId(region.id)
+    setPopoverId(region.id)
+    setPopoverPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
+    setAdding(false)
   }
 
-  function handleAddAnnotation() {
-    if (!newAnnotation.text.trim() || !popover) return
-    const anno: LocalAnnotation = {
-      id: Math.random().toString(36).slice(2),
-      region: popover.regionId,
-      type: newAnnotation.type,
-      text: newAnnotation.text,
-      severity: newAnnotation.severity,
-      icd10Code: newAnnotation.icd10Code || undefined,
-    }
-    setAnnotations(prev => [...prev, anno])
-    setNewAnnotation({ type: 'note', text: '', severity: 'mild', icd10Code: '' })
-    setAddingAnnotation(false)
+  function handleAdd() {
+    if (!form.text.trim() || !popoverId) return
+    updateAnnotations([...annotations, {
+      id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2),
+      region: popoverId, type: form.type, text: form.text,
+      severity: form.severity, icd10Code: form.icd10 || undefined,
+    }])
+    setForm({ type: 'symptom', text: '', severity: 'mild', icd10: '' })
+    setAdding(false)
   }
 
   function renderRegion(region: BodyRegion) {
     const fill = getRegionFill(region.id)
     const stroke = getRegionStroke(region.id)
-    const strokeWidth = selectedRegion === region.id ? 2 : 1
-    const commonProps = {
-      'data-region': region.id,
-      fill,
-      stroke,
-      strokeWidth,
-      className: 'cursor-pointer transition-all duration-100 hover:fill-[#EFF0FF] hover:stroke-[#3F4CFF]',
+    const isSelected = selectedId === region.id
+    const common = {
+      fill, stroke, strokeWidth: isSelected ? 2 : 1,
+      style: { cursor: 'pointer', transition: 'fill 0.1s, stroke 0.1s' },
       onClick: (e: React.MouseEvent<SVGElement>) => handleRegionClick(region, e),
-      role: 'button' as const,
+      role: 'button' as const, tabIndex: 0,
       'aria-label': region.label,
-      tabIndex: 0,
-      onKeyDown: (e: React.KeyboardEvent<SVGElement>) => {
-        if (e.key === 'Enter') e.currentTarget.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-      },
     }
-
-    if (region.shape === 'ellipse') {
-      return <ellipse key={region.id} cx={region.cx} cy={region.cy} rx={region.rx} ry={region.ry} {...commonProps} />
-    }
-    if (region.shape === 'rect') {
-      return <rect key={region.id} x={region.x} y={region.y} width={region.width} height={region.height} rx={4} {...commonProps} />
-    }
-    return null
+    if (region.shape === 'ellipse')
+      return <ellipse key={region.id} cx={region.cx} cy={region.cy} rx={region.rx} ry={region.ry} {...common} />
+    return <rect key={region.id} x={region.x} y={region.y} width={region.width} height={region.height} rx={5} {...common} />
   }
 
-  const regionAnnotations = popover ? annotations.filter(a => a.region === popover.regionId) : []
-  const popoverRegion = popover ? regions.find(r => r.id === popover.regionId) : null
+  // Female chest decoration (breast outline)
+  function renderFemaleChest() {
+    if (sex !== 'female' || view !== 'front') return null
+    return (
+      <g style={{ pointerEvents: 'none' }}>
+        <ellipse cx={87} cy={100} rx={14} ry={11} fill="none" stroke="#C084C4" strokeWidth={1} strokeDasharray="3,2" opacity={0.5} />
+        <ellipse cx={113} cy={100} rx={14} ry={11} fill="none" stroke="#C084C4" strokeWidth={1} strokeDasharray="3,2" opacity={0.5} />
+      </g>
+    )
+  }
 
-  const svgHeight = compact ? 180 : 360
-  const viewBox = compact ? '40 20 120 200' : '30 0 140 360'
+  const popoverAnnos = popoverId ? annotations.filter(a => a.region === popoverId) : []
+  const popoverRegion = popoverId ? regions.find(r => r.id === popoverId) : null
 
   return (
-    <div className="relative select-none">
-      {/* Toggle */}
+    <div style={{ position: 'relative', userSelect: 'none', display: 'inline-flex', flexDirection: 'column', gap: 8 }}>
       {!compact && (
-        <div className="flex gap-1 mb-3">
-          <button
-            onClick={() => { setView('front'); setPopover(null); setSelectedRegion(null) }}
-            className={clsx(
-              'px-3 py-1 text-xs font-medium rounded-md transition-colors',
-              view === 'front' ? 'bg-[#0410BD] text-white' : 'bg-[#F2F2F8] text-[#676687] hover:bg-[#EFF0FF]',
-            )}
-          >
-            Front
-          </button>
-          <button
-            onClick={() => { setView('back'); setPopover(null); setSelectedRegion(null) }}
-            className={clsx(
-              'px-3 py-1 text-xs font-medium rounded-md transition-colors',
-              view === 'back' ? 'bg-[#0410BD] text-white' : 'bg-[#F2F2F8] text-[#676687] hover:bg-[#EFF0FF]',
-            )}
-          >
-            Back
-          </button>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {(['front', 'back'] as const).map(v => (
+            <button key={v} onClick={() => { setView(v); setPopoverId(null); setSelectedId(null) }} style={{
+              padding: '4px 14px', fontSize: 12, fontWeight: 600, borderRadius: 6,
+              border: 'none', cursor: 'pointer', transition: 'all 0.12s',
+              background: view === v ? '#0410BD' : '#F2F2F8',
+              color: view === v ? 'white' : '#676687',
+            }}>{v === 'front' ? 'Front' : 'Back'}</button>
+          ))}
+          <span style={{ fontSize: 11, color: '#676687', marginLeft: 4 }}>
+            {sex === 'female' ? '♀ Female' : '♂ Male'}
+          </span>
+          {annotations.length > 0 && (
+            <span style={{ fontSize: 11, color: '#F97316', fontWeight: 600, marginLeft: 8 }}>
+              {annotations.length} finding{annotations.length !== 1 ? 's' : ''} marked
+            </span>
+          )}
         </div>
       )}
 
-      <div className="relative inline-block">
+      <div style={{ position: 'relative', display: 'inline-block' }}>
         <svg
-          width="200"
-          height={svgHeight}
-          viewBox={viewBox}
-          className="overflow-visible"
-          onClick={(e) => {
-            if ((e.target as SVGElement).tagName === 'svg') {
-              setPopover(null)
-              setSelectedRegion(null)
-            }
+          width={compact ? 110 : 200}
+          height={compact ? 180 : 310}
+          viewBox="32 5 136 305"
+          style={{ overflow: 'visible', display: 'block' }}
+          onClick={e => {
+            if ((e.target as Element).tagName === 'svg') { setPopoverId(null); setSelectedId(null) }
           }}
         >
+          {/* Body outline background */}
+          <rect x="72" y="79" width={sex === 'male' ? 56 : 56} height="92" rx="8"
+            fill={sex === 'female' ? '#FDF4FF' : '#EEF2FA'} stroke="none" />
           {regions.map(renderRegion)}
+          {renderFemaleChest()}
 
           {/* Annotation dots */}
           {annotations.map(anno => {
             const region = regions.find(r => r.id === anno.region)
             if (!region) return null
             const cx = region.shape === 'ellipse' ? region.cx! : (region.x! + region.width! / 2)
-            const cy = region.shape === 'ellipse' ? region.cy! - region.ry! + 4 : region.y! + 4
+            const cy = region.shape === 'ellipse' ? (region.cy! - region.ry! + 5) : (region.y! + 5)
             return (
-              <circle key={anno.id} cx={cx} cy={cy} r={4} fill="#0410BD" stroke="white" strokeWidth={1.5} className="pointer-events-none" />
+              <g key={anno.id} style={{ pointerEvents: 'none' }}>
+                <circle cx={cx} cy={cy} r={5} fill={SEVERITY_COLORS[anno.severity].dot} stroke="white" strokeWidth={1.5} />
+              </g>
             )
           })}
         </svg>
 
         {/* Popover */}
-        {popover && !compact && (
-          <div
-            className="absolute z-20 bg-white border border-[#E3E3F1] rounded-lg shadow-lg p-3 w-64"
-            style={{
-              left: Math.min(popover.x + 8, 160),
-              top: Math.max(popover.y - 60, 0),
-            }}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-[#12122C]">{popoverRegion?.label}</span>
-              <button onClick={() => { setPopover(null); setSelectedRegion(null) }} className="text-[#676687] hover:text-[#12122C]">
-                <X size={12} />
+        {popoverId && !compact && (
+          <div style={{
+            position: 'absolute',
+            left: Math.min(popoverPos.x + 12, 130),
+            top: Math.max(popoverPos.y - 40, 4),
+            zIndex: 40, background: 'white',
+            border: '1px solid #E3E3F1', borderRadius: 10,
+            boxShadow: '0 8px 24px rgba(18,18,44,0.16)', padding: 14, width: 268,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#12122C' }}>{popoverRegion?.label}</span>
+              <button onClick={() => { setPopoverId(null); setSelectedId(null) }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#676687', padding: 2, display: 'flex' }}>
+                <X size={13} />
               </button>
             </div>
 
-            {regionAnnotations.length > 0 && (
-              <div className="space-y-1.5 mb-2">
-                {regionAnnotations.map(a => (
-                  <div key={a.id} className="text-xs bg-[#F2F2F8] rounded p-1.5">
-                    <span className="font-medium capitalize text-[#007998]">{a.type}</span>
-                    {a.severity && <span className="text-[#676687] ml-1">({a.severity})</span>}
-                    <p className="text-[#12122C] mt-0.5">{a.text}</p>
-                    {a.icd10Code && <p className="text-[#676687] font-mono">{a.icd10Code}</p>}
+            {popoverAnnos.length > 0 && (
+              <div style={{ marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {popoverAnnos.map(a => (
+                  <div key={a.id} style={{
+                    background: a.severity === 'severe' ? '#FEF2F2' : a.severity === 'moderate' ? '#FFF7ED' : '#FFFBEB',
+                    border: `1px solid ${SEVERITY_COLORS[a.severity].stroke}20`,
+                    borderLeft: `3px solid ${SEVERITY_COLORS[a.severity].stroke}`,
+                    borderRadius: 6, padding: '8px 10px',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+                  }}>
+                    <div>
+                      <div style={{ display: 'flex', gap: 6, marginBottom: 2 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: SEVERITY_COLORS[a.severity].stroke, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          {TYPE_LABELS[a.type]}
+                        </span>
+                        <span style={{ fontSize: 10, color: '#676687', background: '#F2F2F8', borderRadius: 3, padding: '0 4px' }}>{a.severity}</span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: 12, color: '#12122C', lineHeight: 1.4 }}>{a.text}</p>
+                      {a.icd10Code && <p style={{ margin: '3px 0 0', fontSize: 11, color: '#676687', fontFamily: 'monospace' }}>{a.icd10Code}</p>}
+                    </div>
+                    <button onClick={() => updateAnnotations(annotations.filter(x => x.id !== a.id))}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#BABACE', padding: '0 0 0 8px', flexShrink: 0 }}>
+                      <X size={11} />
+                    </button>
                   </div>
                 ))}
               </div>
             )}
 
-            {!addingAnnotation ? (
-              <button
-                onClick={() => setAddingAnnotation(true)}
-                className="flex items-center gap-1 text-xs text-[#0410BD] hover:underline"
-              >
-                <Plus size={11} />
-                Add Annotation
+            {!adding ? (
+              <button onClick={() => setAdding(true)} style={{
+                display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none',
+                cursor: 'pointer', fontSize: 12, color: '#0410BD', fontWeight: 600, padding: 0,
+              }}>
+                <Plus size={13} /> Add annotation
               </button>
             ) : (
-              <div className="space-y-2">
-                <select
-                  value={newAnnotation.type}
-                  onChange={e => setNewAnnotation(p => ({ ...p, type: e.target.value as AnnotationType }))}
-                  className="w-full text-xs border border-[#BABACE] rounded px-2 py-1 outline-none"
-                >
-                  <option value="note">Note</option>
-                  <option value="symptom">Symptom</option>
-                  <option value="finding">Finding</option>
-                  <option value="diagnosis">Diagnosis</option>
-                </select>
-                <textarea
-                  value={newAnnotation.text}
-                  onChange={e => setNewAnnotation(p => ({ ...p, text: e.target.value }))}
-                  placeholder="Describe finding…"
-                  rows={2}
-                  className="w-full text-xs border border-[#BABACE] rounded px-2 py-1 outline-none resize-none focus:border-[#3F4CFF]"
-                />
-                <select
-                  value={newAnnotation.severity}
-                  onChange={e => setNewAnnotation(p => ({ ...p, severity: e.target.value as SeverityType }))}
-                  className="w-full text-xs border border-[#BABACE] rounded px-2 py-1 outline-none"
-                >
-                  <option value="mild">Mild</option>
-                  <option value="moderate">Moderate</option>
-                  <option value="severe">Severe</option>
-                </select>
-                <input
-                  value={newAnnotation.icd10Code}
-                  onChange={e => setNewAnnotation(p => ({ ...p, icd10Code: e.target.value }))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value as AnnotationType }))}
+                    style={{ flex: 1, height: 30, fontSize: 12, border: '1px solid #BABACE', borderRadius: 4, padding: '0 6px', outline: 'none', background: 'white' }}>
+                    {(Object.keys(TYPE_LABELS) as AnnotationType[]).map(t => (
+                      <option key={t} value={t}>{TYPE_LABELS[t]}</option>
+                    ))}
+                  </select>
+                  <select value={form.severity} onChange={e => setForm(p => ({ ...p, severity: e.target.value as SeverityType }))}
+                    style={{ flex: 1, height: 30, fontSize: 12, border: '1px solid #BABACE', borderRadius: 4, padding: '0 6px', outline: 'none', background: 'white' }}>
+                    <option value="mild">Mild</option>
+                    <option value="moderate">Moderate</option>
+                    <option value="severe">Severe</option>
+                  </select>
+                </div>
+                <textarea value={form.text} onChange={e => setForm(p => ({ ...p, text: e.target.value }))}
+                  placeholder="Describe the finding or symptom…" rows={2}
+                  style={{ fontSize: 12, border: '1px solid #BABACE', borderRadius: 4, padding: '6px 8px', resize: 'none', outline: 'none', fontFamily: 'inherit' }} />
+                <input value={form.icd10} onChange={e => setForm(p => ({ ...p, icd10: e.target.value }))}
                   placeholder="ICD-10 code (optional)"
-                  className="w-full text-xs border border-[#BABACE] rounded px-2 py-1 outline-none focus:border-[#3F4CFF]"
-                />
-                <div className="flex gap-1">
-                  <button
-                    onClick={handleAddAnnotation}
-                    className="flex-1 bg-[#0410BD] text-white text-xs rounded px-2 py-1 hover:bg-[#3F4CFF]"
-                  >
-                    Save
-                  </button>
-                  <button
-                    onClick={() => setAddingAnnotation(false)}
-                    className="flex-1 bg-[#F2F2F8] text-[#676687] text-xs rounded px-2 py-1 hover:bg-[#EFF0FF]"
-                  >
-                    Cancel
-                  </button>
+                  style={{ height: 30, fontSize: 12, border: '1px solid #BABACE', borderRadius: 4, padding: '0 8px', outline: 'none' }} />
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={handleAdd} style={{ flex: 1, height: 30, background: '#0410BD', color: 'white', border: 'none', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Save</button>
+                  <button onClick={() => setAdding(false)} style={{ flex: 1, height: 30, background: '#F2F2F8', color: '#676687', border: 'none', borderRadius: 4, fontSize: 12, cursor: 'pointer' }}>Cancel</button>
                 </div>
               </div>
             )}
@@ -312,9 +320,19 @@ export function BodyMap({ patientId: _patientId, compact = false }: BodyMapProps
         )}
       </div>
 
-      {annotations.length > 0 && !compact && (
-        <div className="mt-3 text-xs text-[#676687]">
-          {annotations.length} annotation{annotations.length > 1 ? 's' : ''} recorded
+      {!compact && (
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 4 }}>
+          {(Object.entries(SEVERITY_COLORS) as [SeverityType, typeof SEVERITY_COLORS[SeverityType]][]).map(([sev, c]) => (
+            <div key={sev} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#676687' }}>
+              <div style={{ width: 10, height: 10, borderRadius: 2, background: c.fill, border: `1.5px solid ${c.stroke}` }} />
+              {sev}
+            </div>
+          ))}
+          {annotations.length === 0 && (
+            <span style={{ fontSize: 11, color: '#BABACE', display: 'flex', alignItems: 'center', gap: 3 }}>
+              <AlertCircle size={11} /> Click a body region to annotate
+            </span>
+          )}
         </div>
       )}
     </div>
