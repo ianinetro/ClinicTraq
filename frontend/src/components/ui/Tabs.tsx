@@ -19,16 +19,18 @@ function useTabs() {
 
 interface TabsProps {
   defaultTab: string
+  value?: string
   variant?: TabsVariant
   children: ReactNode
   className?: string
   onChange?: (tab: string) => void
 }
 
-export function Tabs({ defaultTab, variant = 'underline', children, className, onChange }: TabsProps) {
-  const [activeTab, setActiveTab] = useState(defaultTab)
+export function Tabs({ defaultTab, value, variant = 'underline', children, className, onChange }: TabsProps) {
+  const [internalTab, setInternalTab] = useState(defaultTab)
+  const activeTab = value ?? internalTab
   return (
-    <TabsContext.Provider value={{ activeTab, setActiveTab: (id) => { setActiveTab(id); onChange?.(id) }, variant }}>
+    <TabsContext.Provider value={{ activeTab, setActiveTab: (id) => { setInternalTab(id); onChange?.(id) }, variant }}>
       <div className={className}>{children}</div>
     </TabsContext.Provider>
   )

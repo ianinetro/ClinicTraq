@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, MapPin, Phone, Mail, Edit3, ShieldCheck, FileText,
+  ArrowLeft, Edit3, ShieldCheck, FileText,
   Plus, CheckCircle, Clock, ChevronRight, Activity,
   CreditCard, User, Shield, DollarSign, Stethoscope,
   MessageSquare,
@@ -12,7 +12,6 @@ import { Tabs, TabList, Tab, TabPanel } from '../../components/ui/Tabs'
 import { Button } from '../../components/ui/Button'
 import { StatusBadge } from '../../components/shared/StatusBadge'
 import { PHIField } from '../../components/shared/PHIField'
-import { KPICard } from '../../components/ui/KPICard'
 import { Badge } from '../../components/ui/Badge'
 // Input and Select are available but not currently used in this view
 // import { Input } from '../../components/ui/Input'
@@ -221,95 +220,127 @@ function SectionHeader({ title, action }: { title: string; action?: React.ReactN
 
 // ─── Overview Tab ─────────────────────────────────────────────────────────────
 
-function OverviewTab({ patient, visits, claims, insurance }: {
+function ReadRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 13, minHeight: 22 }}>
+      <span style={{
+        width: 120, flexShrink: 0, fontSize: 11, fontWeight: 600,
+        color: 'var(--bb-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em',
+      }}>
+        {label}
+      </span>
+      <span style={{ color: 'var(--bb-text-primary)', flex: 1 }}>{children}</span>
+    </div>
+  )
+}
+
+function visitAgeDays(dateStr?: string | null): number {
+  if (!dateStr) return 9999
+  return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000)
+}
+
+function visitDotColor(days: number): string {
+  if (days <= 7) return 'var(--bb-status-danger)'
+  if (days <= 30) return 'var(--bb-status-warning)'
+  return 'var(--bb-status-success)'
+}
+
+function visitRowBg(days: number): string {
+  if (days <= 7) return 'rgba(220,38,38,0.06)'
+  if (days <= 30) return 'rgba(217,119,6,0.06)'
+  return 'rgba(22,163,74,0.06)'
+}
+
+function OverviewTab({ patient, visits, claims, insurance, onEditPatient }: {
   patient: Patient
   visits: Visit[]
   claims: Claim[]
   insurance: PatientInsuranceFull[]
+  onEditPatient: () => void
 }) {
-  const totalCharges = claims.reduce((s, c) => s + (c.totalCharges ?? 0), 0)
-  const totalPaid = claims.reduce((s, c) => s + (c.totalPaid ?? 0), 0)
-  const balance = claims.reduce((s, c) => s + (c.balance ?? 0), 0)
-  const openClaims = claims.filter(c => !['paid', 'void', 'denied'].includes(c.status)).length
-  const lastVisit = visits[0]?.visitDate
-
+  const navigate = useNavigate()
+  const p = patient as PatientFull
   const primaryIns = insurance.find(i => i.priority === 'primary' && i.is_active)
+  const recentVisits = visits.slice(0, 6)
 
-  const recentVisits = visits.slice(0, 5)
-  const recentClaims = claims.slice(0, 5)
+  const sexLabel = (s?: string | null) => {
+    if (s === 'M' || s === 'male') return 'Male'
+    if (s === 'F' || s === 'female') return 'Female'
+    return s ?? '—'
+  }
+
+  const address = [
+    p.address_line1 ?? patient.address?.line1,
+    p.address_line2 ?? patient.address?.line2,
+    [p.city ?? patient.address?.city, p.state ?? patient.address?.state].filter(Boolean).join(', '),
+    p.zip ?? patient.address?.zip,
+  ].filter(Boolean).join(' ')
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* KPI row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
-        <KPICard label="Total Charges" value={fmtCurrency(totalCharges)} />
-        <KPICard label="Total Paid" value={fmtCurrency(totalPaid)} />
-        <KPICard label="Balance Due" value={fmtCurrency(balance)} />
-        <KPICard label="Open Claims" value={String(openClaims)} />
-        <KPICard label="Last Visit" value={lastVisit ? fmtDate(lastVisit) : '—'} />
-      </div>
+    <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 20, alignItems: 'start' }}>
+      {/* ─── LEFT COLUMN ─── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        {/* Contact */}
+        {/* Patient info read-only */}
         <SectionCard>
-          <SectionHeader title="Contact Information" />
-          <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {patient.phone && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-                <Phone size={13} color="var(--bb-text-secondary)" />
-                <PHIField value={patient.phone} fieldName="Phone" patientId={patient.id} fieldType="phone" inline />
-              </div>
+          <SectionHeader
+            title="Patient Information"
+            action={
+              <button
+                onClick={onEditPatient}
+                style={{
+                  fontSize: 11, color: 'var(--bb-brand-blue)', background: 'none',
+                  border: 'none', cursor: 'pointer', fontWeight: 600, padding: '2px 6px',
+                  borderRadius: 4, display: 'flex', alignItems: 'center', gap: 4,
+                }}
+              >
+                <Edit3 size={11} /> Edit Patient
+              </button>
+            }
+          />
+          <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+            <ReadRow label="Full Name">{`${p.first_name ?? p.firstName ?? ''} ${p.middle_name ? p.middle_name + ' ' : ''}${p.last_name ?? p.lastName ?? ''}`.trim() || '—'}</ReadRow>
+            <ReadRow label="Date of Birth">{fmtDate(p.dob ?? patient.dateOfBirth)}</ReadRow>
+            <ReadRow label="Age">{calcAge(p.dob ?? patient.dateOfBirth)}</ReadRow>
+            <ReadRow label="Sex">{sexLabel(p.sex ?? p.gender)}</ReadRow>
+            <ReadRow label="SSN"><PHIField value={patient.ssn ?? (p as PatientFull).ssn_last_four ?? '***-**-****'} fieldName="SSN" patientId={patient.id} fieldType="ssn" inline /></ReadRow>
+            <ReadRow label="MRN">{p.account_number ?? p.accountNumber ?? '—'}</ReadRow>
+            <ReadRow label="Status"><StatusBadge status={patient.status} size="sm" /></ReadRow>
+            {(p.marital_status) && <ReadRow label="Marital">{p.marital_status}</ReadRow>}
+            {(p.preferred_language) && <ReadRow label="Language">{p.preferred_language}</ReadRow>}
+            <div style={{ borderTop: '1px solid var(--bb-border)', margin: '4px 0' }} />
+            {(p.phone_home ?? p.phone_cell ?? patient.phone) && (
+              <ReadRow label="Phone">
+                <PHIField value={p.phone_home ?? p.phone_cell ?? patient.phone ?? ''} fieldName="Phone" patientId={patient.id} fieldType="phone" inline />
+              </ReadRow>
             )}
             {patient.email && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-                <Mail size={13} color="var(--bb-text-secondary)" />
+              <ReadRow label="Email">
                 <PHIField value={patient.email} fieldName="Email" patientId={patient.id} fieldType="email" inline />
-              </div>
+              </ReadRow>
             )}
-            {patient.address && (
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13 }}>
-                <MapPin size={13} color="var(--bb-text-secondary)" style={{ marginTop: 2, flexShrink: 0 }} />
-                <PHIField
-                  value={`${patient.address.line1}, ${patient.address.city}, ${patient.address.state} ${patient.address.zip}`}
-                  fieldName="Address" patientId={patient.id} fieldType="address" inline
-                />
-              </div>
+            {address && (
+              <ReadRow label="Address">
+                <PHIField value={address} fieldName="Address" patientId={patient.id} fieldType="address" inline />
+              </ReadRow>
             )}
           </div>
         </SectionCard>
 
-        {/* Insurance summary */}
+        {/* Primary Insurance */}
         <SectionCard>
           <SectionHeader title="Primary Insurance" />
           {primaryIns ? (
-            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <Shield size={13} color="var(--bb-text-secondary)" />
-                <span style={{ fontWeight: 600, color: 'var(--bb-text-primary)' }}>
-                  {primaryIns.payer_name ?? `Payer ID: ${primaryIns.payer_id ?? '—'}`}
-                </span>
-              </div>
-              {primaryIns.plan_name && (
-                <span style={{ color: 'var(--bb-text-secondary)', paddingLeft: 19 }}>{primaryIns.plan_name}</span>
-              )}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, paddingLeft: 19 }}>
-                <div>
-                  <span style={{ color: 'var(--bb-text-secondary)', fontSize: 11 }}>Member ID</span>
-                  <p style={{ margin: 0, fontWeight: 500 }}>{primaryIns.subscriber_id ?? '—'}</p>
-                </div>
-                <div>
-                  <span style={{ color: 'var(--bb-text-secondary)', fontSize: 11 }}>Group #</span>
-                  <p style={{ margin: 0, fontWeight: 500 }}>{primaryIns.group_number ?? '—'}</p>
-                </div>
-                <div>
-                  <span style={{ color: 'var(--bb-text-secondary)', fontSize: 11 }}>Copay</span>
-                  <p style={{ margin: 0, fontWeight: 500 }}>{primaryIns.copay != null ? fmtCurrency(primaryIns.copay) : '—'}</p>
-                </div>
-                <div>
-                  <span style={{ color: 'var(--bb-text-secondary)', fontSize: 11 }}>Deductible</span>
-                  <p style={{ margin: 0, fontWeight: 500 }}>{primaryIns.deductible != null ? fmtCurrency(primaryIns.deductible) : '—'}</p>
-                </div>
-              </div>
+            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+              <ReadRow label="Payer">
+                <span style={{ fontWeight: 600 }}>{primaryIns.payer_name ?? `Payer ID: ${primaryIns.payer_id ?? '—'}`}</span>
+              </ReadRow>
+              {primaryIns.plan_name && <ReadRow label="Plan">{primaryIns.plan_name}</ReadRow>}
+              <ReadRow label="Member ID"><span style={{ fontFamily: 'monospace', fontSize: 12 }}>{primaryIns.subscriber_id ?? '—'}</span></ReadRow>
+              <ReadRow label="Group #"><span style={{ fontFamily: 'monospace', fontSize: 12 }}>{primaryIns.group_number ?? '—'}</span></ReadRow>
+              <ReadRow label="Copay">{primaryIns.copay != null ? fmtCurrency(primaryIns.copay) : '—'}</ReadRow>
+              <ReadRow label="Deductible">{primaryIns.deductible != null ? fmtCurrency(primaryIns.deductible) : '—'}</ReadRow>
+              <ReadRow label="Relationship">{primaryIns.relationship_to_insured ?? 'Self'}</ReadRow>
             </div>
           ) : (
             <div style={{ padding: '24px 14px', textAlign: 'center', color: 'var(--bb-text-secondary)', fontSize: 13 }}>
@@ -317,100 +348,99 @@ function OverviewTab({ patient, visits, claims, insurance }: {
             </div>
           )}
         </SectionCard>
+
+        {/* Billing summary */}
+        {claims.length > 0 && (
+          <SectionCard>
+            <SectionHeader title="Billing Summary" />
+            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+              <ReadRow label="Total Charges">{fmtCurrency(claims.reduce((s, c) => s + (c.totalCharges ?? 0), 0))}</ReadRow>
+              <ReadRow label="Total Paid">{fmtCurrency(claims.reduce((s, c) => s + (c.totalPaid ?? 0), 0))}</ReadRow>
+              <ReadRow label="Balance Due">
+                <span style={{ fontWeight: 600, color: claims.reduce((s, c) => s + (c.balance ?? 0), 0) > 0 ? 'var(--bb-status-danger)' : 'var(--bb-text-primary)' }}>
+                  {fmtCurrency(claims.reduce((s, c) => s + (c.balance ?? 0), 0))}
+                </span>
+              </ReadRow>
+              <ReadRow label="Open Claims">{String(claims.filter(c => !['paid', 'void', 'denied'].includes(c.status)).length)}</ReadRow>
+            </div>
+          </SectionCard>
+        )}
       </div>
 
-      {/* Recent Visits */}
-      <SectionCard>
-        <SectionHeader title="Recent Visits (last 5)" />
-        {recentVisits.length === 0 ? (
-          <EmptyState icon={Stethoscope} message="No visits on record" />
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  <TH>Date</TH>
-                  <TH>Provider</TH>
-                  <TH>Type</TH>
-                  <TH>Diagnoses</TH>
-                  <TH>Status</TH>
-                  <TH>Charges</TH>
-                </tr>
-              </thead>
-              <tbody>
-                {recentVisits.map(v => (
-                  <tr key={v.id} style={{ cursor: 'pointer' }}>
-                    <TD>{fmtDate(v.visitDate)}</TD>
-                    <TD style={{ color: 'var(--bb-text-secondary)' }}>
-                      {v.provider ? `${v.provider.firstName} ${v.provider.lastName}` : '—'}
-                    </TD>
-                    <TD>{v.visitType ?? '—'}</TD>
-                    <TD style={{ maxWidth: 200 }}>
-                      {v.diagnoses?.slice(0, 2).map(d => (
-                        <span key={d.id} style={{
-                          display: 'inline-block', fontSize: 11,
-                          background: 'var(--bb-surface-app)', borderRadius: 4,
-                          padding: '1px 5px', marginRight: 4, marginBottom: 2,
-                          border: '1px solid var(--bb-border)',
-                        }}>
-                          {d.code}
-                        </span>
-                      ))}
-                      {(v.diagnoses?.length ?? 0) > 2 && (
-                        <span style={{ fontSize: 11, color: 'var(--bb-text-secondary)' }}>+{v.diagnoses.length - 2}</span>
-                      )}
-                    </TD>
-                    <TD><StatusBadge status={v.status} /></TD>
-                    <TD style={{ fontWeight: 500 }}>{fmtCurrency(v.totalCharges)}</TD>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </SectionCard>
+      {/* ─── RIGHT COLUMN ─── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-      {/* Recent Claims */}
-      <SectionCard>
-        <SectionHeader title="Recent Claims (last 5)" />
-        {recentClaims.length === 0 ? (
-          <EmptyState icon={FileText} message="No claims on record" />
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  <TH>Claim #</TH>
-                  <TH>DOS</TH>
-                  <TH>Payer</TH>
-                  <TH>Charges</TH>
-                  <TH>Paid</TH>
-                  <TH>Balance</TH>
-                  <TH>Status</TH>
-                </tr>
-              </thead>
-              <tbody>
-                {recentClaims.map(c => (
-                  <tr key={c.id} style={{ cursor: 'pointer' }}>
-                    <TD style={{ fontFamily: 'monospace', fontSize: 11 }}>{c.claimNumber}</TD>
-                    <TD>{fmtDate(c.dos)}</TD>
-                    <TD style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.payerName}</TD>
-                    <TD>{fmtCurrency(c.totalCharges)}</TD>
-                    <TD style={{ color: 'var(--bb-status-success)' }}>{fmtCurrency(c.totalPaid)}</TD>
-                    <TD style={{ color: c.balance > 0 ? 'var(--bb-status-danger)' : 'var(--bb-text-primary)', fontWeight: 500 }}>
-                      {fmtCurrency(c.balance)}
-                    </TD>
-                    <TD><StatusBadge status={c.status} /></TD>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {/* Body Map */}
+        <SectionCard>
+          <SectionHeader title="Body Map" />
+          <div style={{ padding: '16px', display: 'flex', justifyContent: 'center' }}>
+            <BodyMap patientId={patient.id} sex={p.sex ?? p.gender ?? undefined} visits={recentVisits} />
           </div>
-        )}
-      </SectionCard>
+        </SectionCard>
+
+        {/* Recent Visits */}
+        <SectionCard>
+          <SectionHeader
+            title="Recent Visits"
+            action={
+              <Button size="xs" variant="primary" leftIcon={<Plus size={11} />} onClick={() => navigate(`/visits/new?patient=${patient.id}`)}>
+                New Visit
+              </Button>
+            }
+          />
+          {recentVisits.length === 0 ? (
+            <EmptyState icon={Stethoscope} message="No visits on record" />
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {recentVisits.map(v => {
+                const days = visitAgeDays(v.visitDate)
+                return (
+                  <div
+                    key={v.id}
+                    onClick={() => navigate(`/visits/${v.id}`)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
+                      borderBottom: '1px solid var(--bb-border)', cursor: 'pointer',
+                      background: visitRowBg(days), transition: 'filter 0.1s',
+                    }}
+                  >
+                    {/* Color dot */}
+                    <div style={{
+                      width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                      background: visitDotColor(days),
+                    }} />
+                    {/* Date */}
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--bb-text-primary)', whiteSpace: 'nowrap', width: 80 }}>
+                      {fmtDate(v.visitDate)}
+                    </span>
+                    {/* Provider */}
+                    <span style={{ fontSize: 12, color: 'var(--bb-text-secondary)', width: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {v.provider ? `${v.provider.firstName} ${v.provider.lastName}` : '—'}
+                    </span>
+                    {/* Diagnoses */}
+                    <div style={{ display: 'flex', gap: 4, flex: 1, flexWrap: 'wrap' }}>
+                      {v.diagnoses?.slice(0, 3).map(d => (
+                        <span key={d.id} style={{
+                          fontSize: 10, background: 'var(--bb-surface-app)',
+                          border: '1px solid var(--bb-border)', borderRadius: 3, padding: '1px 5px',
+                          fontFamily: 'monospace',
+                        }}>{d.code}</span>
+                      ))}
+                    </div>
+                    {/* Status */}
+                    <StatusBadge status={v.status} size="sm" />
+                    <ChevronRight size={13} color="var(--bb-text-secondary)" />
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </SectionCard>
+      </div>
     </div>
   )
 }
+
 
 // ─── Demographics Tab ─────────────────────────────────────────────────────────
 
@@ -1441,11 +1471,7 @@ export function PatientDetailPage() {
   const dob = p.dob ?? p.dateOfBirth
   const age = calcAge(dob)
 
-  const totalCharges = claims.reduce((s, c) => s + (c.totalCharges ?? 0), 0)
-  const totalPaid = claims.reduce((s, c) => s + (c.totalPaid ?? 0), 0)
-  const balance = claims.reduce((s, c) => s + (c.balance ?? 0), 0)
-  const openClaims = claims.filter(c => !['paid', 'void', 'denied'].includes(c.status)).length
-  const lastVisit = visits[0]?.visitDate
+  const [activeTab, setActiveTab] = useState('overview')
 
   return (
     <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1466,73 +1492,50 @@ export function PatientDetailPage() {
       <div style={{
         background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)',
         borderRadius: 'var(--bb-radius-lg)', padding: '16px 20px',
-        display: 'flex', flexDirection: 'column', gap: 14,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14,
       }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{
-              width: 52, height: 52, borderRadius: '50%',
-              background: 'var(--bb-status-info-bg)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 18, fontWeight: 700, color: 'var(--bb-brand-blue)',
-            }}>
-              {initials}
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--bb-text-primary)' }}>{fullName}</span>
-                <StatusBadge status={patient.status} />
-              </div>
-              <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--bb-text-secondary)' }}>
-                <span>MRN: <strong style={{ color: 'var(--bb-text-primary)' }}>{p.account_number ?? p.accountNumber}</strong></span>
-                {dob && <span>DOB: <strong style={{ color: 'var(--bb-text-primary)' }}>{fmtDate(dob)}</strong></span>}
-                <span>Age: <strong style={{ color: 'var(--bb-text-primary)' }}>{age}</strong></span>
-                {(p.sex ?? p.gender) && (
-                  <span>Sex: <strong style={{ color: 'var(--bb-text-primary)' }}>
-                    {(p.sex ?? p.gender) === 'M' ? 'Male' : (p.sex ?? p.gender) === 'F' ? 'Female' : (p.sex ?? p.gender)}
-                  </strong></span>
-                )}
-              </div>
-            </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{
+            width: 52, height: 52, borderRadius: '50%',
+            background: 'var(--bb-status-info-bg)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 18, fontWeight: 700, color: 'var(--bb-brand-blue)',
+          }}>
+            {initials}
           </div>
-          {/* Action buttons */}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>
-              Edit Patient
-            </Button>
-            <Button size="sm" variant="secondary" leftIcon={<ShieldCheck size={13} />}>
-              Check Eligibility
-            </Button>
-            <Button size="sm" variant="secondary" leftIcon={<FileText size={13} />}>
-              Generate Statement
-            </Button>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+              <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--bb-text-primary)' }}>{fullName}</span>
+              <StatusBadge status={patient.status} />
+            </div>
+            <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--bb-text-secondary)' }}>
+              <span>MRN: <strong style={{ color: 'var(--bb-text-primary)' }}>{p.account_number ?? p.accountNumber}</strong></span>
+              {dob && <span>DOB: <strong style={{ color: 'var(--bb-text-primary)' }}>{fmtDate(dob)}</strong></span>}
+              <span>Age: <strong style={{ color: 'var(--bb-text-primary)' }}>{age}</strong></span>
+              {(p.sex ?? p.gender) && (
+                <span>Sex: <strong style={{ color: 'var(--bb-text-primary)' }}>
+                  {(p.sex ?? p.gender) === 'M' ? 'Male' : (p.sex ?? p.gender) === 'F' ? 'Female' : (p.sex ?? p.gender)}
+                </strong></span>
+              )}
+            </div>
           </div>
         </div>
-
-        {/* KPI row */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
-          {[
-            { label: 'Total Charges', value: fmtCurrency(totalCharges) },
-            { label: 'Total Paid', value: fmtCurrency(totalPaid) },
-            { label: 'Balance Due', value: fmtCurrency(balance) },
-            { label: 'Open Claims', value: String(openClaims) },
-            { label: 'Last Visit', value: lastVisit ? fmtDate(lastVisit) : '—' },
-          ].map(kpi => (
-            <div key={kpi.label} style={{
-              background: 'var(--bb-surface-app)', borderRadius: 8, padding: '10px 14px',
-              border: '1px solid var(--bb-border)',
-            }}>
-              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--bb-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-                {kpi.label}
-              </div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--bb-text-primary)' }}>{kpi.value}</div>
-            </div>
-          ))}
+        {/* Action buttons */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />} onClick={() => setActiveTab('demographics')}>
+            Edit Patient
+          </Button>
+          <Button size="sm" variant="secondary" leftIcon={<ShieldCheck size={13} />}>
+            Check Eligibility
+          </Button>
+          <Button size="sm" variant="secondary" leftIcon={<FileText size={13} />}>
+            Generate Statement
+          </Button>
         </div>
       </div>
 
       {/* Tabs */}
-      <Tabs defaultTab="overview">
+      <Tabs defaultTab="overview" value={activeTab} onChange={setActiveTab}>
         <TabList>
           <Tab id="overview">Overview</Tab>
           <Tab id="demographics">Demographics</Tab>
@@ -1540,12 +1543,11 @@ export function PatientDetailPage() {
           <Tab id="visits">Visits{visits.length > 0 ? ` (${visits.length})` : ''}</Tab>
           <Tab id="claims">Claims{claims.length > 0 ? ` (${claims.length})` : ''}</Tab>
           <Tab id="payments">Payments{payments.length > 0 ? ` (${payments.length})` : ''}</Tab>
-          <Tab id="bodymap">Body Map</Tab>
           <Tab id="notes">Notes & Activity</Tab>
         </TabList>
 
         <TabPanel id="overview" className="pt-4">
-          <OverviewTab patient={patient} visits={visits} claims={claims} insurance={insurance} />
+          <OverviewTab patient={patient} visits={visits} claims={claims} insurance={insurance} onEditPatient={() => setActiveTab('demographics')} />
         </TabPanel>
 
         <TabPanel id="demographics" className="pt-4">
@@ -1566,10 +1568,6 @@ export function PatientDetailPage() {
 
         <TabPanel id="payments" className="pt-4">
           <PaymentsTab payments={payments} />
-        </TabPanel>
-
-        <TabPanel id="bodymap" className="pt-4">
-          <BodyMap patientId={id ?? ''} />
         </TabPanel>
 
         <TabPanel id="notes" className="pt-4">
