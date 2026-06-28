@@ -50,6 +50,17 @@ async function apiFetch<T>(url: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
+// The backend returns raw arrays; wrap them so the frontend's PaginatedResponse shape works.
+async function apiFetchList<T>(url: string, page: number, pageSize: number): Promise<PaginatedResponse<T>> {
+  const res = await fetch(url, { headers: authHeaders() })
+  if (!res.ok) throw new Error(`Request failed: ${res.status}`)
+  const data = await res.json()
+  // If the backend ever returns a paginated envelope, pass it through unchanged.
+  if (data && typeof data === 'object' && 'items' in data) return data as PaginatedResponse<T>
+  const items = Array.isArray(data) ? data : []
+  return { items, total: items.length, page, pageSize }
+}
+
 async function apiPost<T>(url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
     method: 'POST',
@@ -79,14 +90,16 @@ interface PaginatedResponse<T> {
 }
 
 export function usePatients(params: PatientsParams = {}) {
+  const page = params.page ?? 1
+  const pageSize = params.pageSize ?? 25
   const qs = new URLSearchParams()
   if (params.search) qs.set('search', params.search)
   if (params.status) qs.set('status', params.status)
-  if (params.page) qs.set('page', String(params.page))
-  if (params.pageSize) qs.set('pageSize', String(params.pageSize))
+  qs.set('skip', String((page - 1) * pageSize))
+  qs.set('limit', String(pageSize))
   return useQuery<PaginatedResponse<Patient>>({
     queryKey: ['patients', params],
-    queryFn: () => apiFetch(`/api/v1/patients?${qs}`),
+    queryFn: () => apiFetchList(`/api/v1/patients?${qs}`, page, pageSize),
   })
 }
 
@@ -110,14 +123,16 @@ interface ClaimsParams {
 }
 
 export function useClaims(params: ClaimsParams = {}) {
+  const page = params.page ?? 1
+  const pageSize = params.pageSize ?? 25
   const qs = new URLSearchParams()
   if (params.search) qs.set('search', params.search)
   if (params.status) qs.set('status', params.status)
-  if (params.page) qs.set('page', String(params.page))
-  if (params.pageSize) qs.set('pageSize', String(params.pageSize))
+  qs.set('skip', String((page - 1) * pageSize))
+  qs.set('limit', String(pageSize))
   return useQuery<PaginatedResponse<Claim>>({
     queryKey: ['claims', params],
-    queryFn: () => apiFetch(`/api/v1/claims?${qs}`),
+    queryFn: () => apiFetchList(`/api/v1/claims?${qs}`, page, pageSize),
   })
 }
 
@@ -161,13 +176,15 @@ interface WorkQueueParams {
 }
 
 export function useWorkQueue(params: WorkQueueParams = {}) {
+  const page = params.page ?? 1
+  const pageSize = params.pageSize ?? 25
   const qs = new URLSearchParams()
   if (params.type) qs.set('type', params.type)
-  if (params.page) qs.set('page', String(params.page))
-  if (params.pageSize) qs.set('pageSize', String(params.pageSize))
+  qs.set('skip', String((page - 1) * pageSize))
+  qs.set('limit', String(pageSize))
   return useQuery<PaginatedResponse<WorkItem>>({
     queryKey: ['work-queue', params],
-    queryFn: () => apiFetch(`/api/v1/work-queue?${qs}`),
+    queryFn: () => apiFetchList(`/api/v1/work-queue?${qs}`, page, pageSize),
   })
 }
 
@@ -191,14 +208,16 @@ interface VisitsParams {
 }
 
 export function useVisits(params: VisitsParams = {}) {
+  const page = params.page ?? 1
+  const pageSize = params.pageSize ?? 25
   const qs = new URLSearchParams()
   if (params.search) qs.set('search', params.search)
   if (params.status) qs.set('status', params.status)
-  if (params.page) qs.set('page', String(params.page))
-  if (params.pageSize) qs.set('pageSize', String(params.pageSize))
+  qs.set('skip', String((page - 1) * pageSize))
+  qs.set('limit', String(pageSize))
   return useQuery<PaginatedResponse<Visit>>({
     queryKey: ['visits', params],
-    queryFn: () => apiFetch(`/api/v1/visits?${qs}`),
+    queryFn: () => apiFetchList(`/api/v1/visits?${qs}`, page, pageSize),
   })
 }
 
@@ -227,23 +246,27 @@ interface ERAFilesParams {
 }
 
 export function usePayments(params: PaymentsParams = {}) {
+  const page = params.page ?? 1
+  const pageSize = params.pageSize ?? 25
   const qs = new URLSearchParams()
   if (params.search) qs.set('search', params.search)
   if (params.status) qs.set('status', params.status)
-  if (params.page) qs.set('page', String(params.page))
-  if (params.pageSize) qs.set('pageSize', String(params.pageSize))
+  qs.set('skip', String((page - 1) * pageSize))
+  qs.set('limit', String(pageSize))
   return useQuery<PaginatedResponse<Payment>>({
     queryKey: ['payments', params],
-    queryFn: () => apiFetch(`/api/v1/payments?${qs}`),
+    queryFn: () => apiFetchList(`/api/v1/payments?${qs}`, page, pageSize),
   })
 }
 
 export function useERAFiles(params: ERAFilesParams = {}) {
+  const page = params.page ?? 1
+  const pageSize = params.pageSize ?? 25
   const qs = new URLSearchParams()
-  if (params.page) qs.set('page', String(params.page))
-  if (params.pageSize) qs.set('pageSize', String(params.pageSize))
+  qs.set('skip', String((page - 1) * pageSize))
+  qs.set('limit', String(pageSize))
   return useQuery<PaginatedResponse<ERAFile>>({
     queryKey: ['era-files', params],
-    queryFn: () => apiFetch(`/api/v1/payments/era?${qs}`),
+    queryFn: () => apiFetchList(`/api/v1/payments/era?${qs}`, page, pageSize),
   })
 }
