@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
-import { Upload, Eye } from 'lucide-react'
+import { Eye, DollarSign } from 'lucide-react'
 import { PageHeader } from '../../components/shell/PageHeader'
+import { PostPaymentModal } from './PostPaymentModal'
 import { Table, type ColumnDef } from '../../components/ui/Table'
 import { Button } from '../../components/ui/Button'
 // Badge is available but not currently used directly
@@ -26,6 +27,7 @@ export function PaymentsPage() {
   })
 
   const { data: eraData, isLoading: eraLoading } = useERAFiles({ page: eraPage, pageSize: 25 })
+  const [showPostPayment, setShowPostPayment] = useState(false)
 
   const paymentColumns: ColumnDef<Payment>[] = [
     {
@@ -163,8 +165,12 @@ export function PaymentsPage() {
         title="Payments"
         description="Track insurance and patient payments, import ERA files"
         primaryAction={{
+          label: 'Post Payment',
+          icon: <DollarSign size={15} />,
+          onClick: () => setShowPostPayment(true),
+        }}
+        secondaryAction={{
           label: 'Import ERA',
-          icon: <Upload size={15} />,
           onClick: () => {},
         }}
       />
@@ -227,6 +233,13 @@ export function PaymentsPage() {
           />
         </TabPanel>
       </Tabs>
+
+      {showPostPayment && (
+        <PostPaymentModal
+          onClose={() => setShowPostPayment(false)}
+          onSuccess={() => setShowPostPayment(false)}
+        />
+      )}
     </div>
   )
 }

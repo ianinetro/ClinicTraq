@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
-import { Send, RefreshCw } from 'lucide-react'
+import { Send, RefreshCw, Plus } from 'lucide-react'
 import { PageHeader } from '../../components/shell/PageHeader'
 import { Table, type ColumnDef } from '../../components/ui/Table'
 import { Button } from '../../components/ui/Button'
@@ -184,6 +184,11 @@ export function ClaimsPage() {
       <PageHeader
         title="Claims"
         description="Manage and submit insurance claims"
+        primaryAction={{
+          label: 'New Claim',
+          icon: <Plus size={15} />,
+          onClick: () => navigate('/claims/new'),
+        }}
       />
 
       <Table<Claim>

@@ -12,11 +12,13 @@ import { VisitDetailPage } from './modules/visits/VisitDetailPage'
 import { VisitComposerPage } from './modules/visits/VisitComposerPage'
 import { ClaimsPage } from './modules/claims/ClaimsPage'
 import { ClaimDetailPage } from './modules/claims/ClaimDetailPage'
+import { ClaimComposerPage } from './modules/claims/ClaimComposerPage'
 import { PaymentsPage } from './modules/payments/PaymentsPage'
 import { ERAReviewPage } from './modules/payments/ERAReviewPage'
 import { WorkQueuePage } from './modules/work-queue/WorkQueuePage'
 import { SettingsPage } from './modules/settings/SettingsPage'
 import { OrgManagementPage } from './modules/organization/OrgManagementPage'
+import { FrontDeskDashboardPage } from './modules/frontdesk/FrontDeskDashboardPage'
 
 const AdminClinicsPage = lazy(() =>
   import('./modules/admin/AdminClinicsPage').then(m => ({ default: m.AdminClinicsPage }))
@@ -24,6 +26,11 @@ const AdminClinicsPage = lazy(() =>
 const ARDashboardPage = lazy(() =>
   import('./modules/ar/ARDashboardPage').then(m => ({ default: m.ARDashboardPage }))
 )
+const WorkspaceManagerPage = lazy(() =>
+  import('./modules/billing/WorkspaceManagerPage').then(m => ({ default: m.WorkspaceManagerPage }))
+)
+
+const Fallback = () => <div style={{ padding: 40, color: '#9CA3AF', textAlign: 'center' }}>Loading…</div>
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore(s => s.isAuthenticated)
@@ -44,21 +51,41 @@ export default function App() {
         }
       >
         <Route path="/dashboard" element={<DashboardPage />} />
+
+        {/* Patients */}
         <Route path="/patients" element={<PatientsPage />} />
         <Route path="/patients/new" element={<NewPatientPage />} />
         <Route path="/patients/:id" element={<PatientDetailPage />} />
+
+        {/* Visits */}
         <Route path="/visits" element={<VisitsPage />} />
         <Route path="/visits/new" element={<VisitComposerPage />} />
         <Route path="/visits/:id" element={<VisitDetailPage />} />
+
+        {/* Claims */}
         <Route path="/claims" element={<ClaimsPage />} />
+        <Route path="/claims/new" element={<ClaimComposerPage />} />
         <Route path="/claims/:id" element={<ClaimDetailPage />} />
+
+        {/* Payments */}
         <Route path="/payments" element={<PaymentsPage />} />
         <Route path="/payments/era/:id" element={<ERAReviewPage />} />
+
+        {/* Work Queue */}
         <Route path="/work-queue" element={<WorkQueuePage />} />
+
+        {/* Front Desk */}
+        <Route path="/frontdesk" element={<FrontDeskDashboardPage />} />
+        <Route path="/frontdesk/schedule" element={<FrontDeskDashboardPage />} />
+
+        {/* Billing Workspace Manager */}
+        <Route path="/billing/workspaces" element={<Suspense fallback={<Fallback />}><WorkspaceManagerPage /></Suspense>} />
+
+        {/* Admin / Settings */}
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/organization" element={<OrgManagementPage />} />
-        <Route path="/admin/clinics" element={<Suspense fallback={<div />}><AdminClinicsPage /></Suspense>} />
-        <Route path="/ar" element={<Suspense fallback={<div />}><ARDashboardPage /></Suspense>} />
+        <Route path="/admin/clinics" element={<Suspense fallback={<Fallback />}><AdminClinicsPage /></Suspense>} />
+        <Route path="/ar" element={<Suspense fallback={<Fallback />}><ARDashboardPage /></Suspense>} />
       </Route>
     </Routes>
   )

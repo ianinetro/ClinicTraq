@@ -197,7 +197,7 @@ export function VisitComposerPage() {
       const visitId = visit.data.id
       await Promise.all([
         ...form.diagnoses.map(d =>
-          api.post(`/visits/${visitId}/diagnoses`, { icd10_code: d.icd10, description: d.description })
+          api.post(`/visits/${visitId}/diagnoses`, { diagnosis_code: d.icd10, description: d.description })
         ),
         ...form.procedures.map(p =>
           api.post(`/visits/${visitId}/charge-lines`, {

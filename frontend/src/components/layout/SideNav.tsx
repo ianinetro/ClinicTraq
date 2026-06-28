@@ -2,7 +2,8 @@ import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Users, Calendar, FileText,
   DollarSign, AlertCircle, Settings, Building2,
-  BarChart3, ClipboardList, X,
+  BarChart3, ClipboardList, X, Stethoscope, Briefcase,
+  MonitorCheck,
 } from 'lucide-react'
 import { useAuthStore, type UserContext } from '../../stores/authStore'
 
@@ -20,14 +21,13 @@ interface NavGroup {
 const BILLING_GROUP: NavGroup = {
   title: 'Billing Operations',
   items: [
-    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/admin/clinics', label: 'All Clinics', icon: Building2 },
+    { to: '/billing/workspaces', label: 'Workspaces', icon: Briefcase },
     { to: '/patients', label: 'Patients', icon: Users },
-    { to: '/visits', label: 'Visits', icon: Calendar },
     { to: '/claims', label: 'Claims', icon: FileText },
     { to: '/payments', label: 'Payments', icon: DollarSign },
     { to: '/ar', label: 'A/R Aging', icon: BarChart3 },
     { to: '/work-queue', label: 'Work Queue', icon: AlertCircle },
+    { to: '/admin/clinics', label: 'All Clinics', icon: Building2 },
   ],
 }
 
@@ -37,6 +37,7 @@ const CLINICAL_GROUP: NavGroup = {
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/patients', label: 'My Patients', icon: Users },
     { to: '/visits', label: 'Visits', icon: Calendar },
+    { to: '/visits/new', label: 'New Visit', icon: Stethoscope },
     { to: '/work-queue', label: 'Work Queue', icon: AlertCircle },
   ],
 }
@@ -44,9 +45,10 @@ const CLINICAL_GROUP: NavGroup = {
 const FRONT_OFFICE_GROUP: NavGroup = {
   title: 'Front Office',
   items: [
-    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { to: '/frontdesk', label: 'Front Desk', icon: MonitorCheck },
     { to: '/patients', label: 'Patients', icon: Users },
     { to: '/visits', label: 'Visits', icon: Calendar },
+    { to: '/claims', label: 'Claims', icon: FileText },
     { to: '/work-queue', label: 'Work Queue', icon: AlertCircle },
   ],
 }
@@ -69,6 +71,7 @@ const SUPERUSER_GROUPS: NavGroup[] = [
   {
     title: 'Clinical',
     items: [
+      { to: '/frontdesk', label: 'Front Desk', icon: MonitorCheck },
       { to: '/patients', label: 'Patients', icon: Users },
       { to: '/visits', label: 'Visits', icon: Calendar },
     ],
