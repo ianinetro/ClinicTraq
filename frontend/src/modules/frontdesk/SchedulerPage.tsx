@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowLeft, ChevronLeft, ChevronRight, Plus, X, Search, User, Clock,
+  ArrowLeft, ChevronLeft, ChevronRight, Plus, X, Search, User,
 } from 'lucide-react'
 import { apiClient } from '../../services/api'
 import {
@@ -75,7 +75,7 @@ const PROVIDERS = [
 const HOUR_START = 7   // 7am
 const HOUR_END   = 19  // 7pm
 const SLOT_HEIGHT = 48 // px per 30 min slot
-const TOTAL_MINS = (HOUR_END - HOUR_START) * 60
+const _TOTAL_MINS = (HOUR_END - HOUR_START) * 60
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -107,7 +107,7 @@ function slotTimes(): { label: string; hour: number; min: number }[] {
 function AppointmentBlock({
   appt,
   onClick,
-  dayIndex,
+  dayIndex: _dayIndex,
 }: {
   appt: Appointment
   onClick: (appt: Appointment, e: React.MouseEvent) => void
