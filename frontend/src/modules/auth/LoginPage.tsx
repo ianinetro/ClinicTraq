@@ -4,19 +4,38 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../stores/authStore'
+import { Input } from '../../components/ui/Input'
+import { Label } from '../../components/ui/Label'
+import { Button } from '../../components/ui/Button'
+import { ShieldCheck, Lock, Eye, EyeOff } from 'lucide-react'
 
 const schema = z.object({
-  email: z.string().email('Enter a valid email address'),
-  password: z.string().min(1, 'Password is required'),
+  email: z.string().email('Enter a valid email address, such as name@practice.com.'),
+  password: z.string().min(1, 'Password is required.'),
 })
 type FormData = z.infer<typeof schema>
 
 const FEATURES = [
-  { title: 'HIPAA-Compliant EHR', desc: 'Encrypted PHI at rest and in transit, with full audit trails' },
-  { title: 'Intelligent Billing', desc: 'Automated claim scrubbing, EDI 837/835 processing, ERA posting' },
-  { title: 'Real-Time Eligibility', desc: 'Instant payer verification before every encounter' },
-  { title: 'Multi-Tenant Architecture', desc: 'Isolated data per practice with role-based access control' },
+  'HIPAA-compliant EHR with encrypted PHI at rest and in transit, full audit trails.',
+  'Automated claim scrubbing, EDI 837/835 processing, and ERA auto-posting.',
+  'Real-time payer eligibility verification before every patient encounter.',
 ]
+
+function ClinicTraqLogo({ dark = false }: { dark?: boolean }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <div className="flex size-7 items-center justify-center rounded-lg bg-[#0410BD]">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden>
+          <path d="M10 2L3 6v8l7 4 7-4V6L10 2z" stroke="white" strokeWidth="1.5" fill="none" strokeLinejoin="round" />
+          <path d="M10 2v12M3 6l7 4 7-4" stroke="white" strokeWidth="1.5" strokeLinejoin="round" />
+        </svg>
+      </div>
+      <span className={`text-[18px] font-bold tracking-tight ${dark ? 'text-[#12122C]' : 'text-white'}`}>
+        ClinicTraq
+      </span>
+    </div>
+  )
+}
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -39,268 +58,132 @@ export function LoginPage() {
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      {/* ── Left brand panel ─────────────────────────────────────────────── */}
-      <div style={{
-        display: 'none',
-        width: '45%',
-        background: 'var(--bb-brand-ink)',
-        flexDirection: 'column',
-        padding: '48px 56px',
-        position: 'relative',
-        overflow: 'hidden',
-      }} className="login-left-panel">
-        {/* Subtle background circles */}
-        <div style={{
-          position: 'absolute', top: -80, right: -80,
-          width: 300, height: 300, borderRadius: '50%',
-          background: 'rgba(4,16,189,0.15)', pointerEvents: 'none',
-        }} />
-        <div style={{
-          position: 'absolute', bottom: -120, left: -60,
-          width: 400, height: 400, borderRadius: '50%',
-          background: 'rgba(4,16,189,0.08)', pointerEvents: 'none',
-        }} />
+    <div className="grid min-h-dvh lg:grid-cols-[1.05fr_1fr]">
 
-        {/* Logo */}
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 64 }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: 8,
-              background: 'var(--bb-brand-blue)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M10 2L3 6v8l7 4 7-4V6L10 2z" stroke="white" strokeWidth="1.5" fill="none" strokeLinejoin="round" />
-                <path d="M10 2v12M3 6l7 4 7-4" stroke="white" strokeWidth="1.5" strokeLinejoin="round" />
-              </svg>
-            </div>
-            <span style={{ color: 'white', fontSize: 20, fontWeight: 700, letterSpacing: '-0.5px' }}>
-              ClinicTraq
-            </span>
-          </div>
-
-          <h1 style={{ color: 'white', fontSize: 32, fontWeight: 700, lineHeight: 1.25, marginBottom: 16, letterSpacing: '-0.5px' }}>
-            Modern EHR for<br />modern practices
+      {/* ── Left panel — brand ─────────────────────────────────── */}
+      <aside className="relative hidden flex-col justify-between overflow-hidden bg-[#12122C] p-10 text-white lg:flex">
+        <div
+          className="pointer-events-none absolute -right-24 -top-24 size-[420px] rounded-full opacity-20 blur-3xl"
+          style={{ background: 'radial-gradient(circle, #3F4CFF 0%, rgba(63,76,255,0) 70%)' }}
+          aria-hidden
+        />
+        <div
+          className="pointer-events-none absolute -bottom-32 -left-16 size-[360px] rounded-full opacity-15 blur-3xl"
+          style={{ background: 'radial-gradient(circle, #00CBDE 0%, rgba(0,203,222,0) 70%)' }}
+          aria-hidden
+        />
+        <ClinicTraqLogo />
+        <div className="relative max-w-md">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#00CBDE]">
+            ClinicTraq EHR
+          </p>
+          <h1 className="mt-3 text-[32px] font-bold leading-[1.15] tracking-tight">
+            Modern EHR for modern medical practices.
           </h1>
-          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 15, lineHeight: 1.6, marginBottom: 48 }}>
-            Streamline clinical workflows, automate billing, and improve patient outcomes — all in one platform.
-          </p>
-
-          {/* Feature list */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-            {FEATURES.map(f => (
-              <div key={f.title} style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-                <div style={{
-                  width: 32, height: 32, borderRadius: 8, flexShrink: 0, marginTop: 2,
-                  background: 'rgba(4,16,189,0.35)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--bb-brand-blue)' }} />
-                </div>
-                <div>
-                  <div style={{ color: 'white', fontSize: 14, fontWeight: 600, marginBottom: 2 }}>{f.title}</div>
-                  <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, lineHeight: 1.5 }}>{f.desc}</div>
-                </div>
-              </div>
+          <ul className="mt-8 space-y-3">
+            {FEATURES.map((f) => (
+              <li key={f} className="flex items-start gap-3 text-sm text-white/80">
+                <ShieldCheck size={16} className="mt-0.5 shrink-0 text-[#00CBDE]" aria-hidden />
+                {f}
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
+        <p className="relative text-xs text-white/40">
+          Access is restricted to authorized users. Sessions and PHI access are fully logged.
+        </p>
+      </aside>
 
-        {/* Footer */}
-        <div style={{ position: 'relative', zIndex: 1, marginTop: 'auto', paddingTop: 48 }}>
-          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>
-            © {new Date().getFullYear()} ClinicTraq · HIPAA Compliant · SOC 2 Type II
+      {/* ── Right panel ────────────────────────────────────────── */}
+      <main className="flex items-center justify-center bg-[#F2F2F8] px-5 py-10">
+        <div className="w-full max-w-[400px]">
+
+          <div className="mb-8 lg:hidden">
+            <ClinicTraqLogo dark />
+          </div>
+
+          <h2 className="text-2xl font-[650] tracking-tight text-[#12122C]">Sign in</h2>
+          <p className="mt-1.5 text-sm text-[#676687]">
+            Use your ClinicTraq account to access the platform.
           </p>
-        </div>
-      </div>
 
-      {/* ── Right form panel ─────────────────────────────────────────────── */}
-      <div style={{
-        flex: 1,
-        background: 'var(--bb-surface-app)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '48px 32px',
-      }}>
-        <div style={{ width: '100%', maxWidth: 440 }}>
-          {/* Mobile logo */}
-          <div className="login-mobile-logo" style={{ marginBottom: 32, textAlign: 'center' }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-              <div style={{
-                width: 32, height: 32, borderRadius: 8,
-                background: 'var(--bb-brand-blue)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-                  <path d="M10 2L3 6v8l7 4 7-4V6L10 2z" stroke="white" strokeWidth="1.5" fill="none" strokeLinejoin="round" />
-                  <path d="M10 2v12M3 6l7 4 7-4" stroke="white" strokeWidth="1.5" strokeLinejoin="round" />
-                </svg>
-              </div>
-              <span style={{ color: 'var(--bb-brand-ink)', fontSize: 18, fontWeight: 700, letterSpacing: '-0.5px' }}>
-                ClinicTraq
-              </span>
-            </div>
-          </div>
+          <div className="mt-7 rounded-xl border border-[#E3E3F1] bg-white p-6 shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
+            <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4" noValidate>
 
-          {/* Heading */}
-          <div style={{ marginBottom: 32 }}>
-            <h2 style={{ fontSize: 26, fontWeight: 700, color: 'var(--bb-text-primary)', marginBottom: 8, letterSpacing: '-0.3px' }}>
-              Welcome back
-            </h2>
-            <p style={{ fontSize: 14, color: 'var(--bb-text-secondary)', lineHeight: 1.5 }}>
-              Sign in to your ClinicTraq account to continue
-            </p>
-          </div>
-
-          {/* Card */}
-          <div style={{
-            background: 'var(--bb-surface-card)',
-            border: '1px solid var(--bb-border)',
-            borderRadius: 16,
-            padding: '32px',
-            boxShadow: '0 1px 4px rgba(18,18,44,0.06)',
-          }}>
-            {serverError && (
-              <div style={{
-                background: '#FEF2F2', border: '1px solid #FECACA',
-                borderRadius: 8, padding: '12px 14px', marginBottom: 20,
-                color: 'var(--bb-status-danger)', fontSize: 13,
-                display: 'flex', alignItems: 'center', gap: 8,
-              }}>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
-                  <path d="M8 4.5v4M8 11h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-                {serverError}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit(onSubmit)} noValidate>
-              {/* Email */}
-              <div style={{ marginBottom: 18 }}>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--bb-text-primary)', marginBottom: 6 }}>
-                  Email address
-                </label>
-                <input
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="email">Email address</Label>
+                <Input
+                  id="email"
                   type="email"
-                  placeholder="you@practice.com"
                   autoComplete="email"
+                  autoFocus
+                  error={errors.email?.message}
+                  placeholder="name@practice.com"
                   {...register('email')}
-                  style={{
-                    width: '100%', boxSizing: 'border-box',
-                    height: 42, padding: '0 14px',
-                    border: `1.5px solid ${errors.email ? 'var(--bb-status-danger)' : 'var(--bb-border)'}`,
-                    borderRadius: 8, fontSize: 14,
-                    color: 'var(--bb-text-primary)',
-                    background: 'white',
-                    outline: 'none',
-                    transition: 'border-color 0.15s',
-                  }}
-                  onFocus={e => { e.currentTarget.style.borderColor = 'var(--bb-brand-blue)' }}
-                  onBlur={e => { e.currentTarget.style.borderColor = errors.email ? 'var(--bb-status-danger)' : 'var(--bb-border)' }}
                 />
-                {errors.email && (
-                  <p style={{ marginTop: 5, fontSize: 12, color: 'var(--bb-status-danger)' }}>{errors.email.message}</p>
-                )}
               </div>
 
-              {/* Password */}
-              <div style={{ marginBottom: 24 }}>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--bb-text-primary)', marginBottom: 6 }}>
-                  Password
-                </label>
-                <div style={{ position: 'relative' }}>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="password">Password</Label>
+                <div className="relative flex items-center">
+                  <Lock size={14} className="pointer-events-none absolute left-3 text-[#BABACE]" aria-hidden />
                   <input
+                    id="password"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
                     autoComplete="current-password"
+                    placeholder="Enter your password"
+                    className={[
+                      'w-full rounded-[4px] border bg-white px-3 py-2 pl-9 pr-10 text-sm text-[#12122C] placeholder-[#BABACE]',
+                      'focus:outline-none focus:ring-[3px] focus:ring-[#3F4CFF]/16 focus:border-[#3F4CFF]',
+                      'transition-shadow transition-colors duration-100',
+                      errors.password
+                        ? 'border-[#DC2626] focus:ring-[#DC2626]/12 focus:border-[#DC2626]'
+                        : 'border-[#BABACE]',
+                    ].join(' ')}
                     {...register('password')}
-                    style={{
-                      width: '100%', boxSizing: 'border-box',
-                      height: 42, padding: '0 44px 0 14px',
-                      border: `1.5px solid ${errors.password ? 'var(--bb-status-danger)' : 'var(--bb-border)'}`,
-                      borderRadius: 8, fontSize: 14,
-                      color: 'var(--bb-text-primary)',
-                      background: 'white',
-                      outline: 'none',
-                      transition: 'border-color 0.15s',
-                    }}
-                    onFocus={e => { e.currentTarget.style.borderColor = 'var(--bb-brand-blue)' }}
-                    onBlur={e => { e.currentTarget.style.borderColor = errors.password ? 'var(--bb-status-danger)' : 'var(--bb-border)' }}
                   />
                   <button
                     type="button"
-                    onClick={() => setShowPassword(v => !v)}
-                    style={{
-                      position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                      background: 'none', border: 'none', cursor: 'pointer',
-                      color: 'var(--bb-text-secondary)', padding: 2,
-                      display: 'flex', alignItems: 'center',
-                    }}
                     tabIndex={-1}
+                    onClick={() => setShowPassword(v => !v)}
+                    className="absolute right-3 text-[#BABACE] hover:text-[#676687] transition-colors"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
-                    {showPassword ? (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
-                        <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
-                        <line x1="1" y1="1" x2="23" y2="23" />
-                      </svg>
-                    ) : (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                    )}
+                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
                 </div>
                 {errors.password && (
-                  <p style={{ marginTop: 5, fontSize: 12, color: 'var(--bb-status-danger)' }}>{errors.password.message}</p>
+                  <p className="text-xs text-red-600">{errors.password.message}</p>
                 )}
               </div>
 
-              {/* Submit */}
-              <button
+              {serverError && (
+                <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+                  {serverError}
+                </div>
+              )}
+
+              <Button
                 type="submit"
-                disabled={isSubmitting}
-                style={{
-                  width: '100%', height: 44,
-                  background: isSubmitting ? 'rgba(4,16,189,0.6)' : 'var(--bb-brand-blue)',
-                  color: 'white', border: 'none', borderRadius: 8,
-                  fontSize: 14, fontWeight: 600, cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  transition: 'opacity 0.15s',
-                }}
+                variant="primary"
+                loading={isSubmitting}
+                className="w-full justify-center h-11 text-sm"
               >
-                {isSubmitting ? (
-                  <>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.8s linear infinite' }}>
-                      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" strokeLinecap="round" />
-                    </svg>
-                    Signing in…
-                  </>
-                ) : 'Sign in'}
-              </button>
+                Sign in
+              </Button>
+
             </form>
           </div>
 
-          <p style={{ textAlign: 'center', marginTop: 24, fontSize: 13, color: 'var(--bb-text-secondary)' }}>
-            Need help?{' '}
-            <a href="mailto:support@clinictraq.com" style={{ color: 'var(--bb-brand-blue)', textDecoration: 'none', fontWeight: 500 }}>
-              Contact support
-            </a>
-          </p>
-        </div>
-      </div>
+          <div className="mt-5 flex flex-col items-center gap-2">
+            <p className="text-center text-xs text-[#9FA0BD]">
+              Trouble signing in? Email us at{' '}
+              <span className="font-medium text-[#676687] select-all">support@clinictraq.com</span>
+            </p>
+          </div>
 
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @media (min-width: 900px) {
-          .login-left-panel { display: flex !important; }
-          .login-mobile-logo { display: none !important; }
-        }
-      `}</style>
+        </div>
+      </main>
     </div>
   )
 }
