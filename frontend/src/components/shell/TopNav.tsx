@@ -12,8 +12,8 @@ export function TopNav() {
   useKeyboard({ key: 'k', meta: true, handler: openPalette })
 
   function handleSignOut() {
-    localStorage.removeItem('ct_token')
-    localStorage.removeItem('ct_refresh')
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('refresh_token')
     navigate('/login')
   }
 

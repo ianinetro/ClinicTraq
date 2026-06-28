@@ -18,7 +18,7 @@ interface SearchResponse {
 }
 
 async function fetchSearch(query: string): Promise<SearchResponse> {
-  const token = localStorage.getItem('ct_token')
+  const token = localStorage.getItem('auth_token')
   const res = await fetch(`/api/v1/search?q=${encodeURIComponent(query)}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   })
@@ -40,7 +40,7 @@ export function useSearch(query: string) {
 // ---------------------------------------------------------------------------
 
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('ct_token')
+  const token = localStorage.getItem('auth_token')
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 

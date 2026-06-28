@@ -66,7 +66,7 @@ interface ActivityEvent {
 // ─── Data fetching helpers ───────────────────────────────────────────────────
 
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('ct_token')
+  const token = localStorage.getItem('auth_token')
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
