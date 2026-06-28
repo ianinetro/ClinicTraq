@@ -79,6 +79,14 @@ PERM_REPORTS_BILLING = "reports:billing"
 PERM_REPORTS_CLINICAL = "reports:clinical"
 PERM_REPORTS_OPERATIONAL = "reports:operational"
 
+# ── Router-level shorthand aliases (used by require_permission() in routers) ──
+# These map to the granular permissions above — included in role lists below.
+PERM_PATIENTS_READ    = "patients:read"    # alias for patients:view
+PERM_PATIENTS_WRITE   = "patients:write"   # alias for patients:create + edit
+PERM_CLAIMS_READ      = "claims:read"      # alias for billing:view_claims
+PERM_CLAIMS_WRITE     = "claims:write"     # alias for billing:submit/correct_claims
+PERM_MASTER_DATA_READ = "master_data:read" # alias for settings:view
+
 # ── Role → permission sets ────────────────────────────────────────────────────
 
 ROLE_PERMISSIONS: dict[str, list[str]] = {
@@ -314,8 +322,21 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
 
 
 def get_permissions_for_role(role: str) -> list[str]:
-    """Return the permission list for a given role name."""
-    return ROLE_PERMISSIONS.get(role, [])
+    """Return the permission list for a given role name, including router-level aliases."""
+    base = ROLE_PERMISSIONS.get(role, [])
+    aliases: list[str] = []
+    base_set = set(base)
+    if PERM_PATIENTS_VIEW in base_set or PERM_PATIENTS_CREATE in base_set:
+        aliases.append(PERM_PATIENTS_READ)
+    if PERM_PATIENTS_CREATE in base_set or PERM_PATIENTS_EDIT_DEMOGRAPHICS in base_set or PERM_PATIENTS_EDIT_INSURANCE in base_set:
+        aliases.append(PERM_PATIENTS_WRITE)
+    if PERM_BILLING_VIEW_CLAIMS in base_set:
+        aliases.append(PERM_CLAIMS_READ)
+    if PERM_BILLING_SUBMIT_CLAIMS in base_set or PERM_BILLING_CORRECT_CLAIMS in base_set:
+        aliases.append(PERM_CLAIMS_WRITE)
+    if PERM_SETTINGS_VIEW in base_set:
+        aliases.append(PERM_MASTER_DATA_READ)
+    return base + aliases
 
 
 def get_all_permissions_for_user(
