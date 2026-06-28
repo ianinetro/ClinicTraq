@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { apiClient } from './api'
 import type { Patient, Claim, WorkItem, WorkQueueSummary, Visit, Payment, ERAFile } from '../types'
 
 // ---------------------------------------------------------------------------
@@ -39,36 +40,28 @@ export function useSearch(query: string) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('auth_token')
-  return token ? { Authorization: `Bearer ${token}` } : {}
+// Strip /api/v1 prefix since apiClient already has it as baseURL.
+function stripBase(url: string): string {
+  return url.replace(/^\/api\/v1/, '')
 }
 
 async function apiFetch<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: authHeaders() })
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`)
-  return res.json() as Promise<T>
+  const res = await apiClient.get<T>(stripBase(url))
+  return res.data
 }
 
 // The backend returns raw arrays; wrap them so the frontend's PaginatedResponse shape works.
 async function apiFetchList<T>(url: string, page: number, pageSize: number): Promise<PaginatedResponse<T>> {
-  const res = await fetch(url, { headers: authHeaders() })
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`)
-  const data = await res.json()
-  // If the backend ever returns a paginated envelope, pass it through unchanged.
+  const res = await apiClient.get(stripBase(url))
+  const data = res.data
   if (data && typeof data === 'object' && 'items' in data) return data as PaginatedResponse<T>
   const items = Array.isArray(data) ? data : []
   return { items, total: items.length, page, pageSize }
 }
 
 async function apiPost<T>(url: string, body?: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`)
-  return res.json() as Promise<T>
+  const res = await apiClient.post<T>(stripBase(url), body)
+  return res.data
 }
 
 // ---------------------------------------------------------------------------

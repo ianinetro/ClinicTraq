@@ -402,7 +402,8 @@ def get_all_permissions_for_user(
 ) -> set[str]:
     """Aggregate all permissions a user has across their assigned roles."""
     if is_superuser:
-        return set(p for perms in ROLE_PERMISSIONS.values() for p in perms)
+        # Include both base permissions and all shorthand aliases so frontend hasPermission() works.
+        return set(p for role in ROLE_PERMISSIONS for p in get_permissions_for_role(role))
     perms: set[str] = set()
     for role in [clinic_role, billing_role, mgmt_role]:
         if role:
