@@ -75,7 +75,6 @@ const PROVIDERS = [
 const HOUR_START = 7   // 7am
 const HOUR_END   = 19  // 7pm
 const SLOT_HEIGHT = 48 // px per 30 min slot
-const _TOTAL_MINS = (HOUR_END - HOUR_START) * 60
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
