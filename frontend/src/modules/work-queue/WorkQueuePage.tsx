@@ -36,7 +36,7 @@ export function WorkQueuePage() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [assignFilter, setAssignFilter] = useState('')
 
-  const { data, isError } = useQuery({
+  const { data } = useQuery({
     queryKey: ['work-queue'],
     queryFn: async () => (await api.get('/work-queue')).data,
   })
