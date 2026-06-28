@@ -1,19 +1,22 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, MapPin, Phone, Mail, Edit3, ShieldCheck, FileText,
   Plus, CheckCircle, Clock, ChevronRight, Activity,
   CreditCard, User, Shield, DollarSign, Stethoscope,
-  MessageSquare, X, ChevronLeft, Search,
+  MessageSquare,
 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
-import { apiClient } from '../../services/api'
 import { Tabs, TabList, Tab, TabPanel } from '../../components/ui/Tabs'
 import { Button } from '../../components/ui/Button'
 import { StatusBadge } from '../../components/shared/StatusBadge'
 import { PHIField } from '../../components/shared/PHIField'
+import { KPICard } from '../../components/ui/KPICard'
 import { Badge } from '../../components/ui/Badge'
+// Input and Select are available but not currently used in this view
+// import { Input } from '../../components/ui/Input'
+// import { Select } from '../../components/ui/Select'
 import { BodyMap } from './BodyMap'
 import { usePatient } from '../../services/queries'
 import type { Patient, Visit, Claim, Payment } from '../../types'
@@ -41,6 +44,7 @@ interface PatientInsuranceFull {
   is_active: boolean
   created_at: string
   updated_at: string
+  // enriched
   payer_name?: string
   effective_date?: string
   termination_date?: string
@@ -59,32 +63,37 @@ interface ActivityEvent {
   metadata?: Record<string, string>
 }
 
-interface NewVisitForm {
-  visit_date: string
-  visit_type: string
-  provider_name: string
-  chief_complaint: string
-}
-
-interface DiagnosisEntry {
-  code: string
-  description: string
-}
-
 // ─── Data fetching helpers ───────────────────────────────────────────────────
 
-function stripBase(url: string) { return url.replace(/^\/api\/v1/, '') }
+function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem('auth_token')
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
 
 async function apiFetch<T>(url: string): Promise<T> {
-  return (await apiClient.get<T>(stripBase(url))).data
+  const res = await fetch(url, { headers: authHeaders() })
+  if (!res.ok) throw new Error(`Request failed: ${res.status}`)
+  return res.json() as Promise<T>
 }
 
 async function apiPatch<T>(url: string, body: unknown): Promise<T> {
-  return (await apiClient.patch<T>(stripBase(url), body)).data
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(`Request failed: ${res.status}`)
+  return res.json() as Promise<T>
 }
 
 async function apiPost<T>(url: string, body?: unknown): Promise<T> {
-  return (await apiClient.post<T>(stripBase(url), body)).data
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  })
+  if (!res.ok) throw new Error(`Request failed: ${res.status}`)
+  return res.json() as Promise<T>
 }
 
 // ─── Utility helpers ─────────────────────────────────────────────────────────
@@ -125,21 +134,6 @@ function priorityVariant(p: string): 'info' | 'warning' | 'default' {
   return 'default'
 }
 
-// ─── Common ICD-10 quick picks ───────────────────────────────────────────────
-
-const COMMON_ICD10: DiagnosisEntry[] = [
-  { code: 'Z00.00', description: 'Encounter for general adult medical exam without abnormal findings' },
-  { code: 'J06.9', description: 'Acute upper respiratory infection, unspecified' },
-  { code: 'I10', description: 'Essential (primary) hypertension' },
-  { code: 'E11.9', description: 'Type 2 diabetes mellitus without complications' },
-  { code: 'M54.5', description: 'Low back pain' },
-  { code: 'J45.909', description: 'Unspecified asthma, uncomplicated' },
-  { code: 'F32.9', description: 'Major depressive disorder, single episode, unspecified' },
-  { code: 'E78.5', description: 'Hyperlipidemia, unspecified' },
-  { code: 'K21.0', description: 'Gastro-esophageal reflux disease with esophagitis' },
-  { code: 'N39.0', description: 'Urinary tract infection, site not specified' },
-]
-
 // ─── Dense table styles ───────────────────────────────────────────────────────
 
 const TH = ({ children, className = '' }: { children?: React.ReactNode; className?: string }) => (
@@ -178,28 +172,6 @@ const TD = ({ children, className = '', style = {}, colSpan }: { children?: Reac
     {children}
   </td>
 )
-
-// ─── Shared style constants ───────────────────────────────────────────────────
-
-const labelStyle: React.CSSProperties = {
-  display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--bb-text-secondary)',
-  textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4,
-}
-
-const inputStyle: React.CSSProperties = {
-  height: 34, width: '100%', padding: '0 10px', fontSize: 13, boxSizing: 'border-box',
-  border: '1px solid var(--bb-border)', borderRadius: 6,
-  background: 'var(--bb-surface-card)', color: 'var(--bb-text-primary)', outline: 'none',
-}
-
-const readLabelStyle: React.CSSProperties = {
-  fontSize: 10, fontWeight: 600, color: 'var(--bb-text-secondary)',
-  textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3,
-}
-
-const readValueStyle: React.CSSProperties = {
-  fontSize: 13, color: 'var(--bb-text-primary)', fontWeight: 500,
-}
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -247,612 +219,195 @@ function SectionHeader({ title, action }: { title: string; action?: React.ReactN
   )
 }
 
-function InfoCell({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div>
-      <span style={{ display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--bb-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
-        {label}
-      </span>
-      <span style={{ fontSize: 13, color: 'var(--bb-text-primary)', fontFamily: mono ? 'monospace' : 'inherit' }}>
-        {value}
-      </span>
-    </div>
-  )
-}
-
-// ─── New Visit Modal ──────────────────────────────────────────────────────────
-
-function NewVisitModal({
-  patientId,
-  patientName,
-  onClose,
-  onSaved,
-}: {
-  patientId: string
-  patientName: string
-  onClose: () => void
-  onSaved: () => void
-}) {
-  const [step, setStep] = useState(1)
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState('')
-
-  const todayISO = new Date().toISOString().split('T')[0]
-
-  const [encounter, setEncounter] = useState<NewVisitForm>({
-    visit_date: todayISO,
-    visit_type: 'office_visit',
-    provider_name: '',
-    chief_complaint: '',
-  })
-
-  const [diagnoses, setDiagnoses] = useState<DiagnosisEntry[]>([])
-  const [icdSearch, setIcdSearch] = useState('')
-
-  const filteredCommon = icdSearch.trim()
-    ? COMMON_ICD10.filter(d =>
-        d.code.toLowerCase().includes(icdSearch.toLowerCase()) ||
-        d.description.toLowerCase().includes(icdSearch.toLowerCase())
-      )
-    : COMMON_ICD10
-
-  function toggleDiagnosis(d: DiagnosisEntry) {
-    setDiagnoses(prev => {
-      const exists = prev.find(x => x.code === d.code)
-      return exists ? prev.filter(x => x.code !== d.code) : [...prev, d]
-    })
-  }
-
-  async function handleSave() {
-    setSaving(true)
-    setSaveError('')
-    try {
-      const visitPayload = {
-        patient_id: patientId,
-        visit_date: encounter.visit_date,
-        visit_type: encounter.visit_type,
-        chief_complaint: encounter.chief_complaint,
-        provider_name: encounter.provider_name,
-      }
-      const created = await apiPost<{ id: string }>('/api/v1/visits', visitPayload)
-
-      for (const d of diagnoses) {
-        await apiPost(`/api/v1/visits/${created.id}/diagnoses`, {
-          code: d.code,
-          description: d.description,
-        })
-      }
-
-      onSaved()
-      onClose()
-    } catch {
-      setSaveError('Failed to save visit. Please try again.')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const backdropRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
-
-  const stepLabels = ['Encounter Details', 'Diagnoses', 'Review & Save']
-
-  return (
-    <div
-      ref={backdropRef}
-      onClick={e => { if (e.target === backdropRef.current) onClose() }}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 1000,
-        background: 'rgba(18, 18, 44, 0.55)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 24,
-      }}
-    >
-      <div style={{
-        background: 'var(--bb-surface-card)',
-        borderRadius: 'var(--bb-radius-lg)',
-        boxShadow: 'var(--bb-shadow-sm)',
-        width: '100%', maxWidth: 600,
-        display: 'flex', flexDirection: 'column',
-        maxHeight: 'calc(100vh - 80px)',
-        overflow: 'hidden',
-      }}>
-        {/* Modal header */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '16px 20px', borderBottom: '1px solid var(--bb-border)',
-          background: 'var(--bb-surface-app)',
-        }}>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--bb-text-primary)' }}>New Visit</div>
-            <div style={{ fontSize: 12, color: 'var(--bb-text-secondary)', marginTop: 2 }}>{patientName}</div>
-          </div>
-          <button
-            onClick={onClose}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--bb-text-secondary)', padding: 4 }}
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Step indicator */}
-        <div style={{
-          display: 'flex', alignItems: 'center',
-          padding: '12px 20px', borderBottom: '1px solid var(--bb-border)',
-        }}>
-          {stepLabels.map((label, i) => {
-            const num = i + 1
-            const active = step === num
-            const done = step > num
-            return (
-              <React.Fragment key={num}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{
-                    width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 11, fontWeight: 700,
-                    background: active ? 'var(--bb-brand-blue)' : done ? 'var(--bb-status-success)' : 'var(--bb-border)',
-                    color: active || done ? '#fff' : 'var(--bb-text-secondary)',
-                  }}>
-                    {done ? <CheckCircle size={12} /> : num}
-                  </div>
-                  <span style={{
-                    fontSize: 12, fontWeight: active ? 600 : 400,
-                    color: active ? 'var(--bb-text-primary)' : 'var(--bb-text-secondary)',
-                  }}>
-                    {label}
-                  </span>
-                </div>
-                {i < stepLabels.length - 1 && (
-                  <div style={{ flex: 1, height: 1, background: 'var(--bb-border)', margin: '0 12px' }} />
-                )}
-              </React.Fragment>
-            )
-          })}
-        </div>
-
-        {/* Step content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-          {step === 1 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={labelStyle}>Visit Date</label>
-                  <input
-                    type="date"
-                    value={encounter.visit_date}
-                    onChange={e => setEncounter(p => ({ ...p, visit_date: e.target.value }))}
-                    style={inputStyle}
-                  />
-                </div>
-                <div>
-                  <label style={labelStyle}>Visit Type</label>
-                  <select
-                    value={encounter.visit_type}
-                    onChange={e => setEncounter(p => ({ ...p, visit_type: e.target.value }))}
-                    style={inputStyle}
-                  >
-                    <option value="office_visit">Office Visit</option>
-                    <option value="new_patient">New Patient</option>
-                    <option value="follow_up">Follow-Up</option>
-                    <option value="telehealth">Telehealth</option>
-                    <option value="urgent_care">Urgent Care</option>
-                    <option value="annual_wellness">Annual Wellness</option>
-                    <option value="procedure">Procedure</option>
-                    <option value="consultation">Consultation</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label style={labelStyle}>Provider</label>
-                <input
-                  type="text"
-                  value={encounter.provider_name}
-                  onChange={e => setEncounter(p => ({ ...p, provider_name: e.target.value }))}
-                  placeholder="Provider name"
-                  style={inputStyle}
-                />
-              </div>
-              <div>
-                <label style={labelStyle}>Chief Complaint</label>
-                <textarea
-                  value={encounter.chief_complaint}
-                  onChange={e => setEncounter(p => ({ ...p, chief_complaint: e.target.value }))}
-                  placeholder="Patient's chief complaint…"
-                  rows={3}
-                  style={{ ...inputStyle, height: 'auto', resize: 'vertical', padding: '8px 10px' }}
-                />
-              </div>
-            </div>
-          )}
-
-          {step === 2 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ position: 'relative' }}>
-                <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--bb-text-secondary)', pointerEvents: 'none' }} />
-                <input
-                  type="text"
-                  value={icdSearch}
-                  onChange={e => setIcdSearch(e.target.value)}
-                  placeholder="Search ICD-10 codes…"
-                  style={{ ...inputStyle, paddingLeft: 32 }}
-                />
-              </div>
-
-              {diagnoses.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--bb-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
-                    Selected ({diagnoses.length})
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {diagnoses.map(d => (
-                      <div
-                        key={d.code}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 6,
-                          background: 'var(--bb-brand-blue)', color: '#fff',
-                          borderRadius: 6, padding: '4px 10px', fontSize: 12, fontWeight: 500,
-                        }}
-                      >
-                        <span style={{ fontFamily: 'monospace' }}>{d.code}</span>
-                        <span style={{ opacity: 0.85, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.description}</span>
-                        <button
-                          onClick={() => toggleDiagnosis(d)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fff', padding: 0, display: 'flex', alignItems: 'center' }}
-                        >
-                          <X size={12} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--bb-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
-                  {icdSearch ? 'Search Results' : 'Common Diagnoses'}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {filteredCommon.length === 0 && (
-                    <div style={{ fontSize: 13, color: 'var(--bb-text-secondary)', padding: '12px 0' }}>No matches found.</div>
-                  )}
-                  {filteredCommon.map(d => {
-                    const selected = diagnoses.some(x => x.code === d.code)
-                    return (
-                      <button
-                        key={d.code}
-                        onClick={() => toggleDiagnosis(d)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 10,
-                          padding: '8px 12px', borderRadius: 6, cursor: 'pointer',
-                          background: selected ? 'rgba(4,16,189,0.06)' : 'var(--bb-surface-app)',
-                          border: `1px solid ${selected ? 'var(--bb-brand-blue)' : 'var(--bb-border)'}`,
-                          textAlign: 'left',
-                        }}
-                      >
-                        <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 600, color: 'var(--bb-brand-blue)', minWidth: 60 }}>{d.code}</span>
-                        <span style={{ fontSize: 12, color: 'var(--bb-text-primary)', flex: 1 }}>{d.description}</span>
-                        {selected && <CheckCircle size={14} color="var(--bb-brand-blue)" />}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ background: 'var(--bb-surface-app)', borderRadius: 8, border: '1px solid var(--bb-border)', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--bb-text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Encounter Details</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <InfoCell label="Visit Date" value={fmtDate(encounter.visit_date)} />
-                  <InfoCell label="Visit Type" value={encounter.visit_type.replace(/_/g, ' ')} />
-                  <InfoCell label="Provider" value={encounter.provider_name || '—'} />
-                  <InfoCell label="Patient" value={patientName} />
-                </div>
-                {encounter.chief_complaint && (
-                  <div>
-                    <span style={{ display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--bb-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Chief Complaint</span>
-                    <span style={{ fontSize: 13, color: 'var(--bb-text-primary)' }}>{encounter.chief_complaint}</span>
-                  </div>
-                )}
-              </div>
-
-              <div style={{ background: 'var(--bb-surface-app)', borderRadius: 8, border: '1px solid var(--bb-border)', padding: '14px 16px' }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--bb-text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
-                  Diagnoses ({diagnoses.length})
-                </div>
-                {diagnoses.length === 0 ? (
-                  <span style={{ fontSize: 13, color: 'var(--bb-text-secondary)' }}>No diagnoses selected.</span>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {diagnoses.map(d => (
-                      <div key={d.code} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-                        <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--bb-brand-blue)' }}>{d.code}</span>
-                        <span style={{ color: 'var(--bb-text-primary)' }}>{d.description}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {saveError && (
-                <div style={{ fontSize: 13, color: 'var(--bb-status-danger)', padding: '8px 12px', background: 'rgba(220,38,38,0.06)', borderRadius: 6, border: '1px solid rgba(220,38,38,0.2)' }}>
-                  {saveError}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Modal footer */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '14px 20px', borderTop: '1px solid var(--bb-border)',
-          background: 'var(--bb-surface-app)',
-        }}>
-          <Button
-            size="sm" variant="secondary"
-            leftIcon={step > 1 ? <ChevronLeft size={13} /> : undefined}
-            onClick={step === 1 ? onClose : () => setStep(s => s - 1)}
-          >
-            {step === 1 ? 'Cancel' : 'Back'}
-          </Button>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: 'var(--bb-text-secondary)' }}>Step {step} of 3</span>
-            {step < 3 ? (
-              <Button
-                size="sm" variant="primary"
-                rightIcon={<ChevronRight size={13} />}
-                onClick={() => setStep(s => s + 1)}
-              >
-                Next
-              </Button>
-            ) : (
-              <Button
-                size="sm" variant="primary"
-                loading={saving}
-                onClick={() => void handleSave()}
-              >
-                Save Visit
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ─── Overview Tab ─────────────────────────────────────────────────────────────
 
-function OverviewTab({ patient, visits, claims, insurance, onNewVisit }: {
+function OverviewTab({ patient, visits, claims, insurance }: {
   patient: Patient
   visits: Visit[]
   claims: Claim[]
   insurance: PatientInsuranceFull[]
-  onNewVisit: () => void
 }) {
-  const navigate = useNavigate()
+  const totalCharges = claims.reduce((s, c) => s + (c.totalCharges ?? 0), 0)
+  const totalPaid = claims.reduce((s, c) => s + (c.totalPaid ?? 0), 0)
+  const balance = claims.reduce((s, c) => s + (c.balance ?? 0), 0)
   const openClaims = claims.filter(c => !['paid', 'void', 'denied'].includes(c.status)).length
   const lastVisit = visits[0]?.visitDate
-  const activeInsurance = insurance.filter(i => i.is_active)
+
   const primaryIns = insurance.find(i => i.priority === 'primary' && i.is_active)
 
-  const p = patient as PatientFull
-  const dob = p.dob ?? p.dateOfBirth
-  const age = calcAge(dob)
-  const sexLabel = (p.sex ?? p.gender) === 'M' ? 'Male' : (p.sex ?? p.gender) === 'F' ? 'Female' : (p.sex ?? p.gender) ?? '—'
-
   const recentVisits = visits.slice(0, 5)
+  const recentClaims = claims.slice(0, 5)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* 3-stat strip */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-        {[
-          { label: 'Last Visit', value: lastVisit ? fmtDate(lastVisit) : '—' },
-          { label: 'Open Claims', value: String(openClaims) },
-          {
-            label: 'Active Insurance',
-            value: activeInsurance.length > 0 ? activeInsurance.map(i => i.payer_name ?? 'Insurance').join(', ') : '—',
-          },
-        ].map(kpi => (
-          <div key={kpi.label} style={{
-            background: 'var(--bb-surface-card)', borderRadius: 'var(--bb-radius)', padding: '12px 16px',
-            border: '1px solid var(--bb-border)',
-          }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--bb-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
-              {kpi.label}
-            </div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--bb-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {kpi.value}
-            </div>
-          </div>
-        ))}
+      {/* KPI row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+        <KPICard label="Total Charges" value={fmtCurrency(totalCharges)} />
+        <KPICard label="Total Paid" value={fmtCurrency(totalPaid)} />
+        <KPICard label="Balance Due" value={fmtCurrency(balance)} />
+        <KPICard label="Open Claims" value={String(openClaims)} />
+        <KPICard label="Last Visit" value={lastVisit ? fmtDate(lastVisit) : '—'} />
       </div>
 
-      {/* Two-column: demographics (55%) + body map (45%) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '55% 45%', gap: 16, alignItems: 'start' }}>
-        {/* Left: demographics info panel */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        {/* Contact */}
         <SectionCard>
-          <SectionHeader title="Patient Demographics" />
-          <div style={{ padding: '16px' }}>
-            {/* Name */}
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--bb-text-primary)', marginBottom: 4 }}>
-                {p.first_name ?? p.firstName}{p.middle_name ? ` ${p.middle_name}` : ''} {p.last_name ?? p.lastName}
+          <SectionHeader title="Contact Information" />
+          <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {patient.phone && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                <Phone size={13} color="var(--bb-text-secondary)" />
+                <PHIField value={patient.phone} fieldName="Phone" patientId={patient.id} fieldType="phone" inline />
               </div>
-              <div style={{ fontSize: 12, color: 'var(--bb-text-secondary)' }}>
-                MRN: <strong style={{ color: 'var(--bb-text-primary)' }}>{p.account_number ?? p.accountNumber ?? '—'}</strong>
+            )}
+            {patient.email && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                <Mail size={13} color="var(--bb-text-secondary)" />
+                <PHIField value={patient.email} fieldName="Email" patientId={patient.id} fieldType="email" inline />
               </div>
-            </div>
-
-            {/* Key identity fields */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
-              <div>
-                <div style={readLabelStyle}>Date of Birth</div>
-                <div style={readValueStyle}>{fmtDate(dob)}</div>
+            )}
+            {patient.address && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13 }}>
+                <MapPin size={13} color="var(--bb-text-secondary)" style={{ marginTop: 2, flexShrink: 0 }} />
+                <PHIField
+                  value={`${patient.address.line1}, ${patient.address.city}, ${patient.address.state} ${patient.address.zip}`}
+                  fieldName="Address" patientId={patient.id} fieldType="address" inline
+                />
               </div>
-              <div>
-                <div style={readLabelStyle}>Age</div>
-                <div style={readValueStyle}>{age}</div>
-              </div>
-              <div>
-                <div style={readLabelStyle}>Sex</div>
-                <div style={readValueStyle}>{sexLabel}</div>
-              </div>
-            </div>
-
-            <div style={{ borderTop: '1px solid var(--bb-border)', marginBottom: 14 }} />
-
-            {/* Contact */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
-              {(patient.phone ?? p.phone_cell ?? p.phone_home) && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Phone size={13} color="var(--bb-text-secondary)" />
-                  <PHIField value={patient.phone ?? p.phone_cell ?? p.phone_home ?? ''} fieldName="Phone" patientId={patient.id} fieldType="phone" inline />
-                </div>
-              )}
-              {patient.email && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Mail size={13} color="var(--bb-text-secondary)" />
-                  <PHIField value={patient.email} fieldName="Email" patientId={patient.id} fieldType="email" inline />
-                </div>
-              )}
-              {(patient.address || p.address_line1) && (
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                  <MapPin size={13} color="var(--bb-text-secondary)" style={{ marginTop: 2, flexShrink: 0 }} />
-                  <PHIField
-                    value={
-                      patient.address
-                        ? `${patient.address.line1}, ${patient.address.city}, ${patient.address.state} ${patient.address.zip}`
-                        : `${p.address_line1 ?? ''}, ${p.city ?? ''}, ${p.state ?? ''} ${p.zip ?? ''}`
-                    }
-                    fieldName="Address" patientId={patient.id} fieldType="address" inline
-                  />
-                </div>
-              )}
-            </div>
-
-            <div style={{ borderTop: '1px solid var(--bb-border)', marginBottom: 14 }} />
-
-            {/* Insurance summary */}
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--bb-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>Insurance</div>
-              {primaryIns ? (
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                  <Shield size={13} color="var(--bb-text-secondary)" style={{ marginTop: 2 }} />
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--bb-text-primary)' }}>
-                      {primaryIns.payer_name ?? `Payer ID: ${primaryIns.payer_id ?? '—'}`}
-                    </div>
-                    {primaryIns.plan_name && (
-                      <div style={{ fontSize: 12, color: 'var(--bb-text-secondary)' }}>{primaryIns.plan_name}</div>
-                    )}
-                    <div style={{ fontSize: 12, color: 'var(--bb-text-secondary)', marginTop: 2 }}>
-                      Member ID: <strong style={{ color: 'var(--bb-text-primary)' }}>{primaryIns.subscriber_id ?? '—'}</strong>
-                      {primaryIns.group_number && (
-                        <> · Group: <strong style={{ color: 'var(--bb-text-primary)' }}>{primaryIns.group_number}</strong></>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ fontSize: 13, color: 'var(--bb-text-secondary)' }}>No active insurance on file</div>
-              )}
-            </div>
+            )}
           </div>
         </SectionCard>
 
-        {/* Right: Body Map */}
+        {/* Insurance summary */}
         <SectionCard>
-          <SectionHeader title="Body Map" />
-          <div style={{ padding: '12px' }}>
-            <BodyMap patientId={patient.id} compact />
-          </div>
+          <SectionHeader title="Primary Insurance" />
+          {primaryIns ? (
+            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <Shield size={13} color="var(--bb-text-secondary)" />
+                <span style={{ fontWeight: 600, color: 'var(--bb-text-primary)' }}>
+                  {primaryIns.payer_name ?? `Payer ID: ${primaryIns.payer_id ?? '—'}`}
+                </span>
+              </div>
+              {primaryIns.plan_name && (
+                <span style={{ color: 'var(--bb-text-secondary)', paddingLeft: 19 }}>{primaryIns.plan_name}</span>
+              )}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, paddingLeft: 19 }}>
+                <div>
+                  <span style={{ color: 'var(--bb-text-secondary)', fontSize: 11 }}>Member ID</span>
+                  <p style={{ margin: 0, fontWeight: 500 }}>{primaryIns.subscriber_id ?? '—'}</p>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--bb-text-secondary)', fontSize: 11 }}>Group #</span>
+                  <p style={{ margin: 0, fontWeight: 500 }}>{primaryIns.group_number ?? '—'}</p>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--bb-text-secondary)', fontSize: 11 }}>Copay</span>
+                  <p style={{ margin: 0, fontWeight: 500 }}>{primaryIns.copay != null ? fmtCurrency(primaryIns.copay) : '—'}</p>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--bb-text-secondary)', fontSize: 11 }}>Deductible</span>
+                  <p style={{ margin: 0, fontWeight: 500 }}>{primaryIns.deductible != null ? fmtCurrency(primaryIns.deductible) : '—'}</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ padding: '24px 14px', textAlign: 'center', color: 'var(--bb-text-secondary)', fontSize: 13 }}>
+              No active primary insurance
+            </div>
+          )}
         </SectionCard>
       </div>
 
-      {/* Recent Visits as cards */}
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--bb-text-primary)' }}>Recent Visits</span>
-          <Button size="sm" variant="primary" leftIcon={<Plus size={13} />} onClick={onNewVisit}>
-            New Visit
-          </Button>
-        </div>
-
+      {/* Recent Visits */}
+      <SectionCard>
+        <SectionHeader title="Recent Visits (last 5)" />
         {recentVisits.length === 0 ? (
-          <SectionCard>
-            <EmptyState icon={Stethoscope} message="No visits on record" />
-          </SectionCard>
+          <EmptyState icon={Stethoscope} message="No visits on record" />
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {recentVisits.map(v => (
-              <div
-                key={v.id}
-                onClick={() => navigate(`/visits/${v.id}`)}
-                style={{
-                  background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)',
-                  borderRadius: 'var(--bb-radius)', padding: '14px 16px',
-                  cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 8,
-                }}
-                onMouseEnter={e => { e.currentTarget.style.boxShadow = 'var(--bb-shadow-sm)' }}
-                onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--bb-text-primary)' }}>{fmtDate(v.visitDate)}</div>
-                    <div style={{ fontSize: 12, color: 'var(--bb-text-secondary)', marginTop: 2 }}>
-                      {v.visitType ?? 'Visit'}{v.provider ? ` · ${v.provider.firstName} ${v.provider.lastName}` : ''}
-                    </div>
-                  </div>
-                  <div style={{ flexShrink: 0 }}>
-                    <StatusBadge status={v.status} />
-                  </div>
-                </div>
-
-                {v.notes && (
-                  <div style={{ fontSize: 12, color: 'var(--bb-text-secondary)', fontStyle: 'italic' }}>
-                    "{v.notes}"
-                  </div>
-                )}
-
-                {v.diagnoses && v.diagnoses.length > 0 && (
-                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                    {v.diagnoses.slice(0, 4).map(d => (
-                      <span key={d.id} style={{
-                        display: 'inline-block', fontSize: 11,
-                        background: 'var(--bb-surface-app)', borderRadius: 4,
-                        padding: '2px 7px',
-                        border: '1px solid var(--bb-border)',
-                        color: 'var(--bb-text-secondary)',
-                        fontFamily: 'monospace',
-                      }}>
-                        {d.code}
-                      </span>
-                    ))}
-                    {v.diagnoses.length > 4 && (
-                      <span style={{ fontSize: 11, color: 'var(--bb-text-secondary)', alignSelf: 'center' }}>
-                        +{v.diagnoses.length - 4} more
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <TH>Date</TH>
+                  <TH>Provider</TH>
+                  <TH>Type</TH>
+                  <TH>Diagnoses</TH>
+                  <TH>Status</TH>
+                  <TH>Charges</TH>
+                </tr>
+              </thead>
+              <tbody>
+                {recentVisits.map(v => (
+                  <tr key={v.id} style={{ cursor: 'pointer' }}>
+                    <TD>{fmtDate(v.visitDate)}</TD>
+                    <TD style={{ color: 'var(--bb-text-secondary)' }}>
+                      {v.provider ? `${v.provider.firstName} ${v.provider.lastName}` : '—'}
+                    </TD>
+                    <TD>{v.visitType ?? '—'}</TD>
+                    <TD style={{ maxWidth: 200 }}>
+                      {v.diagnoses?.slice(0, 2).map(d => (
+                        <span key={d.id} style={{
+                          display: 'inline-block', fontSize: 11,
+                          background: 'var(--bb-surface-app)', borderRadius: 4,
+                          padding: '1px 5px', marginRight: 4, marginBottom: 2,
+                          border: '1px solid var(--bb-border)',
+                        }}>
+                          {d.code}
+                        </span>
+                      ))}
+                      {(v.diagnoses?.length ?? 0) > 2 && (
+                        <span style={{ fontSize: 11, color: 'var(--bb-text-secondary)' }}>+{v.diagnoses.length - 2}</span>
+                      )}
+                    </TD>
+                    <TD><StatusBadge status={v.status} /></TD>
+                    <TD style={{ fontWeight: 500 }}>{fmtCurrency(v.totalCharges)}</TD>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
-      </div>
+      </SectionCard>
+
+      {/* Recent Claims */}
+      <SectionCard>
+        <SectionHeader title="Recent Claims (last 5)" />
+        {recentClaims.length === 0 ? (
+          <EmptyState icon={FileText} message="No claims on record" />
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <TH>Claim #</TH>
+                  <TH>DOS</TH>
+                  <TH>Payer</TH>
+                  <TH>Charges</TH>
+                  <TH>Paid</TH>
+                  <TH>Balance</TH>
+                  <TH>Status</TH>
+                </tr>
+              </thead>
+              <tbody>
+                {recentClaims.map(c => (
+                  <tr key={c.id} style={{ cursor: 'pointer' }}>
+                    <TD style={{ fontFamily: 'monospace', fontSize: 11 }}>{c.claimNumber}</TD>
+                    <TD>{fmtDate(c.dos)}</TD>
+                    <TD style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.payerName}</TD>
+                    <TD>{fmtCurrency(c.totalCharges)}</TD>
+                    <TD style={{ color: 'var(--bb-status-success)' }}>{fmtCurrency(c.totalPaid)}</TD>
+                    <TD style={{ color: c.balance > 0 ? 'var(--bb-status-danger)' : 'var(--bb-text-primary)', fontWeight: 500 }}>
+                      {fmtCurrency(c.balance)}
+                    </TD>
+                    <TD><StatusBadge status={c.status} /></TD>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </SectionCard>
     </div>
   )
 }
@@ -861,37 +416,88 @@ function OverviewTab({ patient, visits, claims, insurance, onNewVisit }: {
 
 function DemographicsTab({ patient }: { patient: Patient }) {
   const queryClient = useQueryClient()
-  const [editMode, setEditMode] = useState(false)
-  const [saved, setSaved] = useState(false)
-
-  const p = patient as PatientFull
   const [form, setForm] = useState({
-    first_name: p.first_name ?? patient.firstName ?? '',
-    middle_name: p.middle_name ?? '',
-    last_name: p.last_name ?? patient.lastName ?? '',
+    first_name: (patient as PatientFull).first_name ?? patient.firstName ?? '',
+    middle_name: (patient as PatientFull).middle_name ?? '',
+    last_name: (patient as PatientFull).last_name ?? patient.lastName ?? '',
     suffix: '',
-    dob: p.dob ?? patient.dateOfBirth ?? '',
-    sex: p.sex ?? patient.gender ?? '',
+    dob: (patient as PatientFull).dob ?? patient.dateOfBirth ?? '',
+    sex: (patient as PatientFull).sex ?? patient.gender ?? '',
     ssn: '',
-    marital_status: p.marital_status ?? '',
-    race: p.race ?? '',
-    ethnicity: p.ethnicity ?? '',
-    preferred_language: p.preferred_language ?? '',
-    gender_identity: p.gender_identity ?? '',
-    account_type: p.account_type ?? 'patient',
+    marital_status: (patient as PatientFull).marital_status ?? '',
+    race: (patient as PatientFull).race ?? '',
+    ethnicity: (patient as PatientFull).ethnicity ?? '',
+    preferred_language: (patient as PatientFull).preferred_language ?? '',
+    gender_identity: (patient as PatientFull).gender_identity ?? '',
+    account_type: (patient as PatientFull).account_type ?? 'patient',
     status: patient.status ?? 'active',
     email: patient.email ?? '',
-    phone_home: p.phone_home ?? '',
-    phone_cell: p.phone_cell ?? '',
-    phone_work: p.phone_work ?? '',
-    address_line1: p.address_line1 ?? patient.address?.line1 ?? '',
-    address_line2: p.address_line2 ?? patient.address?.line2 ?? '',
-    city: p.city ?? patient.address?.city ?? '',
-    state: p.state ?? patient.address?.state ?? '',
-    zip: p.zip ?? patient.address?.zip ?? '',
+    phone_home: (patient as PatientFull).phone_home ?? '',
+    phone_cell: (patient as PatientFull).phone_cell ?? '',
+    phone_work: (patient as PatientFull).phone_work ?? '',
+    address_line1: (patient as PatientFull).address_line1 ?? patient.address?.line1 ?? '',
+    address_line2: (patient as PatientFull).address_line2 ?? patient.address?.line2 ?? '',
+    city: (patient as PatientFull).city ?? patient.address?.city ?? '',
+    state: (patient as PatientFull).state ?? patient.address?.state ?? '',
+    zip: (patient as PatientFull).zip ?? patient.address?.zip ?? '',
     employer_name: '',
     occupation: '',
+    // Identity extras
+    mothers_maiden_last: '',
+    mothers_maiden_first: '',
+    professional_title: '',
+    religion: '',
+    sexual_orientation: '',
+    // Advance Directive
+    advance_directive_type: '',
+    advance_directive_reviewed: '',
+    // Smoking / Tobacco
+    smoking_status: '',
+    smoking_frequency: '',
+    smoking_start_date: '',
+    smoking_end_date: '',
+    other_tobacco: '',
+    other_tobacco_frequency: '',
+    tobacco_start_date: '',
+    tobacco_end_date: '',
+    tobacco_review_date: '',
+    smoking_comments: '',
+    // Emergency Contact
+    ec_name: '',
+    ec_relationship: '',
+    ec_address_line1: '',
+    ec_address_line2: '',
+    ec_city: '',
+    ec_state: '',
+    ec_zip: '',
+    ec_phone_home: '',
+    ec_phone_cell: '',
+    ec_phone_work: '',
+    // Next of Kin
+    nok_name: '',
+    nok_relationship: '',
+    nok_address_line1: '',
+    nok_address_line2: '',
+    nok_city: '',
+    nok_state: '',
+    nok_zip: '',
+    nok_phone_home: '',
+    nok_phone_cell: '',
+    nok_phone_work: '',
+    // User-Defined Fields
+    user_field_1: '',
+    user_field_2: '',
+    user_field_3: '',
+    user_field_4: '',
+    user_field_5: '',
+    user_field_6: '',
+    // Account Status
+    patient_start_date: '',
+    patient_end_date: '',
+    exempt_from_reporting: false as boolean,
+    confidential_health_info: false as boolean,
   })
+  const [saved, setSaved] = useState(false)
 
   const mutation = useMutation({
     mutationFn: (data: Partial<typeof form>) =>
@@ -899,49 +505,48 @@ function DemographicsTab({ patient }: { patient: Patient }) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['patients', patient.id] })
       setSaved(true)
-      setEditMode(false)
       setTimeout(() => setSaved(false), 2500)
     },
   })
 
   const age = calcAge(form.dob)
 
-  function ReadRow({ label, value }: { label: string; value: string }) {
+  function field(label: string, key: keyof typeof form, opts?: { readOnly?: boolean; type?: string }) {
     return (
       <div>
-        <div style={readLabelStyle}>{label}</div>
-        <div style={{ ...readValueStyle, minHeight: 20 }}>{value || '—'}</div>
-      </div>
-    )
-  }
-
-  function EditField(label: string, key: keyof typeof form, opts?: { readOnly?: boolean; type?: string }) {
-    return (
-      <div>
-        <label style={labelStyle}>{label}</label>
+        <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--bb-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>
+          {label}
+        </label>
         <input
           type={opts?.type ?? 'text'}
           value={String(form[key] ?? '')}
           readOnly={opts?.readOnly}
-          onChange={e => setForm(prev => ({ ...prev, [key]: e.target.value }))}
+          onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
           style={{
-            ...inputStyle,
+            height: 32, width: '100%', padding: '0 10px', fontSize: 13,
+            border: '1px solid var(--bb-border)', borderRadius: 6,
             background: opts?.readOnly ? 'var(--bb-surface-app)' : 'var(--bb-surface-card)',
-            color: opts?.readOnly ? 'var(--bb-text-secondary)' : 'var(--bb-text-primary)',
+            color: 'var(--bb-text-primary)', outline: 'none',
           }}
         />
       </div>
     )
   }
 
-  function EditSelect(label: string, key: keyof typeof form, options: { value: string; label: string }[]) {
+  function selectField(label: string, key: keyof typeof form, options: { value: string; label: string }[]) {
     return (
       <div>
-        <label style={labelStyle}>{label}</label>
+        <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--bb-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>
+          {label}
+        </label>
         <select
           value={String(form[key] ?? '')}
-          onChange={e => setForm(prev => ({ ...prev, [key]: e.target.value }))}
-          style={inputStyle}
+          onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+          style={{
+            height: 32, width: '100%', padding: '0 10px', fontSize: 13,
+            border: '1px solid var(--bb-border)', borderRadius: 6,
+            background: 'var(--bb-surface-card)', color: 'var(--bb-text-primary)', outline: 'none',
+          }}
         >
           <option value="">—</option>
           {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -950,59 +555,23 @@ function DemographicsTab({ patient }: { patient: Patient }) {
     )
   }
 
-  const sexLabel = form.sex === 'M' ? 'Male' : form.sex === 'F' ? 'Female' : form.sex || '—'
-  const maritalLabels: Record<string, string> = { single: 'Single', married: 'Married', divorced: 'Divorced', widowed: 'Widowed', separated: 'Separated', other: 'Other' }
-  const raceLabels: Record<string, string> = { white: 'White', black: 'Black / African American', asian: 'Asian', aian: 'American Indian / Alaska Native', nhopi: 'Native Hawaiian / Pacific Islander', other: 'Other', unknown: 'Unknown' }
-  const ethnicityLabels: Record<string, string> = { hispanic: 'Hispanic or Latino', not_hispanic: 'Not Hispanic or Latino', unknown: 'Unknown' }
-  const langLabels: Record<string, string> = { en: 'English', es: 'Spanish', fr: 'French', zh: 'Chinese', vi: 'Vietnamese', other: 'Other' }
-  const genderIdLabels: Record<string, string> = { male: 'Male', female: 'Female', nonbinary: 'Non-binary', transgender_male: 'Transgender Male', transgender_female: 'Transgender Female', other: 'Other', unknown: 'Unknown / Prefer not to say' }
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Header with edit toggle */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 13, color: 'var(--bb-text-secondary)' }}>
-          {editMode ? 'Editing patient demographics' : 'Viewing patient demographics (read-only)'}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {!editMode && (
-            <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />} onClick={() => setEditMode(true)}>
-              Edit Patient
-            </Button>
-          )}
-          {saved && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--bb-status-success)' }}>
-              <CheckCircle size={14} />
-              Saved
-            </span>
-          )}
-        </div>
-      </div>
-
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 900 }}>
       {/* Name section */}
       <SectionCard>
         <SectionHeader title="Name" />
         <div style={{ padding: '14px 16px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr) 120px', gap: 12 }}>
-          {editMode ? (
-            <>
-              {EditField('First Name', 'first_name')}
-              {EditField('Middle Name', 'middle_name')}
-              {EditField('Last Name', 'last_name')}
-              {EditField('Suffix', 'suffix')}
-              <div>
-                <label style={labelStyle}>Account #</label>
-                <input readOnly value={p.account_number ?? ''} style={{ ...inputStyle, background: 'var(--bb-surface-app)', color: 'var(--bb-text-secondary)' }} />
-              </div>
-            </>
-          ) : (
-            <>
-              <ReadRow label="First Name" value={form.first_name} />
-              <ReadRow label="Middle Name" value={form.middle_name} />
-              <ReadRow label="Last Name" value={form.last_name} />
-              <ReadRow label="Suffix" value={form.suffix} />
-              <ReadRow label="Account #" value={p.account_number ?? '—'} />
-            </>
-          )}
+          {field('First Name', 'first_name')}
+          {field('Middle Name', 'middle_name')}
+          {field('Last Name', 'last_name')}
+          {field('Suffix', 'suffix')}
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--bb-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Account #</label>
+            <input
+              readOnly value={(patient as PatientFull).account_number ?? ''}
+              style={{ height: 32, width: '100%', padding: '0 10px', fontSize: 13, border: '1px solid var(--bb-border)', borderRadius: 6, background: 'var(--bb-surface-app)', color: 'var(--bb-text-secondary)', outline: 'none' }}
+            />
+          </div>
         </div>
       </SectionCard>
 
@@ -1010,70 +579,63 @@ function DemographicsTab({ patient }: { patient: Patient }) {
       <SectionCard>
         <SectionHeader title="Identity & Demographics" />
         <div style={{ padding: '14px 16px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-          {editMode ? (
-            <>
-              {EditField('Date of Birth', 'dob', { type: 'date' })}
-              <div>
-                <label style={labelStyle}>Age</label>
-                <input readOnly value={age} style={{ ...inputStyle, background: 'var(--bb-surface-app)', color: 'var(--bb-text-secondary)' }} />
-              </div>
-              {EditSelect('Sex', 'sex', [{ value: 'M', label: 'Male' }, { value: 'F', label: 'Female' }, { value: 'O', label: 'Other' }, { value: 'U', label: 'Unknown' }])}
-              <div>
-                <label style={labelStyle}>SSN (masked)</label>
-                <PHIField value={patient.ssn ?? p.ssn_last_four ?? '***-**-****'} fieldName="SSN" patientId={patient.id} fieldType="ssn" />
-              </div>
-              {EditSelect('Marital Status', 'marital_status', [
-                { value: 'single', label: 'Single' }, { value: 'married', label: 'Married' },
-                { value: 'divorced', label: 'Divorced' }, { value: 'widowed', label: 'Widowed' },
-                { value: 'separated', label: 'Separated' }, { value: 'other', label: 'Other' },
-              ])}
-              {EditSelect('Race', 'race', [
-                { value: 'white', label: 'White' }, { value: 'black', label: 'Black / African American' },
-                { value: 'asian', label: 'Asian' }, { value: 'aian', label: 'American Indian / Alaska Native' },
-                { value: 'nhopi', label: 'Native Hawaiian / Pacific Islander' },
-                { value: 'other', label: 'Other' }, { value: 'unknown', label: 'Unknown' },
-              ])}
-              {EditSelect('Ethnicity', 'ethnicity', [
-                { value: 'hispanic', label: 'Hispanic or Latino' },
-                { value: 'not_hispanic', label: 'Not Hispanic or Latino' },
-                { value: 'unknown', label: 'Unknown' },
-              ])}
-              {EditSelect('Language', 'preferred_language', [
-                { value: 'en', label: 'English' }, { value: 'es', label: 'Spanish' },
-                { value: 'fr', label: 'French' }, { value: 'zh', label: 'Chinese' },
-                { value: 'vi', label: 'Vietnamese' }, { value: 'other', label: 'Other' },
-              ])}
-              {EditSelect('Gender Identity', 'gender_identity', [
-                { value: 'male', label: 'Male' }, { value: 'female', label: 'Female' },
-                { value: 'nonbinary', label: 'Non-binary' }, { value: 'transgender_male', label: 'Transgender Male' },
-                { value: 'transgender_female', label: 'Transgender Female' },
-                { value: 'other', label: 'Other' }, { value: 'unknown', label: 'Unknown / Prefer not to say' },
-              ])}
-              {EditSelect('Account Type', 'account_type', [
-                { value: 'patient', label: 'Patient' }, { value: 'guarantor', label: 'Guarantor' }, { value: 'dependent', label: 'Dependent' },
-              ])}
-              {EditSelect('Status', 'status', [
-                { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }, { value: 'archived', label: 'Archived' },
-              ])}
-            </>
-          ) : (
-            <>
-              <ReadRow label="Date of Birth" value={fmtDate(form.dob)} />
-              <ReadRow label="Age" value={age} />
-              <ReadRow label="Sex" value={sexLabel} />
-              <div>
-                <div style={readLabelStyle}>SSN (masked)</div>
-                <PHIField value={patient.ssn ?? p.ssn_last_four ?? '***-**-****'} fieldName="SSN" patientId={patient.id} fieldType="ssn" />
-              </div>
-              <ReadRow label="Marital Status" value={maritalLabels[form.marital_status] ?? form.marital_status} />
-              <ReadRow label="Race" value={raceLabels[form.race] ?? form.race} />
-              <ReadRow label="Ethnicity" value={ethnicityLabels[form.ethnicity] ?? form.ethnicity} />
-              <ReadRow label="Language" value={langLabels[form.preferred_language] ?? form.preferred_language} />
-              <ReadRow label="Gender Identity" value={genderIdLabels[form.gender_identity] ?? form.gender_identity} />
-              <ReadRow label="Account Type" value={form.account_type} />
-              <ReadRow label="Status" value={form.status} />
-            </>
-          )}
+          {field('Date of Birth', 'dob', { type: 'date' })}
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--bb-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Age</label>
+            <input readOnly value={age} style={{ height: 32, width: '100%', padding: '0 10px', fontSize: 13, border: '1px solid var(--bb-border)', borderRadius: 6, background: 'var(--bb-surface-app)', color: 'var(--bb-text-secondary)', outline: 'none' }} />
+          </div>
+          {selectField('Sex', 'sex', [{ value: 'M', label: 'Male' }, { value: 'F', label: 'Female' }, { value: 'O', label: 'Other' }, { value: 'U', label: 'Unknown' }])}
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--bb-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>SSN (masked)</label>
+            <PHIField value={patient.ssn ?? (patient as PatientFull).ssn_last_four ?? '***-**-****'} fieldName="SSN" patientId={patient.id} fieldType="ssn" />
+          </div>
+          {selectField('Marital Status', 'marital_status', [
+            { value: 'single', label: 'Single' }, { value: 'married', label: 'Married' },
+            { value: 'divorced', label: 'Divorced' }, { value: 'widowed', label: 'Widowed' },
+            { value: 'separated', label: 'Separated' }, { value: 'other', label: 'Other' },
+          ])}
+          {selectField('Race', 'race', [
+            { value: 'white', label: 'White' }, { value: 'black', label: 'Black / African American' },
+            { value: 'asian', label: 'Asian' }, { value: 'aian', label: 'American Indian / Alaska Native' },
+            { value: 'nhopi', label: 'Native Hawaiian / Pacific Islander' },
+            { value: 'other', label: 'Other' }, { value: 'unknown', label: 'Unknown' },
+          ])}
+          {selectField('Ethnicity', 'ethnicity', [
+            { value: 'hispanic', label: 'Hispanic or Latino' },
+            { value: 'not_hispanic', label: 'Not Hispanic or Latino' },
+            { value: 'unknown', label: 'Unknown' },
+          ])}
+          {selectField('Language', 'preferred_language', [
+            { value: 'en', label: 'English' }, { value: 'es', label: 'Spanish' },
+            { value: 'fr', label: 'French' }, { value: 'zh', label: 'Chinese' },
+            { value: 'vi', label: 'Vietnamese' }, { value: 'other', label: 'Other' },
+          ])}
+          {selectField('Gender Identity', 'gender_identity', [
+            { value: 'male', label: 'Male' }, { value: 'female', label: 'Female' },
+            { value: 'nonbinary', label: 'Non-binary' }, { value: 'transgender_male', label: 'Transgender Male' },
+            { value: 'transgender_female', label: 'Transgender Female' },
+            { value: 'other', label: 'Other' }, { value: 'unknown', label: 'Unknown / Prefer not to say' },
+          ])}
+          {selectField('Account Type', 'account_type', [
+            { value: 'patient', label: 'Patient' }, { value: 'guarantor', label: 'Guarantor' }, { value: 'dependent', label: 'Dependent' },
+          ])}
+          {selectField('Status', 'status', [
+            { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }, { value: 'archived', label: 'Archived' },
+          ])}
+          {/* Mother's Maiden Name — side by side in a 2-col span */}
+          <div style={{ gridColumn: 'span 2', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {field("Mother's Maiden Last", 'mothers_maiden_last')}
+            {field("Mother's Maiden First", 'mothers_maiden_first')}
+          </div>
+          {field('Professional Title', 'professional_title')}
+          {field('Religion', 'religion')}
+          {selectField('Sexual Orientation', 'sexual_orientation', [
+            { value: 'straight', label: 'Straight' },
+            { value: 'gay_lesbian', label: 'Gay or Lesbian' },
+            { value: 'bisexual', label: 'Bisexual' },
+            { value: 'prefer_not', label: 'Prefer not to say' },
+            { value: 'unknown', label: 'Unknown' },
+          ])}
         </div>
       </SectionCard>
 
@@ -1081,31 +643,15 @@ function DemographicsTab({ patient }: { patient: Patient }) {
       <SectionCard>
         <SectionHeader title="Contact Information" />
         <div style={{ padding: '14px 16px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-          {editMode ? (
-            <>
-              {EditField('Email', 'email', { type: 'email' })}
-              {EditField('Home Phone', 'phone_home', { type: 'tel' })}
-              {EditField('Cell Phone', 'phone_cell', { type: 'tel' })}
-              {EditField('Work Phone', 'phone_work', { type: 'tel' })}
-              {EditField('Address Line 1', 'address_line1')}
-              {EditField('Address Line 2', 'address_line2')}
-              {EditField('City', 'city')}
-              {EditField('State', 'state')}
-              {EditField('ZIP', 'zip')}
-            </>
-          ) : (
-            <>
-              <ReadRow label="Email" value={form.email} />
-              <ReadRow label="Home Phone" value={form.phone_home} />
-              <ReadRow label="Cell Phone" value={form.phone_cell} />
-              <ReadRow label="Work Phone" value={form.phone_work} />
-              <ReadRow label="Address Line 1" value={form.address_line1} />
-              <ReadRow label="Address Line 2" value={form.address_line2} />
-              <ReadRow label="City" value={form.city} />
-              <ReadRow label="State" value={form.state} />
-              <ReadRow label="ZIP" value={form.zip} />
-            </>
-          )}
+          {field('Email', 'email', { type: 'email' })}
+          {field('Home Phone', 'phone_home', { type: 'tel' })}
+          {field('Cell Phone', 'phone_cell', { type: 'tel' })}
+          {field('Work Phone', 'phone_work', { type: 'tel' })}
+          {field('Address Line 1', 'address_line1')}
+          {field('Address Line 2', 'address_line2')}
+          {field('City', 'city')}
+          {field('State', 'state')}
+          {field('ZIP', 'zip')}
         </div>
       </SectionCard>
 
@@ -1113,45 +659,179 @@ function DemographicsTab({ patient }: { patient: Patient }) {
       <SectionCard>
         <SectionHeader title="Employment" />
         <div style={{ padding: '14px 16px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-          {editMode ? (
-            <>
-              {EditField('Employer Name', 'employer_name')}
-              {EditField('Occupation', 'occupation')}
-              {EditField('Work Phone', 'phone_work', { type: 'tel' })}
-            </>
-          ) : (
-            <>
-              <ReadRow label="Employer Name" value={form.employer_name} />
-              <ReadRow label="Occupation" value={form.occupation} />
-              <ReadRow label="Work Phone" value={form.phone_work} />
-            </>
-          )}
+          {field('Employer Name', 'employer_name')}
+          {field('Occupation', 'occupation')}
+          {field('Work Phone', 'phone_work', { type: 'tel' })}
         </div>
       </SectionCard>
 
-      {/* Save / Cancel — only shown in edit mode */}
-      {editMode && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Button
-            variant="primary"
-            size="sm"
-            loading={mutation.isPending}
-            onClick={() => mutation.mutate(form)}
-          >
-            Save Demographics
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setEditMode(false)}
-          >
-            Cancel
-          </Button>
-          {mutation.isError && (
-            <span style={{ fontSize: 13, color: 'var(--bb-status-danger)' }}>Save failed. Please try again.</span>
-          )}
+      {/* Advance Directive */}
+      <SectionCard>
+        <SectionHeader title="Advance Directive" />
+        <div style={{ padding: '14px 16px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+          {selectField('Advance Directive Type', 'advance_directive_type', [
+            { value: 'none', label: 'No Advance Directive' },
+            { value: 'living_will', label: 'Living Will' },
+            { value: 'healthcare_proxy', label: 'Healthcare Proxy' },
+            { value: 'polst', label: 'POLST' },
+            { value: 'dnr', label: 'DNR' },
+            { value: 'other', label: 'Other' },
+          ])}
+          {field('Advance Directive Reviewed', 'advance_directive_reviewed', { type: 'date' })}
         </div>
-      )}
+      </SectionCard>
+
+      {/* Smoking / Tobacco History */}
+      <SectionCard>
+        <SectionHeader title="Smoking / Tobacco History" />
+        <div style={{ padding: '14px 16px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+          {selectField('Smoking (MU)', 'smoking_status', [
+            { value: 'never', label: 'Never' },
+            { value: 'current_every_day', label: 'Current Every Day' },
+            { value: 'current_some_day', label: 'Current Some Day' },
+            { value: 'former', label: 'Former' },
+          ])}
+          {field('Frequency', 'smoking_frequency')}
+          {field('Smoking Start Date', 'smoking_start_date', { type: 'date' })}
+          {field('Smoking End Date', 'smoking_end_date', { type: 'date' })}
+          {selectField('Other Tobacco', 'other_tobacco', [
+            { value: 'none', label: 'None' },
+            { value: 'chewing', label: 'Chewing Tobacco' },
+            { value: 'cigars', label: 'Cigars' },
+            { value: 'pipe', label: 'Pipe' },
+            { value: 'other', label: 'Other' },
+          ])}
+          {field('Other Tobacco Frequency', 'other_tobacco_frequency')}
+          {field('Tobacco Start Date', 'tobacco_start_date', { type: 'date' })}
+          {field('Tobacco End Date', 'tobacco_end_date', { type: 'date' })}
+          {field('Last Tobacco Use Review Date', 'tobacco_review_date', { type: 'date' })}
+          <div style={{ gridColumn: 'span 4' }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--bb-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>
+              Smoking Comments
+            </label>
+            <textarea
+              value={form.smoking_comments}
+              onChange={e => setForm(p => ({ ...p, smoking_comments: e.target.value }))}
+              rows={3}
+              style={{
+                width: '100%', padding: '8px 10px', fontSize: 13, boxSizing: 'border-box',
+                border: '1px solid var(--bb-border)', borderRadius: 6,
+                background: 'var(--bb-surface-card)', color: 'var(--bb-text-primary)',
+                outline: 'none', resize: 'vertical', fontFamily: 'inherit',
+              }}
+            />
+          </div>
+        </div>
+      </SectionCard>
+
+      {/* Emergency Contact */}
+      <SectionCard>
+        <SectionHeader title="Emergency Contact" />
+        <div style={{ padding: '14px 16px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+          {field('Contact Name', 'ec_name')}
+          {selectField('Relationship To Patient', 'ec_relationship', [
+            { value: 'spouse', label: 'Spouse' }, { value: 'parent', label: 'Parent' },
+            { value: 'child', label: 'Child' }, { value: 'sibling', label: 'Sibling' },
+            { value: 'friend', label: 'Friend' }, { value: 'other', label: 'Other' },
+          ])}
+          {field('Address Line 1', 'ec_address_line1')}
+          {field('Address Line 2', 'ec_address_line2')}
+          {field('City', 'ec_city')}
+          {field('State', 'ec_state')}
+          {field('ZIP', 'ec_zip')}
+          {field('Home Phone', 'ec_phone_home', { type: 'tel' })}
+          {field('Cell Phone', 'ec_phone_cell', { type: 'tel' })}
+          {field('Work Phone', 'ec_phone_work', { type: 'tel' })}
+        </div>
+      </SectionCard>
+
+      {/* Next of Kin */}
+      <SectionCard>
+        <SectionHeader title="Next of Kin" />
+        <div style={{ padding: '14px 16px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+          {field('Contact Name', 'nok_name')}
+          {selectField('Relationship To Patient', 'nok_relationship', [
+            { value: 'spouse', label: 'Spouse' }, { value: 'parent', label: 'Parent' },
+            { value: 'child', label: 'Child' }, { value: 'sibling', label: 'Sibling' },
+            { value: 'friend', label: 'Friend' }, { value: 'other', label: 'Other' },
+          ])}
+          {field('Address Line 1', 'nok_address_line1')}
+          {field('Address Line 2', 'nok_address_line2')}
+          {field('City', 'nok_city')}
+          {field('State', 'nok_state')}
+          {field('ZIP', 'nok_zip')}
+          {field('Home Phone', 'nok_phone_home', { type: 'tel' })}
+          {field('Cell Phone', 'nok_phone_cell', { type: 'tel' })}
+          {field('Work Phone', 'nok_phone_work', { type: 'tel' })}
+        </div>
+      </SectionCard>
+
+      {/* User-Defined Fields */}
+      <SectionCard>
+        <SectionHeader title="User-Defined Fields" />
+        <div style={{ padding: '14px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {field('Field 1', 'user_field_1')}
+          {field('Field 2', 'user_field_2')}
+          {field('Field 3', 'user_field_3')}
+          {field('Field 4', 'user_field_4')}
+          {field('Field 5', 'user_field_5')}
+          {field('Field 6', 'user_field_6')}
+        </div>
+      </SectionCard>
+
+      {/* Account Status */}
+      <SectionCard>
+        <SectionHeader title="Account Status" />
+        <div style={{ padding: '14px 16px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+          {field('Patient Start Date', 'patient_start_date', { type: 'date' })}
+          {field('Patient End Date', 'patient_end_date', { type: 'date' })}
+          <div style={{ gridColumn: 'span 4', display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={!!form.exempt_from_reporting}
+                onChange={e => setForm(p => ({ ...p, exempt_from_reporting: e.target.checked }))}
+                style={{ width: 15, height: 15, accentColor: 'var(--bb-brand-blue)', cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: 13, color: 'var(--bb-text-primary)' }}>
+                This patient is exempt from all reporting functions
+              </span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={!!form.confidential_health_info}
+                onChange={e => setForm(p => ({ ...p, confidential_health_info: e.target.checked }))}
+                style={{ width: 15, height: 15, accentColor: 'var(--bb-brand-blue)', cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: 13, color: 'var(--bb-text-primary)' }}>
+                This patient's health information is confidential
+              </span>
+            </label>
+          </div>
+        </div>
+      </SectionCard>
+
+      {/* Save */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <Button
+          variant="primary"
+          size="sm"
+          loading={mutation.isPending}
+          onClick={() => mutation.mutate(form)}
+        >
+          Save Demographics
+        </Button>
+        {saved && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--bb-status-success)' }}>
+            <CheckCircle size={14} />
+            Saved
+          </span>
+        )}
+        {mutation.isError && (
+          <span style={{ fontSize: 13, color: 'var(--bb-status-danger)' }}>Save failed. Please try again.</span>
+        )}
+      </div>
     </div>
   )
 }
@@ -1170,7 +850,7 @@ function InsuranceTab({ patientId, insurance, refetch: _refetch }: {
     setCheckingId(insId)
     try {
       const res = await apiPost<Record<string, unknown>>(`/api/v1/patients/${patientId}/eligibility-check`)
-      setEligibilityResults(prev => ({ ...prev, [insId]: res }))
+      setEligibilityResults(p => ({ ...p, [insId]: res }))
     } catch {
       // silently fail for demo
     } finally {
@@ -1200,6 +880,7 @@ function InsuranceTab({ patientId, insurance, refetch: _refetch }: {
         return (
           <SectionCard key={ins.id}>
             <div style={{ padding: '14px 16px' }}>
+              {/* Header row */}
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <Badge variant={priorityVariant(ins.priority)}>{priorityLabel(ins.priority)}</Badge>
@@ -1224,6 +905,7 @@ function InsuranceTab({ patientId, insurance, refetch: _refetch }: {
                 </div>
               </div>
 
+              {/* Details grid */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
                 <InfoCell label="Member ID" value={ins.subscriber_id ?? '—'} mono />
                 <InfoCell label="Group Number" value={ins.group_number ?? '—'} mono />
@@ -1239,6 +921,7 @@ function InsuranceTab({ patientId, insurance, refetch: _refetch }: {
                 <InfoCell label="Auth Visits" value={ins.auth_visits != null ? `${ins.auth_visits_used} / ${ins.auth_visits} used` : '—'} />
               </div>
 
+              {/* Eligibility result */}
               {eligResult && (
                 <div style={{
                   marginTop: 12, padding: '10px 14px', borderRadius: 6,
@@ -1269,13 +952,22 @@ function InsuranceTab({ patientId, insurance, refetch: _refetch }: {
   )
 }
 
+function InfoCell({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div>
+      <span style={{ display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--bb-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
+        {label}
+      </span>
+      <span style={{ fontSize: 13, color: 'var(--bb-text-primary)', fontFamily: mono ? 'monospace' : 'inherit' }}>
+        {value}
+      </span>
+    </div>
+  )
+}
+
 // ─── Visits Tab ───────────────────────────────────────────────────────────────
 
-function VisitsTab({ patientId: _patientId, visits, onNewVisit }: {
-  patientId: string
-  visits: Visit[]
-  onNewVisit: () => void
-}) {
+function VisitsTab({ patientId, visits }: { patientId: string; visits: Visit[] }) {
   const navigate = useNavigate()
   const [filter, setFilter] = useState('all')
 
@@ -1303,7 +995,7 @@ function VisitsTab({ patientId: _patientId, visits, onNewVisit }: {
         <Button
           size="sm" variant="primary"
           leftIcon={<Plus size={13} />}
-          onClick={onNewVisit}
+          onClick={() => navigate(`/visits/new?patient=${patientId}`)}
         >
           New Visit
         </Button>
@@ -1576,6 +1268,7 @@ function NotesTab({ patientId, activity }: { patientId: string; activity: Activi
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Add note */}
       <SectionCard>
         <SectionHeader title="Add Note" />
         <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1600,12 +1293,14 @@ function NotesTab({ patientId, activity }: { patientId: string; activity: Activi
         </div>
       </SectionCard>
 
+      {/* Timeline */}
       <SectionCard>
         <SectionHeader title="Activity Timeline" />
         {activity.length === 0 ? (
           <EmptyState icon={Activity} message="No activity recorded yet" />
         ) : (
           <div style={{ padding: '16px', position: 'relative' }}>
+            {/* Vertical line */}
             <div style={{
               position: 'absolute', left: 28, top: 16, bottom: 16,
               width: 2, background: 'var(--bb-border)',
@@ -1616,6 +1311,7 @@ function NotesTab({ patientId, activity }: { patientId: string; activity: Activi
                   display: 'flex', gap: 16, paddingBottom: idx < activity.length - 1 ? 20 : 0,
                   position: 'relative',
                 }}>
+                  {/* Icon circle */}
                   <div style={{
                     width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
                     background: 'var(--bb-surface-card)', border: '2px solid var(--bb-border)',
@@ -1684,9 +1380,7 @@ interface PatientFull extends Patient {
 export function PatientDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const { data: patient, isLoading } = usePatient(id ?? '')
-  const [showNewVisitModal, setShowNewVisitModal] = useState(false)
 
   const { data: visits = [] } = useQuery<Visit[]>({
     queryKey: ['patient-visits', id],
@@ -1718,10 +1412,6 @@ export function PatientDetailPage() {
     enabled: !!id,
   })
 
-  function handleVisitSaved() {
-    void queryClient.invalidateQueries({ queryKey: ['patient-visits', id] })
-  }
-
   if (isLoading) {
     return (
       <div style={{ padding: 24 }}>
@@ -1751,21 +1441,14 @@ export function PatientDetailPage() {
   const dob = p.dob ?? p.dateOfBirth
   const age = calcAge(dob)
 
+  const totalCharges = claims.reduce((s, c) => s + (c.totalCharges ?? 0), 0)
+  const totalPaid = claims.reduce((s, c) => s + (c.totalPaid ?? 0), 0)
+  const balance = claims.reduce((s, c) => s + (c.balance ?? 0), 0)
   const openClaims = claims.filter(c => !['paid', 'void', 'denied'].includes(c.status)).length
   const lastVisit = visits[0]?.visitDate
 
   return (
     <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* New Visit Modal */}
-      {showNewVisitModal && (
-        <NewVisitModal
-          patientId={id ?? ''}
-          patientName={fullName}
-          onClose={() => setShowNewVisitModal(false)}
-          onSaved={handleVisitSaved}
-        />
-      )}
-
       {/* Back nav */}
       <button
         onClick={() => navigate('/patients')}
@@ -1812,6 +1495,7 @@ export function PatientDetailPage() {
               </div>
             </div>
           </div>
+          {/* Action buttons */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>
               Edit Patient
@@ -1825,17 +1509,14 @@ export function PatientDetailPage() {
           </div>
         </div>
 
-        {/* 3-stat strip */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+        {/* KPI row */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
           {[
-            { label: 'Last Visit', value: lastVisit ? fmtDate(lastVisit) : '—' },
+            { label: 'Total Charges', value: fmtCurrency(totalCharges) },
+            { label: 'Total Paid', value: fmtCurrency(totalPaid) },
+            { label: 'Balance Due', value: fmtCurrency(balance) },
             { label: 'Open Claims', value: String(openClaims) },
-            {
-              label: 'Active Insurance',
-              value: insurance.filter(i => i.is_active).length > 0
-                ? insurance.filter(i => i.is_active).map(i => i.payer_name ?? 'Insurance').join(', ')
-                : '—',
-            },
+            { label: 'Last Visit', value: lastVisit ? fmtDate(lastVisit) : '—' },
           ].map(kpi => (
             <div key={kpi.label} style={{
               background: 'var(--bb-surface-app)', borderRadius: 8, padding: '10px 14px',
@@ -1844,15 +1525,13 @@ export function PatientDetailPage() {
               <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--bb-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
                 {kpi.label}
               </div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--bb-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {kpi.value}
-              </div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--bb-text-primary)' }}>{kpi.value}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Tabs — Body Map tab removed; body map is now in the Overview */}
+      {/* Tabs */}
       <Tabs defaultTab="overview">
         <TabList>
           <Tab id="overview">Overview</Tab>
@@ -1861,17 +1540,12 @@ export function PatientDetailPage() {
           <Tab id="visits">Visits{visits.length > 0 ? ` (${visits.length})` : ''}</Tab>
           <Tab id="claims">Claims{claims.length > 0 ? ` (${claims.length})` : ''}</Tab>
           <Tab id="payments">Payments{payments.length > 0 ? ` (${payments.length})` : ''}</Tab>
+          <Tab id="bodymap">Body Map</Tab>
           <Tab id="notes">Notes & Activity</Tab>
         </TabList>
 
         <TabPanel id="overview" className="pt-4">
-          <OverviewTab
-            patient={patient}
-            visits={visits}
-            claims={claims}
-            insurance={insurance}
-            onNewVisit={() => setShowNewVisitModal(true)}
-          />
+          <OverviewTab patient={patient} visits={visits} claims={claims} insurance={insurance} />
         </TabPanel>
 
         <TabPanel id="demographics" className="pt-4">
@@ -1883,7 +1557,7 @@ export function PatientDetailPage() {
         </TabPanel>
 
         <TabPanel id="visits" className="pt-4">
-          <VisitsTab patientId={id ?? ''} visits={visits} onNewVisit={() => setShowNewVisitModal(true)} />
+          <VisitsTab patientId={id ?? ''} visits={visits} />
         </TabPanel>
 
         <TabPanel id="claims" className="pt-4">
@@ -1892,6 +1566,10 @@ export function PatientDetailPage() {
 
         <TabPanel id="payments" className="pt-4">
           <PaymentsTab payments={payments} />
+        </TabPanel>
+
+        <TabPanel id="bodymap" className="pt-4">
+          <BodyMap patientId={id ?? ''} />
         </TabPanel>
 
         <TabPanel id="notes" className="pt-4">
