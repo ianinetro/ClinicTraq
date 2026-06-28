@@ -12,43 +12,6 @@ import { apiClient as api } from '../../services/api'
 const TABS = ['Demographics', 'Insurance', 'Body Map', 'Visits', 'Claims', 'Balance'] as const
 type Tab = typeof TABS[number]
 
-const MOCK_PATIENT = {
-  id: 'p-001', mrn: 'MRN-001234',
-  firstName: 'Mary', lastName: 'Johnson',
-  dob: '1975-03-12', gender: 'Female', sex: 'female' as BodySex,
-  phone: '(555) 234-5678', email: 'mary.j@example.com',
-  address: '123 Main St, Springfield, IL 62701',
-  ssn: '***-**-1234', status: 'active',
-  emergencyContact: { name: 'Tom Johnson', phone: '(555) 234-9999', relationship: 'Spouse' },
-  primaryInsurance: {
-    payer: 'BlueCross PPO', memberId: 'BC123456', groupNumber: 'GRP-001',
-    effectiveDate: '2024-01-01', planType: 'PPO', copay: '$25', deductible: '$1,500', deductibleMet: '$820',
-  },
-  secondaryInsurance: null,
-  balance: 125.00,
-  lastVisit: '2026-06-26',
-  annotations: [] as BodyAnnotation[],
-}
-
-const MOCK_VISITS = [
-  { id: 'v-1', date: '2026-06-26', provider: 'Dr. Smith', cpt: '99213, 85025', dx: 'Z00.00', status: 'Completed', billed: 185.00 },
-  { id: 'v-2', date: '2026-03-10', provider: 'Dr. Smith', cpt: '99213', dx: 'J06.9', status: 'Completed', billed: 145.00 },
-  { id: 'v-3', date: '2025-11-04', provider: 'Dr. Johnson', cpt: '99212', dx: 'M54.5', status: 'Completed', billed: 120.00 },
-]
-
-const MOCK_CLAIMS = [
-  { id: 'c-1', claimId: 'A10042', dos: '2026-06-26', payer: 'BlueCross PPO', billed: 185.00, paid: 148.00, status: 'Paid' },
-  { id: 'c-2', claimId: 'A09887', dos: '2026-03-10', payer: 'BlueCross PPO', billed: 145.00, paid: 116.00, status: 'Paid' },
-]
-
-const MOCK_LEDGER = [
-  { date: '2026-06-26', desc: 'Charge — Office Visit', charge: 185.00, payment: 0, balance: 185.00 },
-  { date: '2026-06-28', desc: 'Payment — BlueCross PPO', charge: 0, payment: -148.00, balance: 37.00 },
-  { date: '2026-06-28', desc: 'Adjustment — Contractual', charge: 0, payment: -12.00, balance: 25.00 },
-  { date: '2026-03-15', desc: 'Payment — BlueCross PPO', charge: 0, payment: -116.00, balance: 25.00 },
-  { date: '2026-03-15', desc: 'Patient balance forward', charge: 100.00, payment: 0, balance: 125.00 },
-]
-
 function InfoRow({ label, value, phi }: { label: string; value?: string; phi?: boolean }) {
   return (
     <div>
@@ -64,17 +27,34 @@ export function PatientDetailPage() {
   const [activeTab, setActiveTab] = useState<Tab>('Demographics')
   const [annotations, setAnnotations] = useState<BodyAnnotation[]>([])
 
-  const { data: patient = MOCK_PATIENT } = useQuery({
+  const { data: patient, isLoading, isError } = useQuery({
     queryKey: ['patients', id],
-    queryFn: async () => {
-      try { return (await api.get(`/patients/${id}`)).data }
-      catch { return { ...MOCK_PATIENT, id } }
-    },
+    queryFn: async () => (await api.get(`/patients/${id}`)).data,
     enabled: !!id,
   })
 
-  const sex: BodySex = (patient.gender?.toLowerCase() === 'female' || patient.sex === 'female') ? 'female' : 'male'
+  const { data: patientVisits = [] } = useQuery({
+    queryKey: ['patients', id, 'visits'],
+    queryFn: async () => (await api.get(`/patients/${id}/visits`)).data?.items ?? [],
+    enabled: !!id,
+  })
 
+  const { data: patientClaims = [] } = useQuery({
+    queryKey: ['patients', id, 'claims'],
+    queryFn: async () => (await api.get(`/patients/${id}/claims`)).data?.items ?? [],
+    enabled: !!id,
+  })
+
+  const { data: ledger = [] } = useQuery({
+    queryKey: ['patients', id, 'ledger'],
+    queryFn: async () => (await api.get(`/patients/${id}/ledger`)).data?.items ?? [],
+    enabled: !!id,
+  })
+
+  if (isLoading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--bb-text-secondary)' }}>Loading patient…</div>
+  if (isError || !patient) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--bb-status-danger)' }}>Failed to load patient. Check API connection.</div>
+
+  const sex: BodySex = (patient.gender?.toLowerCase() === 'female' || patient.sex === 'female') ? 'female' : 'male'
   const statusVariant = patient.status === 'active' ? 'success' : 'default'
 
   return (
@@ -267,7 +247,7 @@ export function PatientDetailPage() {
         {activeTab === 'Visits' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <span style={{ fontSize: 13, color: '#676687' }}>{MOCK_VISITS.length} visits on record</span>
+              <span style={{ fontSize: 13, color: '#676687' }}>{patientVisits.length} visits on record</span>
               <button onClick={() => navigate('/visits/new')} style={{
                 height: 32, padding: '0 14px', background: '#0410BD', color: 'white',
                 border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer',
@@ -283,7 +263,7 @@ export function PatientDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {MOCK_VISITS.map(v => (
+                {patientVisits.map((v: { id: string; date: string; provider: string; cpt: string; dx: string; status: string; billed: number }) => (
                   <tr key={v.id} style={{ borderBottom: '1px solid #F2F2F8', cursor: 'pointer' }}
                     onClick={() => navigate(`/visits/${v.id}`)}
                     onMouseEnter={e => (e.currentTarget.style.background = '#F2F2F8')}
@@ -312,7 +292,7 @@ export function PatientDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {MOCK_CLAIMS.map(c => (
+                {patientClaims.map((c: { id: string; claimId: string; dos: string; payer: string; billed: number; paid: number; status: string }) => (
                   <tr key={c.id} style={{ borderBottom: '1px solid #F2F2F8', cursor: 'pointer' }}
                     onClick={() => navigate(`/claims/${c.id}`)}
                     onMouseEnter={e => (e.currentTarget.style.background = '#F2F2F8')}
@@ -353,7 +333,7 @@ export function PatientDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {MOCK_LEDGER.map((row, i) => (
+                {ledger.map((row: { date: string; desc: string; charge: number; payment: number; balance: number }, i: number) => (
                   <tr key={i} style={{ borderBottom: '1px solid #F2F2F8' }}>
                     <td style={{ padding: '10px 12px', color: '#676687' }}>{row.date}</td>
                     <td style={{ padding: '10px 12px' }}>{row.desc}</td>

@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Send, RotateCcw, AlertCircle, CheckCircle2, FileText, ChevronDown, ChevronUp, Download, ShieldAlert, MessageSquare } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
+import { apiClient as api } from '../../services/api'
 
 type ClaimStatus = 'Draft' | 'Pending' | 'Submitted' | 'Denied' | 'Paid' | 'Partial'
 
@@ -28,42 +30,6 @@ interface ClaimData {
   submissionHistory: { date: string; event: string; note: string; status: string }[]
 }
 
-const MOCK: ClaimData = {
-  claimId: 'A10044', status: 'Denied',
-  patient: { name: 'Davis, Susan', dob: '1964-11-05', mrn: 'MRN-001236', memberId: 'UHC98765432', groupNumber: 'GRP-10044', sex: 'Female' },
-  payer: { name: 'United Healthcare', payerId: 'UHC000', planType: 'PPO', phone: '1-800-555-0123' },
-  provider: { name: 'Dr. Jennifer Smith', npi: '1234567890', taxonomy: '207Q00000X', tin: '**-***8901' },
-  facility: { name: 'Springfield Medical Group', npi: '0987654321', posCode: '11', address: '456 Medical Drive, Springfield, IL 62701' },
-  diagnoses: [
-    { icd10: 'M54.5', description: 'Low back pain', pointer: 'A' },
-    { icd10: 'M79.3', description: 'Panniculitis', pointer: 'B' },
-  ],
-  serviceLines: [
-    { cpt: '99214', mods: '', dos: '2026-06-24', units: 1, billed: 200.00, allowed: 160.00, paid: 0, adjustment: 40.00, adjReason: 'CO-45: Exceeds fee schedule' },
-    { cpt: '97110', mods: 'GP', dos: '2026-06-24', units: 2, billed: 50.00, allowed: 40.00, paid: 0, adjustment: 10.00, adjReason: 'CO-45: Exceeds fee schedule' },
-  ],
-  submitDate: '2026-06-25',
-  payerControlNumber: 'UCH20260625-4421',
-  checkNumber: '',
-  checkDate: '',
-  totalBilled: 250.00,
-  totalPaid: 0,
-  totalBalance: 250.00,
-  denialReason: 'CO-45: Charges exceed the fee schedule/maximum allowable or contracted rate',
-  validationIssues: [
-    { severity: 'warning', code: 'NCCI_EDIT', message: 'NCCI edit: 97110 may bundle with 99214 — ensure modifier GP is documented' },
-    { severity: 'info', code: 'TFL_APPROACHING', message: 'Timely filing limit approaching — 45 days remaining' },
-  ],
-  denials: [
-    { id: '1', carc_code: 'CO-45', rarc_code: 'M15', denial_reason: 'Charge exceeds fee schedule/maximum allowable', appeal_status: 'draft', appeal_due_date: '2026-09-25', denied_amount: 250.00 },
-  ],
-  submissionHistory: [
-    { date: '2026-06-25 09:14', event: 'Submitted', note: 'EDI 837 sent to clearinghouse', status: 'info' },
-    { date: '2026-06-25 11:02', event: 'Acknowledged', note: 'Clearinghouse accepted — 999 functional ACK', status: 'info' },
-    { date: '2026-06-26 14:33', event: 'Denied', note: 'CO-45 on all service lines', status: 'danger' },
-  ],
-}
-
 const statusVariant = (s: string): 'success' | 'warning' | 'danger' | 'info' | 'default' => {
   if (s === 'Paid') return 'success'
   if (s === 'Denied') return 'danger'
@@ -74,11 +40,28 @@ const statusVariant = (s: string): 'success' | 'warning' | 'danger' | 'info' | '
 
 type Section = 'overview' | 'diagnoses' | 'lines' | 'validation' | 'denials' | 'provider' | 'history'
 
+const EMPTY_CLAIM: ClaimData = {
+  claimId: '', status: 'Draft',
+  patient: { name: '', dob: '', mrn: '', memberId: '', groupNumber: '', sex: '' },
+  payer: { name: '', payerId: '', planType: '', phone: '' },
+  provider: { name: '', npi: '', taxonomy: '', tin: '' },
+  facility: { name: '', npi: '', posCode: '', address: '' },
+  diagnoses: [], serviceLines: [],
+  submitDate: '', payerControlNumber: '', checkNumber: '', checkDate: '',
+  totalBilled: 0, totalPaid: 0, totalBalance: 0,
+  validationIssues: [], denials: [], submissionHistory: [],
+}
+
 export function ClaimDetailPage() {
-  useParams<{ id: string }>()
+  const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const claim = MOCK
   const [openSection, setOpenSection] = useState<Section | null>('lines')
+
+  const { data: claim = EMPTY_CLAIM, isLoading, isError } = useQuery<ClaimData>({
+    queryKey: ['claims', id],
+    queryFn: async () => (await api.get(`/claims/${id}`)).data,
+    enabled: !!id,
+  })
 
   const toggle = (s: Section) => setOpenSection(prev => prev === s ? null : s)
 
@@ -96,6 +79,9 @@ export function ClaimDetailPage() {
       {openSection === section ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
     </button>
   )
+
+  if (isLoading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--bb-text-secondary)' }}>Loading claim…</div>
+  if (isError) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--bb-status-danger)' }}>Failed to load claim. Check API connection.</div>
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 1100 }}>

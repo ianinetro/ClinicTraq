@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, CheckCircle2, SkipForward, Link2, AlertTriangle, DollarSign } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -18,30 +19,6 @@ interface ERAPayment {
   status: 'matched' | 'unmatched'
 }
 
-const MOCK_PAYMENTS: ERAPayment[] = [
-  {
-    id: '1', claimNumber: 'CLM-001', patientName: 'Johnson, Mary',
-    dos: '2026-06-26', billedAmount: 185.00, paidAmount: 148.00,
-    adjustments: [{ groupCode: 'CO', reasonCode: '45', description: 'Charge exceeds fee schedule/maximum allowable', amount: 37.00 }],
-    matchedClaimId: 'A10042', matchConfidence: 0.97, status: 'matched',
-  },
-  {
-    id: '2', claimNumber: 'CLM-002', patientName: 'Williams, Robert',
-    dos: '2026-06-25', billedAmount: 320.00, paidAmount: 256.00,
-    adjustments: [
-      { groupCode: 'CO', reasonCode: '45', description: 'Charge exceeds fee schedule', amount: 48.00 },
-      { groupCode: 'PR', reasonCode: '1', description: 'Deductible amount', amount: 16.00 },
-    ],
-    matchedClaimId: 'A10043', matchConfidence: 0.92, status: 'matched',
-  },
-  {
-    id: '3', claimNumber: 'CLM-003', patientName: 'Unknown Patient',
-    dos: '2026-06-20', billedAmount: 200.00, paidAmount: 160.00,
-    adjustments: [{ groupCode: 'CO', reasonCode: '45', description: 'Charge exceeds fee schedule', amount: 40.00 }],
-    matchedClaimId: null, matchConfidence: null, status: 'unmatched',
-  },
-]
-
 const GROUP_COLORS: Record<string, { bg: string; text: string; label: string }> = {
   CO: { bg: '#FEF3C7', text: '#92400E', label: 'Contractual' },
   PR: { bg: '#FEE2E2', text: '#991B1B', label: 'Patient Resp.' },
@@ -50,20 +27,24 @@ const GROUP_COLORS: Record<string, { bg: string; text: string; label: string }> 
 }
 
 export function ERAReviewPage() {
-  useParams<{ id: string }>()
+  const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [posted, setPosted] = useState<Set<string>>(new Set())
   const [skipped, setSkipped] = useState<Set<string>>(new Set())
   const [processing, setProcessing] = useState<Record<string, boolean>>({})
   const [allPosted, setAllPosted] = useState(false)
 
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['era', id],
+    queryFn: async () => (await api.get(`/payments/era/${id}`)).data,
+    enabled: !!id,
+  })
+
+  const payments: ERAPayment[] = data?.payments ?? []
+
   async function handlePost(paymentId: string) {
     setProcessing(p => ({ ...p, [paymentId]: true }))
-    try {
-      await api.post(`/payments/era/${paymentId}/post`, {})
-    } catch {
-      // fall through — demo mode
-    }
+    await api.post(`/payments/era/${paymentId}/post`, {})
     setPosted(prev => new Set([...prev, paymentId]))
     setProcessing(p => ({ ...p, [paymentId]: false }))
   }
@@ -75,7 +56,7 @@ export function ERAReviewPage() {
   }
 
   async function handlePostAll() {
-    const matched = MOCK_PAYMENTS.filter(p => p.status === 'matched' && !posted.has(p.id) && !skipped.has(p.id))
+    const matched = payments.filter(p => p.status === 'matched' && !posted.has(p.id) && !skipped.has(p.id))
     for (const p of matched) {
       setProcessing(prev => ({ ...prev, [p.id]: true }))
       await new Promise(r => setTimeout(r, 300))
@@ -85,11 +66,14 @@ export function ERAReviewPage() {
     setAllPosted(true)
   }
 
-  const matchedUnprocessed = MOCK_PAYMENTS.filter(p => p.status === 'matched' && !posted.has(p.id) && !skipped.has(p.id))
-  const totalPosted = [...posted].reduce((s, id) => {
-    const p = MOCK_PAYMENTS.find(x => x.id === id)
+  const matchedUnprocessed = payments.filter(p => p.status === 'matched' && !posted.has(p.id) && !skipped.has(p.id))
+  const totalPosted = [...posted].reduce((s, pid) => {
+    const p = payments.find(x => x.id === pid)
     return s + (p?.paidAmount ?? 0)
   }, 0)
+
+  if (isLoading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--bb-text-secondary)' }}>Loading ERA…</div>
+  if (isError) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--bb-status-danger)' }}>Failed to load ERA. Check API connection.</div>
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 900 }}>
@@ -101,7 +85,7 @@ export function ERAReviewPage() {
         <div style={{ flex: 1 }}>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>ERA Review</h2>
           <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--bb-text-secondary)' }}>
-            {MOCK_PAYMENTS.length} claims · {MOCK_PAYMENTS.filter(p => p.status === 'matched').length} matched · {MOCK_PAYMENTS.filter(p => p.status === 'unmatched').length} unmatched
+            {payments.length} claims · {payments.filter(p => p.status === 'matched').length} matched · {payments.filter(p => p.status === 'unmatched').length} unmatched
           </p>
         </div>
         {matchedUnprocessed.length > 0 && (
@@ -115,9 +99,9 @@ export function ERAReviewPage() {
       {/* Summary bar */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
         {[
-          { label: 'Total Claims', value: String(MOCK_PAYMENTS.length) },
-          { label: 'Matched', value: String(MOCK_PAYMENTS.filter(p => p.status === 'matched').length), ok: true },
-          { label: 'Unmatched', value: String(MOCK_PAYMENTS.filter(p => p.status === 'unmatched').length), warn: MOCK_PAYMENTS.some(p => p.status === 'unmatched') },
+          { label: 'Total Claims', value: String(payments.length) },
+          { label: 'Matched', value: String(payments.filter(p => p.status === 'matched').length), ok: true },
+          { label: 'Unmatched', value: String(payments.filter(p => p.status === 'unmatched').length), warn: payments.some(p => p.status === 'unmatched') },
           { label: 'Posted', value: `$${totalPosted.toFixed(2)}`, ok: totalPosted > 0 },
         ].map(k => (
           <div key={k.label} style={{ background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)', borderRadius: 'var(--bb-radius-lg)', padding: '14px 18px' }}>
@@ -135,7 +119,7 @@ export function ERAReviewPage() {
       )}
 
       {/* Payment cards */}
-      {MOCK_PAYMENTS.map(payment => {
+      {payments.map(payment => {
         const isPosted = posted.has(payment.id)
         const isSkipped = skipped.has(payment.id)
         const isProcessing = processing[payment.id]

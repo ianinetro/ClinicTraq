@@ -1,48 +1,14 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Plus, Save, Trash2, Edit2, AlertTriangle } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Badge } from '../../components/ui/Badge'
 import { DataTable } from '../../components/ui/DataTable'
+import { apiClient as api } from '../../services/api'
 
 const TABS = ['Practice Info', 'Providers', 'Facilities', 'Payers', 'Fee Schedules', 'CPT Codes', 'Users & Roles', 'Timely Filing'] as const
 type Tab = typeof TABS[number]
-
-const MOCK_PROVIDERS = [
-  { id: '1', name: 'Dr. Jennifer Smith', npi: '1234567890', taxonomy: '207Q00000X', specialty: 'Family Medicine', status: 'active' },
-  { id: '2', name: 'Dr. Marcus Johnson', npi: '0987654321', taxonomy: '207R00000X', specialty: 'Internal Medicine', status: 'active' },
-  { id: '3', name: 'Dr. Priya Patel', npi: '1122334455', taxonomy: '2084N0400X', specialty: 'Neurology', status: 'inactive' },
-]
-
-const MOCK_FACILITIES = [
-  { id: '1', name: 'Springfield Medical Group – Main', npi: '0987654321', posCode: '11', address: '456 Medical Drive, Springfield, IL 62701', status: 'active' },
-  { id: '2', name: 'Springfield Urgent Care', npi: '1122334456', posCode: '20', address: '789 Urgent Way, Springfield, IL 62701', status: 'active' },
-]
-
-const MOCK_PAYERS = [
-  { id: '1', name: 'BlueCross BlueShield', payerId: 'BCBS00', type: 'Commercial', submissionMethod: 'Electronic', phone: '1-800-521-2227' },
-  { id: '2', name: 'Aetna', payerId: 'AETNA0', type: 'Commercial', submissionMethod: 'Electronic', phone: '1-800-872-3862' },
-  { id: '3', name: 'United Healthcare', payerId: 'UHC000', type: 'Commercial', submissionMethod: 'Electronic', phone: '1-800-842-3585' },
-  { id: '4', name: 'Medicare (Noridian)', payerId: 'MCARE0', type: 'Government', submissionMethod: 'Electronic', phone: '1-800-444-4606' },
-  { id: '5', name: 'Medicaid IL', payerId: 'MCDIL0', type: 'Government', submissionMethod: 'Electronic', phone: '1-800-252-8635' },
-]
-
-const MOCK_USERS = [
-  { id: '1', name: 'Admin User', email: 'admin@clinictraq.com', role: 'Admin', status: 'active', lastLogin: '2026-06-28' },
-  { id: '2', name: 'Dr. Jennifer Smith', email: 'jsmith@springfieldmed.com', role: 'Provider', status: 'active', lastLogin: '2026-06-27' },
-  { id: '3', name: 'Maria Martinez', email: 'mmartinez@springfieldmed.com', role: 'Biller', status: 'active', lastLogin: '2026-06-28' },
-  { id: '4', name: 'Kevin Thompson', email: 'kthompson@springfieldmed.com', role: 'Front Desk', status: 'active', lastLogin: '2026-06-26' },
-]
-
-const MOCK_CPT = [
-  { code: '99213', description: 'Office Visit, Level 3 (Est)', fee: 150.00, rvu: 1.92 },
-  { code: '99214', description: 'Office Visit, Level 4 (Est)', fee: 200.00, rvu: 2.56 },
-  { code: '99202', description: 'Office Visit, Level 2 (New)', fee: 120.00, rvu: 1.60 },
-  { code: '99203', description: 'Office Visit, Level 3 (New)', fee: 165.00, rvu: 2.16 },
-  { code: '85025', description: 'CBC with Differential', fee: 35.00, rvu: 0.0 },
-  { code: '93000', description: 'Electrocardiogram, 12-lead', fee: 52.00, rvu: 0.17 },
-  { code: '97110', description: 'Therapeutic Exercise', fee: 55.00, rvu: 0.89 },
-]
 
 const TFL_RULES = [
   { payer: 'BlueCross BlueShield', days: 180, notes: '180 days from DOS' },
@@ -55,6 +21,12 @@ const TFL_RULES = [
 export function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('Practice Info')
   const [savedPractice, setSavedPractice] = useState(false)
+
+  const { data: providers = [] } = useQuery({ queryKey: ['settings', 'providers'], queryFn: async () => (await api.get('/providers')).data?.items ?? [] })
+  const { data: facilities = [] } = useQuery({ queryKey: ['settings', 'facilities'], queryFn: async () => (await api.get('/facilities')).data?.items ?? [] })
+  const { data: payers = [] } = useQuery({ queryKey: ['settings', 'payers'], queryFn: async () => (await api.get('/payers')).data?.items ?? [] })
+  const { data: users = [] } = useQuery({ queryKey: ['settings', 'users'], queryFn: async () => (await api.get('/users')).data?.items ?? [] })
+  const { data: cptCodes = [] } = useQuery({ queryKey: ['settings', 'cpt'], queryFn: async () => (await api.get('/cpt/search?limit=100')).data?.items ?? [] })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -133,7 +105,7 @@ export function SettingsPage() {
                   </div>
                 )},
               ]}
-              data={MOCK_PROVIDERS}
+              data={providers}
             />
           </div>
         )}
@@ -159,7 +131,7 @@ export function SettingsPage() {
                   </div>
                 )},
               ]}
-              data={MOCK_FACILITIES}
+              data={facilities}
             />
           </div>
         )}
@@ -184,7 +156,7 @@ export function SettingsPage() {
                   </div>
                 )},
               ]}
-              data={MOCK_PAYERS}
+              data={payers}
             />
           </div>
         )}
@@ -231,7 +203,7 @@ export function SettingsPage() {
                   </div>
                 )},
               ]}
-              data={MOCK_CPT}
+              data={cptCodes}
             />
           </div>
         )}
@@ -256,7 +228,7 @@ export function SettingsPage() {
                   </div>
                 )},
               ]}
-              data={MOCK_USERS}
+              data={users}
             />
             <div style={{ marginTop: 20, padding: 16, background: 'var(--bb-surface-app)', borderRadius: 8, border: '1px solid var(--bb-border)' }}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Role Permissions Overview</div>

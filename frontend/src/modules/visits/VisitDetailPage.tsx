@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, FileText, Send, Plus, Stethoscope, ClipboardList, DollarSign, ChevronDown, ChevronUp, Edit2, Trash2 } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
+import { apiClient as api } from '../../services/api'
 
 interface ServiceLine {
   cpt: string
@@ -35,39 +37,6 @@ interface VisitData {
   claimId?: string
 }
 
-const MOCK_VISITS: Record<string, VisitData> = {
-  '1': {
-    id: '1', status: 'Scheduled', billingStatus: 'Unbilled',
-    visitDate: '2026-06-28', visitType: 'Office Visit – Established Patient',
-    patient: { name: 'Brown, James', dob: '1990-01-28', mrn: 'MRN-001237', insurance: 'Cigna PPO', memberId: 'CIG-44382211' },
-    provider: { name: 'Dr. Jennifer Smith', npi: '1234567890', facility: 'Springfield Medical Group', posCode: '11' },
-    chiefComplaint: 'Follow-up for upper respiratory symptoms',
-    diagnoses: [{ pointer: 'A', icd10: 'J06.9', description: 'Acute upper respiratory infection, unspecified' }],
-    serviceLines: [{ cpt: '99213', description: 'Office Visit, Level 3 (Est)', mods: [], units: 1, fee: 150.00, diagPtrs: 'A' }],
-    notes: '', totalBilled: 0,
-  },
-  '2': {
-    id: '2', status: 'Completed', billingStatus: 'Billed',
-    visitDate: '2026-06-26', visitType: 'Office Visit – Established Patient',
-    patient: { name: 'Johnson, Mary', dob: '1975-03-12', mrn: 'MRN-001234', insurance: 'BlueCross PPO', memberId: 'BCB-98765001' },
-    provider: { name: 'Dr. Jennifer Smith', npi: '1234567890', facility: 'Springfield Medical Group', posCode: '11' },
-    chiefComplaint: 'Low back pain, worsening over 2 weeks',
-    diagnoses: [
-      { pointer: 'A', icd10: 'M54.5', description: 'Low back pain' },
-      { pointer: 'B', icd10: 'M79.3', description: 'Panniculitis' },
-    ],
-    serviceLines: [
-      { cpt: '99213', description: 'Office Visit, Level 3 (Est)', mods: [], units: 1, fee: 150.00, diagPtrs: 'A,B' },
-      { cpt: '85025', description: 'CBC with Differential', mods: [], units: 1, fee: 35.00, diagPtrs: 'A' },
-    ],
-    notes: 'Patient reports pain is 6/10 at rest, 9/10 with activity. Prescribed NSAIDs and referred to PT.',
-    totalBilled: 185.00,
-    claimId: 'A10042',
-  },
-}
-
-const DEFAULT_VISIT = MOCK_VISITS['2']
-
 const statusVariant = (s: string): 'success' | 'warning' | 'danger' | 'info' | 'default' => {
   if (s === 'Completed') return 'success'
   if (s === 'Scheduled') return 'info'
@@ -85,13 +54,27 @@ const billingVariant = (s: string): 'success' | 'warning' | 'danger' | 'info' | 
 
 type Section = 'details' | 'diagnoses' | 'lines' | 'notes'
 
+const EMPTY_VISIT: VisitData = {
+  id: '', status: 'Scheduled', billingStatus: 'Unbilled',
+  visitDate: '', visitType: '',
+  patient: { name: '', dob: '', mrn: '', insurance: '', memberId: '' },
+  provider: { name: '', npi: '', facility: '', posCode: '' },
+  chiefComplaint: '', diagnoses: [], serviceLines: [], notes: '', totalBilled: 0,
+}
+
 export function VisitDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const visit = (id && MOCK_VISITS[id]) ? MOCK_VISITS[id] : DEFAULT_VISIT
   const [openSection, setOpenSection] = useState<Section>('lines')
   const [editingNotes, setEditingNotes] = useState(false)
-  const [notes, setNotes] = useState(visit.notes)
+
+  const { data: visit = EMPTY_VISIT, isLoading, isError } = useQuery<VisitData>({
+    queryKey: ['visits', id],
+    queryFn: async () => (await api.get(`/visits/${id}`)).data,
+    enabled: !!id,
+  })
+
+  const [notes, setNotes] = useState('')
 
   const toggle = (s: Section) => setOpenSection(prev => prev === s ? 'lines' : s)
 
@@ -107,6 +90,9 @@ export function VisitDetailPage() {
       {openSection === section && children}
     </div>
   )
+
+  if (isLoading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--bb-text-secondary)' }}>Loading visit…</div>
+  if (isError) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--bb-status-danger)' }}>Failed to load visit. Check API connection.</div>
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 1000 }}>
