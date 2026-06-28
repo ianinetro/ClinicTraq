@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     # App
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
 
     # File Storage — Cloudflare R2 (primary, S3-compatible, zero egress fees)
     # Get these from Cloudflare Dashboard → R2 → Manage R2 API tokens
@@ -36,19 +36,16 @@ class Settings(BaseSettings):
     R2_BUCKET: str = "clinictraq-uploads"
 
     @property
+    def allowed_origins_list(self) -> List[str]:
+        return [o.strip() for o in self.ALLOWED_ORIGINS.split(",") if o.strip()]
+
+    @property
     def r2_endpoint_url(self) -> str:
         return f"https://{self.R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
     @property
     def storage_configured(self) -> bool:
         return bool(self.R2_ACCOUNT_ID and self.R2_ACCESS_KEY_ID and self.R2_SECRET_ACCESS_KEY)
-
-    @field_validator("ALLOWED_ORIGINS", mode="before")
-    @classmethod
-    def parse_origins(cls, v):
-        if isinstance(v, str):
-            return [o.strip() for o in v.split(",")]
-        return v
 
 
 settings = Settings()
