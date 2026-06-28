@@ -2,9 +2,9 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
-  Building2, Users, FileText, DollarSign, AlertTriangle,
+  Building2, Users, FileText, DollarSign,
   TrendingUp, ArrowRight, Search, RefreshCw, BarChart3,
-  CheckCircle2, Clock, XCircle,
+  Clock, XCircle,
 } from 'lucide-react'
 import { apiClient as api } from '../../services/api'
 import { useAuthStore } from '../../stores/authStore'
@@ -105,7 +105,7 @@ function AggregateBanner({ totals }: { totals: WorkspaceSummary['totals'] }) {
   )
 }
 
-function ClinicCard({ clinic }: { clinic: ClinicKPI }) {
+function ClinicRow({ clinic, isFirst }: { clinic: ClinicKPI; isFirst: boolean }) {
   const navigate = useNavigate()
   const setActiveClinic = useAuthStore(s => s.setActiveClinic)
   const s = clinic.stats
@@ -115,27 +115,28 @@ function ClinicCard({ clinic }: { clinic: ClinicKPI }) {
     navigate('/dashboard')
   }
 
-  const arColor = s.avg_days_ar > 90 ? '#DC2626' : s.avg_days_ar > 60 ? '#D97706' : '#16A34A'
+  const lastActivity = s.last_activity
+    ? new Date(s.last_activity).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : '—'
 
   return (
     <div style={{
-      background: 'white', border: '1px solid #E3E3F1', borderRadius: 12,
-      padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column',
+      background: 'var(--bb-surface-card)',
+      borderTop: isFirst ? 'none' : '1px solid var(--bb-border)',
+      padding: '14px 20px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 16,
     }}>
-      {/* Header */}
-      <div style={{ padding: '16px 18px 12px', borderBottom: '1px solid #F3F4F6' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 8, background: '#EFF0FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Building2 size={18} style={{ color: '#0410BD' }} />
-            </div>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#12122C' }}>{clinic.name}</div>
-              {clinic.address && <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 1 }}>{clinic.address}</div>}
-            </div>
-          </div>
+      {/* Clinic name + status */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 220, flex: '0 0 auto' }}>
+        <div style={{ width: 34, height: 34, borderRadius: 8, background: '#EFF0FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Building2 size={16} style={{ color: 'var(--bb-brand-blue)' }} />
+        </div>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--bb-text-primary)', lineHeight: 1.3 }}>{clinic.name}</div>
           <span style={{
-            fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 99,
+            fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 99,
             background: clinic.is_active ? '#ECFDF5' : '#F3F4F6',
             color: clinic.is_active ? '#16A34A' : '#9CA3AF',
           }}>
@@ -144,79 +145,68 @@ function ClinicCard({ clinic }: { clinic: ClinicKPI }) {
         </div>
       </div>
 
-      {/* KPI grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0, padding: '14px 18px' }}>
-        {[
-          { label: 'Patients', value: s.active_patients.toLocaleString(), icon: Users, color: '#0410BD' },
-          { label: 'Open Claims', value: s.open_claims.toLocaleString(), icon: FileText, color: '#D97706' },
-          { label: 'Denials', value: s.denials_open.toLocaleString(), icon: AlertTriangle, color: '#DC2626' },
-        ].map(k => (
-          <div key={k.label} style={{ textAlign: 'center' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4 }}>
-              <k.icon size={15} style={{ color: k.color }} />
-            </div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#12122C' }}>{k.value}</div>
-            <div style={{ fontSize: 11, color: '#9CA3AF' }}>{k.label}</div>
-          </div>
-        ))}
+      {/* Inline stat pills */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, flexWrap: 'wrap' }}>
+        <span style={{
+          fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 99,
+          background: '#EFF0FF', color: 'var(--bb-brand-blue)',
+          display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
+        }}>
+          <DollarSign size={12} /> {fmt(s.total_ar)} AR
+        </span>
+        <span style={{
+          fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 99,
+          background: '#FFF7ED', color: '#D97706',
+          display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
+        }}>
+          <FileText size={12} /> {s.open_claims.toLocaleString()} Open Claims
+        </span>
+        <span style={{
+          fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 99,
+          background: '#ECFDF5', color: '#16A34A',
+          display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
+        }}>
+          <Users size={12} /> {s.active_patients.toLocaleString()} Patients
+        </span>
       </div>
 
-      {/* AR + avg days */}
-      <div style={{ padding: '0 18px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 2 }}>Total A/R</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: '#12122C' }}>{fmt(s.total_ar)}</div>
-        </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 2 }}>Avg Days A/R</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: arColor }}>{s.avg_days_ar || '—'}</div>
-        </div>
+      {/* Last activity */}
+      <div style={{ fontSize: 12, color: 'var(--bb-text-secondary)', whiteSpace: 'nowrap', flex: '0 0 auto' }}>
+        <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 1 }}>Last Activity</span>
+        {lastActivity}
       </div>
 
-      {/* Actions */}
-      <div style={{ borderTop: '1px solid #F3F4F6', padding: '10px 14px', display: 'flex', gap: 8 }}>
+      {/* Action buttons */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: '0 0 auto' }}>
         <button
           onClick={openWorkspace}
           style={{
-            flex: 1, height: 34, background: '#0410BD', color: 'white',
-            border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600,
-            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+            height: 32, padding: '0 14px', background: 'var(--bb-brand-blue)', color: 'white',
+            border: 'none', borderRadius: 7, fontSize: 12, fontWeight: 600,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
           }}
         >
-          Open Workspace <ArrowRight size={13} />
+          Open <ArrowRight size={12} />
         </button>
         <button
           onClick={() => { setActiveClinic(clinic.id); navigate('/ar') }}
           style={{
-            width: 34, height: 34, background: '#F9FAFB', color: '#374151',
-            border: '1px solid #E3E3F1', borderRadius: 7, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            height: 32, padding: '0 10px', background: 'white', color: '#374151',
+            border: '1px solid var(--bb-border)', borderRadius: 7, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600,
           }}
-          title="A/R Aging"
         >
-          <BarChart3 size={15} />
+          <BarChart3 size={13} /> AR Aging
         </button>
         <button
           onClick={() => { setActiveClinic(clinic.id); navigate('/work-queue') }}
           style={{
-            width: 34, height: 34, background: '#F9FAFB', color: '#374151',
-            border: '1px solid #E3E3F1', borderRadius: 7, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            height: 32, padding: '0 10px', background: 'white', color: '#374151',
+            border: '1px solid var(--bb-border)', borderRadius: 7, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600,
           }}
-          title="Work Queue"
         >
-          <Clock size={15} />
-        </button>
-        <button
-          onClick={() => { setActiveClinic(clinic.id); navigate('/claims') }}
-          style={{
-            width: 34, height: 34, background: '#F9FAFB', color: '#374151',
-            border: '1px solid #E3E3F1', borderRadius: 7, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-          title="Claims"
-        >
-          <CheckCircle2 size={15} />
+          <Clock size={13} /> Work Queue
         </button>
       </div>
     </div>
@@ -232,7 +222,7 @@ export function WorkspaceManagerPage() {
   )
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+    <div>
       {/* Page header */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
@@ -295,23 +285,27 @@ export function WorkspaceManagerPage() {
       )}
 
       {isLoading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 16 }}>
+        <div style={{ border: '1px solid var(--bb-border)', borderRadius: 'var(--bb-radius-lg, 10px)', overflow: 'hidden' }}>
           {[1, 2, 3].map(i => (
-            <div key={i} style={{ background: 'white', border: '1px solid #E3E3F1', borderRadius: 12, height: 240, animation: 'pulse 1.5s infinite' }} />
+            <div key={i} style={{
+              background: 'white',
+              borderTop: i === 1 ? 'none' : '1px solid var(--bb-border)',
+              padding: '14px 20px', height: 64, animation: 'pulse 1.5s infinite',
+            }} />
           ))}
         </div>
       ) : filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 0' }}>
-          <Building2 size={40} style={{ color: '#E3E3F1', margin: '0 auto 12px', display: 'block' }} />
-          <div style={{ fontSize: 16, fontWeight: 600, color: '#374151' }}>No clinics found</div>
-          <div style={{ fontSize: 13, color: '#9CA3AF', marginTop: 4 }}>
+          <Building2 size={40} style={{ color: 'var(--bb-border)', margin: '0 auto 12px', display: 'block' }} />
+          <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--bb-text-primary)' }}>No clinics found</div>
+          <div style={{ fontSize: 13, color: 'var(--bb-text-secondary)', marginTop: 4 }}>
             {search ? 'Try a different search term' : 'No clinics are assigned to your billing company yet'}
           </div>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 16 }}>
-          {filtered.map(clinic => (
-            <ClinicCard key={clinic.id} clinic={clinic} />
+        <div style={{ border: '1px solid var(--bb-border)', borderRadius: 'var(--bb-radius-lg, 10px)', overflow: 'hidden' }}>
+          {filtered.map((clinic, idx) => (
+            <ClinicRow key={clinic.id} clinic={clinic} isFirst={idx === 0} />
           ))}
         </div>
       )}
