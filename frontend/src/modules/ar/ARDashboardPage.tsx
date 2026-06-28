@@ -21,7 +21,7 @@ interface ARSummary {
   buckets: ARBucket[]
 }
 
-function authHeaders() {
+function authHeaders(): Record<string, string> {
   const token = localStorage.getItem('ct_token')
   return token ? { Authorization: `Bearer ${token}` } : {}
 }

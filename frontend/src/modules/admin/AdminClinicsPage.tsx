@@ -35,7 +35,7 @@ const ROLE_LABELS: Record<string, string> = {
   front_desk: 'Front Desk', biller: 'Biller', coder: 'Coder',
 }
 
-function authHeaders() {
+function authHeaders(): Record<string, string> {
   const token = localStorage.getItem('ct_token')
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
