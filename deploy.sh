@@ -63,7 +63,7 @@ deploy_backend() {
     --output none
 
   info "Waiting for app to come online..."
-  HEALTH_URL="https://${AZURE_WEBAPP_NAME}.azurewebsites.net/api/v1/health"
+  HEALTH_URL="https://${AZURE_WEBAPP_NAME}.azurewebsites.net/health"
   for i in $(seq 1 30); do
     sleep 10
     HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$HEALTH_URL" || echo "000")
