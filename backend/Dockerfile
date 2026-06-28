@@ -32,5 +32,6 @@ COPY . .
 
 EXPOSE 8000
 
-# Azure App Service sets PORT; WEB_WORKERS can be overridden via App Settings
-CMD ["sh", "-c", "exec python3 -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers ${WEB_WORKERS:-2} --proxy-headers --forwarded-allow-ips='*'"]
+# Gunicorn manages worker processes; uvicorn worker class handles async.
+# Port is hardcoded to 8000 to match WEBSITES_PORT in Azure App Settings.
+CMD ["sh", "-c", "exec gunicorn main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --workers ${WEB_WORKERS:-2} --timeout 120 --access-logfile - --error-logfile - --log-level info"]
