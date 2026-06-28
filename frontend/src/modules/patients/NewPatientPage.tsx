@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Check, User, Shield, Phone, ArrowRight } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
+import { apiClient as api } from '../../services/api'
 
 const STEPS = [
   { id: 'demographics', label: 'Demographics', icon: User },
@@ -102,9 +103,38 @@ export function NewPatientPage() {
   const advance = () => { const n = STEPS[stepIdx + 1]; if (n) setStep(n.id) }
   const back = () => { const p = STEPS[stepIdx - 1]; if (p) setStep(p.id) }
 
-  function handleSave() {
-    setSubmitted(true)
-    setTimeout(() => navigate('/patients'), 1800)
+  async function handleSave() {
+    try {
+      const payload = {
+        first_name: form.firstName,
+        last_name: form.lastName,
+        middle_name: form.middleName || undefined,
+        dob: form.dob || undefined,
+        sex: form.sex || undefined,
+        ssn: form.ssn || undefined,
+        marital_status: form.maritalStatus || undefined,
+        race: form.race || undefined,
+        ethnicity: form.ethnicity || undefined,
+        preferred_language: form.language || undefined,
+        phone_cell: form.phone || undefined,
+        email: form.email || undefined,
+        address_line1: form.address || undefined,
+        city: form.city || undefined,
+        state: form.state || undefined,
+        zip: form.zip || undefined,
+        emergency_contact: form.emergencyName ? {
+          name: form.emergencyName,
+          phone: form.emergencyPhone,
+          relation: form.emergencyRelation,
+        } : undefined,
+      }
+      await api.post('/patients', payload)
+      setSubmitted(true)
+      setTimeout(() => navigate('/patients'), 1800)
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Failed to save patient'
+      alert(msg)
+    }
   }
 
   return (

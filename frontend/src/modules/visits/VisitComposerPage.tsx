@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Check, User, Stethoscope, ClipboardList, DollarSign, Plus, Trash2, Activity } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { BodyMapCanvas, type BodyMapState } from './BodyMapCanvas'
+import { apiClient as api } from '../../services/api'
 
 // ─── Step definitions ───────────────────────────────────────────────
 const STEPS = [
@@ -83,13 +84,7 @@ function useCodeSearch(endpoint: string, query: string): { results: CodeResult[]
   return { results, loading }
 }
 
-const MOCK_PATIENTS = [
-  { id: '1', name: 'Brown, James', dob: '1990-01-28', mrn: 'MRN-001237', insurance: 'Cigna PPO' },
-  { id: '2', name: 'Johnson, Mary', dob: '1975-03-12', mrn: 'MRN-001234', insurance: 'BlueCross PPO' },
-  { id: '3', name: 'Davis, Susan', dob: '1964-11-05', mrn: 'MRN-001236', insurance: 'United Healthcare' },
-  { id: '4', name: 'Williams, Robert', dob: '1982-07-24', mrn: 'MRN-001235', insurance: 'Aetna HMO' },
-  { id: '5', name: 'Garcia, Elena', dob: '1955-08-17', mrn: 'MRN-001238', insurance: 'Medicare' },
-]
+interface PatientResult { id: string; name: string; dob: string; mrn: string; insurance: string }
 
 const COMMON_ICD10 = [
   { icd10: 'J06.9', description: 'Acute upper respiratory infection' },
@@ -140,7 +135,7 @@ export function VisitComposerPage() {
   const navigate = useNavigate()
   const [step, setStep] = useState<StepId>('patient')
   const [form, setForm] = useState<FormState>(EMPTY)
-  const [patientResults, setPatientResults] = useState<typeof MOCK_PATIENTS>([])
+  const [patientResults, setPatientResults] = useState<PatientResult[]>([])
   const [diagSearch, setDiagSearch] = useState('')
   const [procSearch, setProcSearch] = useState('')
   const [submitted, setSubmitted] = useState(false)
@@ -154,16 +149,24 @@ export function VisitComposerPage() {
   function searchPatient(q: string) {
     set({ patientSearch: q })
     if (q.length >= 2) {
-      setPatientResults(MOCK_PATIENTS.filter(p =>
-        p.name.toLowerCase().includes(q.toLowerCase()) ||
-        p.mrn.toLowerCase().includes(q.toLowerCase())
-      ))
+      api.get('/patients', { params: { search: q, limit: 10 } })
+        .then(r => {
+          const rows = (r.data as { id: string; first_name: string; last_name: string; dob?: string; account_number?: string }[])
+          setPatientResults(rows.map(p => ({
+            id: p.id,
+            name: `${p.last_name}, ${p.first_name}`,
+            dob: p.dob ?? '',
+            mrn: p.account_number ?? '',
+            insurance: '',
+          })))
+        })
+        .catch(() => setPatientResults([]))
     } else {
       setPatientResults([])
     }
   }
 
-  function selectPatient(p: typeof MOCK_PATIENTS[number]) {
+  function selectPatient(p: PatientResult) {
     set({ patientName: p.name, patientId: p.id, dob: p.dob, mrn: p.mrn, insurance: p.insurance, patientSearch: p.name })
     setPatientResults([])
   }
@@ -179,9 +182,36 @@ export function VisitComposerPage() {
     setProcSearch('')
   }
 
-  function handleSubmit() {
-    setSubmitted(true)
-    setTimeout(() => navigate('/visits'), 1800)
+  async function handleSubmit() {
+    try {
+      const visit = await api.post('/visits', {
+        patient_id: form.patientId,
+        visit_date: form.visitDate,
+        visit_type: form.visitType || undefined,
+        chief_complaint: form.chiefComplaint || undefined,
+      })
+      const visitId = visit.data.id
+      await Promise.all([
+        ...form.diagnoses.map(d =>
+          api.post(`/visits/${visitId}/diagnoses`, { icd10_code: d.icd10, description: d.description })
+        ),
+        ...form.procedures.map(p =>
+          api.post(`/visits/${visitId}/charge-lines`, {
+            cpt_code: p.cpt,
+            description: p.description,
+            modifier_a: p.mods?.split(',')[0]?.trim() || undefined,
+            units: p.units,
+            fee_charged: p.fee,
+            diagnosis_pointers: p.diagPtrs ? p.diagPtrs.split('') : undefined,
+          })
+        ),
+      ])
+      setSubmitted(true)
+      setTimeout(() => navigate('/visits'), 1800)
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Failed to save visit'
+      alert(msg)
+    }
   }
 
   const canAdvance = () => {

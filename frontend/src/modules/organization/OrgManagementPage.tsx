@@ -217,13 +217,13 @@ function MgmtGroupsTab() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    api.get('/api/v1/org/management-groups').then(r => setItems(r.data)).catch(() => {})
+    api.get('/org/management-groups').then(r => setItems(r.data)).catch(() => {})
   }, [])
 
   const save = async () => {
     setSaving(true)
     try {
-      const r = await api.post('/api/v1/org/management-groups', form)
+      const r = await api.post('/org/management-groups', form)
       setItems(prev => [...prev, r.data])
       setShowModal(false)
       setForm({ name: '', contact_email: '', contact_phone: '', address: '' })
@@ -271,13 +271,13 @@ function BillingCompaniesTab() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    api.get('/api/v1/org/billing-companies').then(r => setItems(r.data)).catch(() => {})
+    api.get('/org/billing-companies').then(r => setItems(r.data)).catch(() => {})
   }, [])
 
   const save = async () => {
     setSaving(true)
     try {
-      const r = await api.post('/api/v1/org/billing-companies', form)
+      const r = await api.post('/org/billing-companies', form)
       setItems(prev => [...prev, r.data])
       setShowModal(false)
       setForm({ name: '', npi: '', tax_id: '', contact_email: '' })
@@ -326,13 +326,13 @@ function ClinicsTab() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    api.get('/api/v1/org/clinics').then(r => setItems(r.data)).catch(() => {})
+    api.get('/org/clinics').then(r => setItems(r.data)).catch(() => {})
   }, [])
 
   const save = async () => {
     setSaving(true)
     try {
-      const r = await api.post('/api/v1/org/clinics', form)
+      const r = await api.post('/org/clinics', form)
       setItems(prev => [...prev, r.data])
       setShowModal(false)
       setForm({ name: '', npi: '', address: '', city: '', state: '', zip_code: '', phone: '', place_of_service_code: '11' })
@@ -392,19 +392,19 @@ function StaffAssignmentsTab() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    api.get('/api/v1/org/clinics').then(r => setClinics(r.data)).catch(() => {})
+    api.get('/org/clinics').then(r => setClinics(r.data)).catch(() => {})
   }, [])
 
   useEffect(() => {
     if (!selectedClinic) return
-    api.get(`/api/v1/org/clinics/${selectedClinic}/staff`).then(r => setStaff(r.data)).catch(() => {})
+    api.get(`/org/clinics/${selectedClinic}/staff`).then(r => setStaff(r.data)).catch(() => {})
   }, [selectedClinic])
 
   const save = async () => {
     if (!selectedClinic) return
     setSaving(true)
     try {
-      const r = await api.post(`/api/v1/org/clinics/${selectedClinic}/staff`, { ...form, clinic_id: selectedClinic })
+      const r = await api.post(`/org/clinics/${selectedClinic}/staff`, { ...form, clinic_id: selectedClinic })
       setStaff(prev => [...prev, r.data])
       setShowModal(false)
       setForm({ user_id: '', clinic_role: 'front_desk', is_primary: true })
@@ -470,19 +470,19 @@ function BillingUsersTab() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    api.get('/api/v1/org/billing-companies').then(r => setCompanies(r.data)).catch(() => {})
+    api.get('/org/billing-companies').then(r => setCompanies(r.data)).catch(() => {})
   }, [])
 
   useEffect(() => {
     if (!selectedCompany) return
-    api.get(`/api/v1/org/billing-companies/${selectedCompany}/users`).then(r => setUsers(r.data)).catch(() => {})
+    api.get(`/org/billing-companies/${selectedCompany}/users`).then(r => setUsers(r.data)).catch(() => {})
   }, [selectedCompany])
 
   const save = async () => {
     if (!selectedCompany) return
     setSaving(true)
     try {
-      const r = await api.post(`/api/v1/org/billing-companies/${selectedCompany}/users`, { ...form, billing_company_id: selectedCompany })
+      const r = await api.post(`/org/billing-companies/${selectedCompany}/users`, { ...form, billing_company_id: selectedCompany })
       setUsers(prev => [...prev, r.data])
       setShowModal(false)
       setForm({ user_id: '', billing_role: 'billing_admin' })
