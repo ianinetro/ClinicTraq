@@ -32,15 +32,6 @@ const statusVariant = (s: string): 'success' | 'warning' | 'danger' | 'info' | '
   return 'default'
 }
 
-const MOCK_CLAIMS: Claim[] = [
-  { id: '1', claimId: 'A10042', patient: 'Johnson, Mary', dos: '2026-06-26', payer: 'BlueCross PPO', billed: 185.00, paid: 148.00, balance: 37.00, status: 'Paid', ageDays: 2, submitDate: '2026-06-27' },
-  { id: '2', claimId: 'A10043', patient: 'Williams, Robert', dos: '2026-06-25', payer: 'Aetna HMO', billed: 320.00, paid: 0, balance: 320.00, status: 'Submitted', ageDays: 3, submitDate: '2026-06-26' },
-  { id: '3', claimId: 'A10044', patient: 'Davis, Susan', dos: '2026-06-24', payer: 'United Healthcare', billed: 250.00, paid: 0, balance: 250.00, status: 'Denied', ageDays: 4, denialReason: 'CO-45: Charge exceeds fee schedule', submitDate: '2026-06-25' },
-  { id: '4', claimId: 'A10045', patient: 'Brown, James', dos: '2026-06-23', payer: 'Cigna PPO', billed: 420.00, paid: 0, balance: 420.00, status: 'Pending', ageDays: 5 },
-  { id: '5', claimId: 'A10038', patient: 'Garcia, Elena', dos: '2026-06-10', payer: 'Medicare', billed: 310.00, paid: 0, balance: 310.00, status: 'Denied', ageDays: 18, denialReason: 'PR-1: Patient deductible not met', submitDate: '2026-06-12' },
-  { id: '6', claimId: 'A10029', patient: 'Martinez, Carlos', dos: '2026-05-30', payer: 'Medicaid', billed: 150.00, paid: 120.00, balance: 0, status: 'Paid', ageDays: 29, submitDate: '2026-06-01' },
-]
-
 const agingColor = (days: number) => {
   if (days <= 30) return 'var(--bb-status-success)'
   if (days <= 60) return '#D97706'
@@ -63,22 +54,11 @@ export function ClaimsPage() {
   const [payer, setPayer] = useState('')
   const [search, setSearch] = useState('')
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['claims', statusFilter, payer, search],
     queryFn: async () => {
-      try {
-        const res = await api.get('/claims', { params: { status: statusFilter !== 'all' ? statusFilter : undefined, payer } })
-        return res.data
-      } catch {
-        let items = MOCK_CLAIMS
-        if (statusFilter !== 'all') items = items.filter(c => c.status === statusFilter)
-        if (payer) items = items.filter(c => c.payer.toLowerCase().includes(payer.toLowerCase()))
-        if (search) {
-          const q = search.toLowerCase()
-          items = items.filter(c => c.patient.toLowerCase().includes(q) || c.claimId.toLowerCase().includes(q) || c.payer.toLowerCase().includes(q))
-        }
-        return { items, total: items.length }
-      }
+      const res = await api.get('/claims', { params: { status: statusFilter !== 'all' ? statusFilter : undefined, payer, search: search || undefined } })
+      return res.data
     },
   })
 
@@ -195,6 +175,8 @@ export function ClaimsPage() {
         {/* Table */}
         {isLoading ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--bb-text-secondary)', fontSize: 14 }}>Loading claims…</div>
+        ) : isError ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--bb-status-danger)', fontSize: 14 }}>Failed to load claims. Check API connection.</div>
         ) : items.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--bb-text-secondary)', fontSize: 14 }}>No claims match this filter</div>
         ) : (

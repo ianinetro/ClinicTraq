@@ -34,15 +34,6 @@ function calcAge(dob: string) {
   return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25))
 }
 
-const MOCK_PATIENTS: Patient[] = [
-  { id: '1', mrn: 'MRN-001234', lastName: 'Johnson', firstName: 'Mary', dob: '1975-03-12', sex: 'female', primaryInsurance: 'BlueCross PPO', balance: 125.00, status: 'active', lastVisit: '2026-06-26', phone: '(555) 210-3344' },
-  { id: '2', mrn: 'MRN-001235', lastName: 'Williams', firstName: 'Robert', dob: '1982-07-24', sex: 'male', primaryInsurance: 'Aetna HMO', balance: 0, status: 'active', lastVisit: '2026-06-25', phone: '(555) 480-7712' },
-  { id: '3', mrn: 'MRN-001236', lastName: 'Davis', firstName: 'Susan', dob: '1964-11-05', sex: 'female', primaryInsurance: 'United Healthcare', balance: 250.00, status: 'inactive', lastVisit: '2026-05-10' },
-  { id: '4', mrn: 'MRN-001237', lastName: 'Brown', firstName: 'James', dob: '1990-01-28', sex: 'male', primaryInsurance: 'Cigna PPO', balance: 0, status: 'active', lastVisit: '2026-06-28', phone: '(555) 901-2233' },
-  { id: '5', mrn: 'MRN-001238', lastName: 'Garcia', firstName: 'Elena', dob: '1955-08-17', sex: 'female', primaryInsurance: 'Medicare', balance: 75.00, status: 'active', lastVisit: '2026-06-20' },
-  { id: '6', mrn: 'MRN-001239', lastName: 'Martinez', firstName: 'Carlos', dob: '1978-12-01', sex: 'male', primaryInsurance: 'Medicaid', balance: 0, status: 'active', lastVisit: '2026-06-15' },
-]
-
 type StatusFilter = 'all' | 'active' | 'inactive' | 'balance'
 
 export function PatientsPage() {
@@ -61,29 +52,13 @@ export function PatientsPage() {
     }, 300)
   }, [])
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['patients', debouncedSearch, page, statusFilter],
     queryFn: async () => {
-      try {
-        const res = await api.get('/patients', {
-          params: { search: debouncedSearch, limit: PAGE_SIZE, offset: page * PAGE_SIZE, status: statusFilter !== 'all' ? statusFilter : undefined }
-        })
-        return res.data
-      } catch {
-        let items = MOCK_PATIENTS
-        if (debouncedSearch) {
-          const q = debouncedSearch.toLowerCase()
-          items = items.filter(p =>
-            p.firstName.toLowerCase().includes(q) ||
-            p.lastName.toLowerCase().includes(q) ||
-            p.mrn.toLowerCase().includes(q)
-          )
-        }
-        if (statusFilter === 'active') items = items.filter(p => p.status === 'active')
-        if (statusFilter === 'inactive') items = items.filter(p => p.status === 'inactive')
-        if (statusFilter === 'balance') items = items.filter(p => p.balance > 0)
-        return { items, total: items.length }
-      }
+      const res = await api.get('/patients', {
+        params: { search: debouncedSearch, limit: PAGE_SIZE, offset: page * PAGE_SIZE, status: statusFilter !== 'all' ? statusFilter : undefined }
+      })
+      return res.data
     },
   })
 
@@ -167,6 +142,8 @@ export function PatientsPage() {
         {/* Table */}
         {isLoading ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--bb-text-secondary)', fontSize: 14 }}>Loading patients…</div>
+        ) : isError ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--bb-status-danger)', fontSize: 14 }}>Failed to load patients. Check API connection.</div>
         ) : items.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--bb-text-secondary)', fontSize: 14 }}>No patients found</div>
         ) : (

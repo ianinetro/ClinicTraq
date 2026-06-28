@@ -21,17 +21,6 @@ interface WorkItem {
   status: 'open' | 'in_progress' | 'resolved'
 }
 
-const MOCK_ITEMS: WorkItem[] = [
-  { id: '1', priority: 'high', taskType: 'Denial Follow-up', category: 'Denials', patient: 'Davis, Susan', claimId: 'A10044', payer: 'United Healthcare', assignedTo: 'J. Martinez', dueDate: '2026-06-28', ageDays: 5, denialReason: 'CO-97: Payment included in allowance for another service', nextAction: 'Review claim lines and resubmit with corrected procedure codes', status: 'open' },
-  { id: '2', priority: 'high', taskType: 'Denial Follow-up', category: 'Denials', patient: 'Brown, James', claimId: 'A10045', payer: 'Cigna PPO', assignedTo: 'K. Thompson', dueDate: '2026-06-28', ageDays: 4, denialReason: 'CO-4: Service inconsistent with patient age', nextAction: 'Verify date of birth on file and resubmit', status: 'open' },
-  { id: '3', priority: 'high', taskType: 'Missing Information', category: 'Missing Info', patient: 'Wilson, George', claimId: 'A10047', payer: 'BlueCross PPO', assignedTo: 'J. Martinez', dueDate: '2026-06-29', ageDays: 3, nextAction: 'Obtain referring provider NPI and update claim', status: 'open' },
-  { id: '4', priority: 'medium', taskType: 'Authorization Required', category: 'Auth', patient: 'Johnson, Mary', claimId: 'A10046', payer: 'BlueCross PPO', assignedTo: 'J. Martinez', dueDate: '2026-06-30', ageDays: 2, nextAction: 'Call BlueCross to obtain retroactive auth #', status: 'in_progress' },
-  { id: '5', priority: 'medium', taskType: 'Claim Resubmission', category: 'Resubmission', patient: 'Williams, Robert', claimId: 'A10043', payer: 'Aetna HMO', assignedTo: 'Unassigned', dueDate: '2026-07-01', ageDays: 3, denialReason: 'CO-18: Duplicate claim', nextAction: 'Confirm original claim status and adjust DOS if needed', status: 'open' },
-  { id: '6', priority: 'medium', taskType: 'Timely Filing', category: 'Timely Filing', patient: 'Anderson, Lisa', claimId: 'A10032', payer: 'United Healthcare', assignedTo: 'K. Thompson', dueDate: '2026-07-02', ageDays: 6, nextAction: 'Gather proof of timely filing and submit appeal', status: 'open' },
-  { id: '7', priority: 'low', taskType: 'Patient Statement', category: 'Patient Balance', patient: 'Garcia, Maria', claimId: '—', payer: '—', assignedTo: 'K. Thompson', dueDate: '2026-07-05', ageDays: 1, nextAction: 'Generate and mail patient statement for $125.00 balance', status: 'open' },
-  { id: '8', priority: 'low', taskType: 'ERA Reconciliation', category: 'Payments', patient: 'Multiple', claimId: '—', payer: 'BlueCross PPO', assignedTo: 'Unassigned', dueDate: '2026-07-06', ageDays: 1, nextAction: 'Match 3 unposted ERA payments to claims', status: 'open' },
-]
-
 const CATEGORIES = ['All', 'Denials', 'Missing Info', 'Auth', 'Resubmission', 'Timely Filing', 'Patient Balance', 'Payments']
 
 const PRIORITY_CONFIG: Record<string, { label: string; bg: string; text: string; dot: string }> = {
@@ -47,15 +36,12 @@ export function WorkQueuePage() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [assignFilter, setAssignFilter] = useState('')
 
-  const { data } = useQuery({
+  const { data, isError } = useQuery({
     queryKey: ['work-queue'],
-    queryFn: async () => {
-      try { return (await api.get('/work-queue')).data }
-      catch { return { items: MOCK_ITEMS, total: MOCK_ITEMS.length } }
-    },
+    queryFn: async () => (await api.get('/work-queue')).data,
   })
 
-  const allItems: WorkItem[] = data?.items ?? MOCK_ITEMS
+  const allItems: WorkItem[] = data?.items ?? []
 
   const filtered = allItems.filter(item => {
     if (category !== 'All' && item.category !== category) return false

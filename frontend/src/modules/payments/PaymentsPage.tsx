@@ -15,13 +15,6 @@ interface Payment {
   checkNumber: string; amount: number; type: string; status: string; claimsCount?: number
 }
 
-const MOCK_PAYMENTS: Payment[] = [
-  { id: '1', date: '2026-06-27', patient: 'Johnson, Mary', payer: 'BlueCross PPO', checkNumber: 'CHK-9923', amount: 148.00, type: 'ERA', status: 'Posted', claimsCount: 3 },
-  { id: '2', date: '2026-06-27', patient: 'Williams, Robert', payer: 'Aetna HMO', checkNumber: 'EFT-1102', amount: 264.00, type: 'EFT', status: 'Posted', claimsCount: 1 },
-  { id: '3', date: '2026-06-26', patient: 'Brown, James', payer: 'Cigna PPO', checkNumber: 'CHK-8841', amount: 92.50, type: 'Check', status: 'Posted', claimsCount: 2 },
-  { id: '4', date: '2026-06-25', patient: 'Anderson, Lisa', payer: 'United Healthcare', checkNumber: 'EFT-0990', amount: 310.00, type: 'EFT', status: 'Posted', claimsCount: 4 },
-  { id: '5', date: '2026-06-24', patient: 'Davis, Susan', payer: 'Aetna HMO', checkNumber: 'CHK-7742', amount: 55.00, type: 'Check', status: 'Unmatched', claimsCount: 1 },
-]
 
 interface ImportedFile {
   name: string
@@ -49,13 +42,10 @@ export function PaymentsPage() {
 
   const { data: paymentsData } = useQuery({
     queryKey: ['payments'],
-    queryFn: async () => {
-      try { return (await api.get('/payments')).data }
-      catch { return { items: MOCK_PAYMENTS, total: MOCK_PAYMENTS.length } }
-    },
+    queryFn: async () => (await api.get('/payments')).data,
   })
 
-  const payments: Payment[] = paymentsData?.items ?? MOCK_PAYMENTS
+  const payments: Payment[] = paymentsData?.items ?? []
   const filtered = search
     ? payments.filter(p => p.patient.toLowerCase().includes(search.toLowerCase()) || p.payer.toLowerCase().includes(search.toLowerCase()) || p.checkNumber.toLowerCase().includes(search.toLowerCase()))
     : payments

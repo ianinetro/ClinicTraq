@@ -15,28 +15,12 @@ interface Stats {
   queueSummary: { type: string; count: number; priority: 'high' | 'medium' | 'low' }[]
 }
 
-const MOCK: Stats = {
-  todayVisits: 24,
-  claimsThisWeek: 147,
-  paymentsToday: 18420,
-  workQueueOpen: 12,
-  arAging: { '0-30': 48200, '31-60': 23400, '61-90': 11800, '90+': 6500 },
-  claimsByStatus: { submitted: 42, pending: 28, denied: 9, paid: 68 },
-  recentActivity: [
-    { id: '1', description: 'Claim #A10042 submitted to BlueCross', user: 'Dr. Smith', time: '5 min ago', type: 'submit' },
-    { id: '2', description: 'ERA file imported: 32 payments posted', user: 'System', time: '22 min ago', type: 'payment' },
-    { id: '3', description: 'Patient Mary Johnson registered', user: 'Front Desk', time: '1 hr ago', type: 'patient' },
-    { id: '4', description: 'Denial worked: Claim #A10038 resubmitted', user: 'J. Martinez', time: '2 hr ago', type: 'denial' },
-    { id: '5', description: 'Visit note finalized for Robert Williams', user: 'Dr. Johnson', time: '3 hr ago', type: 'visit' },
-    { id: '6', description: 'Eligibility verified: Susan Davis (Aetna)', user: 'System', time: '4 hr ago', type: 'eligibility' },
-  ],
-  queueSummary: [
-    { type: 'Denial Follow-up', count: 4, priority: 'high' },
-    { type: 'Missing Information', count: 2, priority: 'high' },
-    { type: 'Authorization Required', count: 3, priority: 'medium' },
-    { type: 'Claim Resubmission', count: 2, priority: 'medium' },
-    { type: 'Patient Statements', count: 1, priority: 'low' },
-  ],
+const EMPTY_STATS: Stats = {
+  todayVisits: 0, claimsThisWeek: 0, paymentsToday: 0, workQueueOpen: 0,
+  arAging: { '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0 },
+  claimsByStatus: { submitted: 0, pending: 0, denied: 0, paid: 0 },
+  recentActivity: [],
+  queueSummary: [],
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -60,11 +44,9 @@ export function DashboardPage() {
   const navigate = useNavigate()
   const user = useAuthStore(s => s.user)
 
-  const { data = MOCK } = useQuery<Stats>({
+  const { data = EMPTY_STATS } = useQuery<Stats>({
     queryKey: ['dashboard', 'stats'],
-    queryFn: async () => {
-      try { return (await api.get('/dashboard/stats')).data } catch { return MOCK }
-    },
+    queryFn: async () => (await api.get('/dashboard/stats')).data,
     staleTime: 60_000,
   })
 

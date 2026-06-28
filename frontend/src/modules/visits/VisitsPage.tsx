@@ -37,15 +37,6 @@ const billingVariant = (s: string): 'success' | 'warning' | 'danger' | 'info' | 
   return 'default'
 }
 
-const MOCK_VISITS: Visit[] = [
-  { id: '1', visitDate: '2026-06-28', patientName: 'Brown, James', provider: 'Dr. Smith', procedureCodes: '99213', diagnosisCodes: 'J06.9', status: 'Scheduled', billingStatus: 'Unbilled', billedAmount: 0 },
-  { id: '2', visitDate: '2026-06-26', patientName: 'Johnson, Mary', provider: 'Dr. Smith', procedureCodes: '99213, 85025', diagnosisCodes: 'M54.5, M79.3', status: 'Completed', billingStatus: 'Billed', billedAmount: 185.00 },
-  { id: '3', visitDate: '2026-06-25', patientName: 'Williams, Robert', provider: 'Dr. Johnson', procedureCodes: '99202', diagnosisCodes: 'Z00.00', status: 'Completed', billingStatus: 'Ready to Bill', billedAmount: 0 },
-  { id: '4', visitDate: '2026-06-25', patientName: 'Davis, Susan', provider: 'Dr. Smith', procedureCodes: '99214, 93000', diagnosisCodes: 'I10, E11.9', status: 'Completed', billingStatus: 'Billed', billedAmount: 320.00 },
-  { id: '5', visitDate: '2026-06-20', patientName: 'Garcia, Elena', provider: 'Dr. Johnson', procedureCodes: '99214', diagnosisCodes: 'G43.909', status: 'Completed', billingStatus: 'Denied', billedAmount: 200.00 },
-  { id: '6', visitDate: '2026-06-28', patientName: 'Martinez, Carlos', provider: 'Dr. Smith', procedureCodes: '99213, 97110', diagnosisCodes: 'M54.5', status: 'In Progress', billingStatus: 'Unbilled', billedAmount: 0 },
-]
-
 const STATUS_CHIPS: { key: StatusFilter; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'Scheduled', label: 'Scheduled' },
@@ -60,22 +51,11 @@ export function VisitsPage() {
   const [provider, setProvider] = useState('')
   const [search, setSearch] = useState('')
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['visits', statusFilter, provider, search],
     queryFn: async () => {
-      try {
-        const res = await api.get('/visits', { params: { status: statusFilter !== 'all' ? statusFilter : undefined, provider } })
-        return res.data
-      } catch {
-        let items = MOCK_VISITS
-        if (statusFilter !== 'all') items = items.filter(v => v.status === statusFilter)
-        if (provider) items = items.filter(v => v.provider.toLowerCase().includes(provider.toLowerCase()))
-        if (search) {
-          const q = search.toLowerCase()
-          items = items.filter(v => v.patientName.toLowerCase().includes(q) || v.procedureCodes.toLowerCase().includes(q))
-        }
-        return { items, total: items.length }
-      }
+      const res = await api.get('/visits', { params: { status: statusFilter !== 'all' ? statusFilter : undefined, provider, search: search || undefined } })
+      return res.data
     },
   })
 
@@ -146,6 +126,8 @@ export function VisitsPage() {
 
         {isLoading ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--bb-text-secondary)', fontSize: 14 }}>Loading visits…</div>
+        ) : isError ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--bb-status-danger)', fontSize: 14 }}>Failed to load visits. Check API connection.</div>
         ) : items.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--bb-text-secondary)', fontSize: 14 }}>No visits found</div>
         ) : (
