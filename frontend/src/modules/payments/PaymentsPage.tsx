@@ -360,7 +360,7 @@ export function PaymentsPage() {
                   <input
                     type={field.type}
                     placeholder={field.placeholder}
-                    value={(postForm as Record<string, string>)[field.key]}
+                    value={(postForm as unknown as Record<string, string>)[field.key]}
                     onChange={e => setPostForm(p => ({ ...p, [field.key]: e.target.value }))}
                     required={field.required}
                     style={{ height: 38, padding: '0 12px', border: '1px solid #BABACE', borderRadius: 6, fontSize: 13, outline: 'none', background: 'white' }}

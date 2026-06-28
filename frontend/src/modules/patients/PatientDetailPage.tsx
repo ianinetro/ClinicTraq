@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Phone, Mail, MapPin, Shield, Calendar, Edit2, Plus, FileText, DollarSign } from 'lucide-react'
-import { Button } from '../../components/ui/Button'
+
 import { Badge } from '../../components/ui/Badge'
 import { PHIField } from '../../components/shared/PHIField'
 import { BodyMap } from './BodyMap'

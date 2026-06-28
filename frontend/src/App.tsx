@@ -5,11 +5,14 @@ import { LoginPage } from './modules/auth/LoginPage'
 import { DashboardPage } from './modules/dashboard/DashboardPage'
 import { PatientsPage } from './modules/patients/PatientsPage'
 import { PatientDetailPage } from './modules/patients/PatientDetailPage'
+import { NewPatientPage } from './modules/patients/NewPatientPage'
 import { VisitsPage } from './modules/visits/VisitsPage'
 import { VisitDetailPage } from './modules/visits/VisitDetailPage'
+import { VisitComposerPage } from './modules/visits/VisitComposerPage'
 import { ClaimsPage } from './modules/claims/ClaimsPage'
 import { ClaimDetailPage } from './modules/claims/ClaimDetailPage'
 import { PaymentsPage } from './modules/payments/PaymentsPage'
+import { ERAReviewPage } from './modules/payments/ERAReviewPage'
 import { WorkQueuePage } from './modules/work-queue/WorkQueuePage'
 import { SettingsPage } from './modules/settings/SettingsPage'
 
@@ -33,12 +36,15 @@ export default function App() {
       >
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/patients" element={<PatientsPage />} />
+        <Route path="/patients/new" element={<NewPatientPage />} />
         <Route path="/patients/:id" element={<PatientDetailPage />} />
         <Route path="/visits" element={<VisitsPage />} />
+        <Route path="/visits/new" element={<VisitComposerPage />} />
         <Route path="/visits/:id" element={<VisitDetailPage />} />
         <Route path="/claims" element={<ClaimsPage />} />
         <Route path="/claims/:id" element={<ClaimDetailPage />} />
         <Route path="/payments" element={<PaymentsPage />} />
+        <Route path="/payments/era/:id" element={<ERAReviewPage />} />
         <Route path="/work-queue" element={<WorkQueuePage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>

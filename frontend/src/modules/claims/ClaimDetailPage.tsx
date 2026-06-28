@@ -68,7 +68,7 @@ const statusVariant = (s: string): 'success' | 'warning' | 'danger' | 'info' | '
 type Section = 'overview' | 'diagnoses' | 'lines' | 'provider' | 'history'
 
 export function ClaimDetailPage() {
-  const { id } = useParams<{ id: string }>()
+  useParams<{ id: string }>()
   const navigate = useNavigate()
   const claim = MOCK
   const [openSection, setOpenSection] = useState<Section | null>('lines')

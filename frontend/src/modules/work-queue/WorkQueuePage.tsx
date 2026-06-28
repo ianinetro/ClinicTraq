@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { AlertCircle, Clock, User, Search, Filter, RotateCcw, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react'
+import { AlertCircle, Clock, User, Search, RotateCcw, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react'
 import { Badge } from '../../components/ui/Badge'
 import { apiClient as api } from '../../services/api'
 
@@ -181,7 +181,7 @@ export function WorkQueuePage() {
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 14, fontWeight: 600, color: '#12122C' }}>{item.taskType}</span>
                     <span style={{ fontSize: 11, fontWeight: 700, color: pc.text, background: pc.bg, borderRadius: 4, padding: '1px 7px' }}>{pc.label}</span>
-                    <Badge variant={item.status === 'in_progress' ? 'info' : 'default'} style={{ fontSize: 11 }}>
+                    <Badge variant={item.status === 'in_progress' ? 'info' : 'default'}>
                       {item.status === 'in_progress' ? 'In Progress' : 'Open'}
                     </Badge>
                   </div>

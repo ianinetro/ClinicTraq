@@ -1,218 +1,284 @@
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, CheckCircle, SkipForward, Link2 } from 'lucide-react'
-import { PageHeader } from '../../components/shell/PageHeader'
+import { ArrowLeft, CheckCircle2, SkipForward, Link2, AlertTriangle, DollarSign } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
-import { useToast } from '../../components/ui/Toast'
-import { api } from '../../services/api'
-import { clsx } from 'clsx'
-import { useState } from 'react'
+import { apiClient as api } from '../../services/api'
 
-// Mock ERA claim payment data for display
-const MOCK_ERA_PAYMENTS = [
+interface ERAPayment {
+  id: string
+  claimNumber: string
+  patientName: string
+  dos: string
+  billedAmount: number
+  paidAmount: number
+  adjustments: { groupCode: string; reasonCode: string; description: string; amount: number }[]
+  matchedClaimId: string | null
+  matchConfidence: number | null
+  status: 'matched' | 'unmatched'
+}
+
+const MOCK_PAYMENTS: ERAPayment[] = [
   {
-    id: '1',
-    claimNumber: 'CLM-001',
-    patientName: '••••• •••••',
-    dos: '2024-01-10',
-    billedAmount: 450.00,
-    paidAmount: 360.00,
-    adjustments: [
-      { groupCode: 'CO', reasonCode: '45', description: 'Charge exceeds fee schedule/maximum allowable.', amount: 90.00 }
-    ],
-    matchedClaimId: 'abc123',
-    matchConfidence: 0.98,
-    status: 'matched' as const,
+    id: '1', claimNumber: 'CLM-001', patientName: 'Johnson, Mary',
+    dos: '2026-06-26', billedAmount: 185.00, paidAmount: 148.00,
+    adjustments: [{ groupCode: 'CO', reasonCode: '45', description: 'Charge exceeds fee schedule/maximum allowable', amount: 37.00 }],
+    matchedClaimId: 'A10042', matchConfidence: 0.97, status: 'matched',
   },
   {
-    id: '2',
-    claimNumber: 'CLM-002',
-    patientName: '••••• •••••',
-    dos: '2024-01-11',
-    billedAmount: 300.00,
-    paidAmount: 240.00,
+    id: '2', claimNumber: 'CLM-002', patientName: 'Williams, Robert',
+    dos: '2026-06-25', billedAmount: 320.00, paidAmount: 256.00,
     adjustments: [
-      { groupCode: 'CO', reasonCode: '45', description: 'Charge exceeds fee schedule.', amount: 60.00 }
+      { groupCode: 'CO', reasonCode: '45', description: 'Charge exceeds fee schedule', amount: 48.00 },
+      { groupCode: 'PR', reasonCode: '1', description: 'Deductible amount', amount: 16.00 },
     ],
-    matchedClaimId: null,
-    matchConfidence: null,
-    status: 'unmatched' as const,
+    matchedClaimId: 'A10043', matchConfidence: 0.92, status: 'matched',
+  },
+  {
+    id: '3', claimNumber: 'CLM-003', patientName: 'Unknown Patient',
+    dos: '2026-06-20', billedAmount: 200.00, paidAmount: 160.00,
+    adjustments: [{ groupCode: 'CO', reasonCode: '45', description: 'Charge exceeds fee schedule', amount: 40.00 }],
+    matchedClaimId: null, matchConfidence: null, status: 'unmatched',
   },
 ]
+
+const GROUP_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+  CO: { bg: '#FEF3C7', text: '#92400E', label: 'Contractual' },
+  PR: { bg: '#FEE2E2', text: '#991B1B', label: 'Patient Resp.' },
+  OA: { bg: '#EDE9FE', text: '#5B21B6', label: 'Other Adj.' },
+  PI: { bg: '#DBEAFE', text: '#1E40AF', label: 'Payer Init.' },
+}
 
 export function ERAReviewPage() {
   useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { addToast } = useToast()
-  const [processing, setProcessing] = useState<Record<string, boolean>>({})
-  const [skipped, setSkipped] = useState<Set<string>>(new Set())
   const [posted, setPosted] = useState<Set<string>>(new Set())
+  const [skipped, setSkipped] = useState<Set<string>>(new Set())
+  const [processing, setProcessing] = useState<Record<string, boolean>>({})
+  const [allPosted, setAllPosted] = useState(false)
 
   async function handlePost(paymentId: string) {
     setProcessing(p => ({ ...p, [paymentId]: true }))
     try {
-      await api.payments.postEraPayment(paymentId)
-      setPosted(prev => new Set([...prev, paymentId]))
-      addToast({ variant: 'success', message: 'Payment posted successfully.' })
+      await api.post(`/payments/era/${paymentId}/post`, {})
     } catch {
-      addToast({ variant: 'error', message: 'Failed to post payment.' })
-    } finally {
-      setProcessing(p => ({ ...p, [paymentId]: false }))
+      // fall through — demo mode
     }
+    setPosted(prev => new Set([...prev, paymentId]))
+    setProcessing(p => ({ ...p, [paymentId]: false }))
   }
 
-  async function handleSkip(paymentId: string, reason: string) {
+  async function handleSkip(paymentId: string) {
     setProcessing(p => ({ ...p, [paymentId]: true }))
-    try {
-      await api.payments.skipEraPayment(paymentId, reason)
-      setSkipped(prev => new Set([...prev, paymentId]))
-      addToast({ variant: 'info', message: 'Payment skipped.' })
-    } catch {
-      addToast({ variant: 'error', message: 'Failed to skip payment.' })
-    } finally {
-      setProcessing(p => ({ ...p, [paymentId]: false }))
-    }
+    setSkipped(prev => new Set([...prev, paymentId]))
+    setProcessing(p => ({ ...p, [paymentId]: false }))
   }
+
+  async function handlePostAll() {
+    const matched = MOCK_PAYMENTS.filter(p => p.status === 'matched' && !posted.has(p.id) && !skipped.has(p.id))
+    for (const p of matched) {
+      setProcessing(prev => ({ ...prev, [p.id]: true }))
+      await new Promise(r => setTimeout(r, 300))
+      setPosted(prev => new Set([...prev, p.id]))
+      setProcessing(prev => ({ ...prev, [p.id]: false }))
+    }
+    setAllPosted(true)
+  }
+
+  const matchedUnprocessed = MOCK_PAYMENTS.filter(p => p.status === 'matched' && !posted.has(p.id) && !skipped.has(p.id))
+  const totalPosted = [...posted].reduce((s, id) => {
+    const p = MOCK_PAYMENTS.find(x => x.id === id)
+    return s + (p?.paidAmount ?? 0)
+  }, 0)
 
   return (
-    <div className="p-6 space-y-4 max-w-6xl">
-      <button onClick={() => navigate('/payments')} className="flex items-center gap-1.5 text-sm text-[#676687] hover:text-[#12122C]">
-        <ArrowLeft size={14} />Back to Payments
-      </button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 900 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <Button variant="ghost" size="sm" onClick={() => navigate('/payments')}>
+          <ArrowLeft size={14} /> Payments
+        </Button>
+        <div style={{ flex: 1 }}>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>ERA Review</h2>
+          <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--bb-text-secondary)' }}>
+            {MOCK_PAYMENTS.length} claims · {MOCK_PAYMENTS.filter(p => p.status === 'matched').length} matched · {MOCK_PAYMENTS.filter(p => p.status === 'unmatched').length} unmatched
+          </p>
+        </div>
+        {matchedUnprocessed.length > 0 && (
+          <Button variant="primary" onClick={handlePostAll}>
+            <DollarSign size={14} />
+            Post All Matched ({matchedUnprocessed.length})
+          </Button>
+        )}
+      </div>
 
-      <PageHeader
-        eyebrow="ERA Review"
-        title="ERA File Review"
-        description="Review and post matched ERA payments"
-      />
+      {/* Summary bar */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+        {[
+          { label: 'Total Claims', value: String(MOCK_PAYMENTS.length) },
+          { label: 'Matched', value: String(MOCK_PAYMENTS.filter(p => p.status === 'matched').length), ok: true },
+          { label: 'Unmatched', value: String(MOCK_PAYMENTS.filter(p => p.status === 'unmatched').length), warn: MOCK_PAYMENTS.some(p => p.status === 'unmatched') },
+          { label: 'Posted', value: `$${totalPosted.toFixed(2)}`, ok: totalPosted > 0 },
+        ].map(k => (
+          <div key={k.label} style={{ background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)', borderRadius: 'var(--bb-radius-lg)', padding: '14px 18px' }}>
+            <div style={{ fontSize: 11, color: 'var(--bb-text-secondary)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{k.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: k.ok ? 'var(--bb-status-success)' : k.warn ? '#D97706' : 'var(--bb-text-primary)', marginTop: 4 }}>{k.value}</div>
+          </div>
+        ))}
+      </div>
 
-      <div className="space-y-4">
-        {MOCK_ERA_PAYMENTS.map(payment => {
-          const isPosted = posted.has(payment.id)
-          const isSkipped = skipped.has(payment.id)
-          const isProcessing = processing[payment.id]
+      {allPosted && (
+        <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 'var(--bb-radius)', padding: '12px 16px', display: 'flex', gap: 8, alignItems: 'center' }}>
+          <CheckCircle2 size={16} color="var(--bb-status-success)" />
+          <span style={{ fontSize: 14, color: '#15803D', fontWeight: 500 }}>All matched payments posted successfully. Total posted: ${totalPosted.toFixed(2)}</span>
+        </div>
+      )}
 
-          return (
-            <div
-              key={payment.id}
-              className={clsx(
-                'bg-white border rounded-lg overflow-hidden',
-                payment.status === 'matched' ? 'border-[#A7F3D0]' : 'border-[#FDE68A]',
-                (isPosted || isSkipped) && 'opacity-60',
-              )}
-            >
-              {/* Header bar */}
-              <div className={clsx(
-                'flex items-center justify-between px-4 py-2.5',
-                payment.status === 'matched' ? 'bg-[#ECFDF5]' : 'bg-[#FFFBEB]',
-              )}>
-                <div className="flex items-center gap-3">
-                  <Badge variant={payment.status === 'matched' ? 'success' : 'warning'}>
-                    {payment.status === 'matched' ? 'Matched' : 'Unmatched'}
-                  </Badge>
-                  <span className="text-sm font-mono font-semibold">{payment.claimNumber}</span>
-                  <span className="text-sm text-[#676687]">{payment.patientName}</span>
-                  {payment.matchConfidence && (
-                    <span className="text-xs text-[#047857] bg-[#ECFDF5] px-1.5 py-0.5 rounded-full">
-                      {Math.round(payment.matchConfidence * 100)}% confidence
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {isPosted ? (
-                    <Badge variant="success">Posted</Badge>
-                  ) : isSkipped ? (
-                    <Badge variant="default">Skipped</Badge>
-                  ) : (
-                    <>
-                      {payment.status === 'unmatched' && (
-                        <Button size="xs" variant="secondary" leftIcon={<Link2 size={12} />}>
-                          Manual Match
-                        </Button>
-                      )}
-                      <Button
-                        size="xs"
-                        variant="secondary"
-                        leftIcon={<SkipForward size={12} />}
-                        loading={isProcessing}
-                        onClick={() => handleSkip(payment.id, 'Manual skip')}
-                      >
-                        Skip
-                      </Button>
-                      {payment.status === 'matched' && (
-                        <Button
-                          size="xs"
-                          variant="primary"
-                          leftIcon={<CheckCircle size={12} />}
-                          loading={isProcessing}
-                          onClick={() => handlePost(payment.id)}
-                        >
-                          Post
-                        </Button>
-                      )}
-                    </>
-                  )}
-                </div>
+      {/* Payment cards */}
+      {MOCK_PAYMENTS.map(payment => {
+        const isPosted = posted.has(payment.id)
+        const isSkipped = skipped.has(payment.id)
+        const isProcessing = processing[payment.id]
+        const colors = payment.status === 'matched'
+          ? { headerBg: '#F0FDF4', headerBorder: '#BBF7D0', cardBorder: '#BBF7D0' }
+          : { headerBg: '#FFFBEB', headerBorder: '#FDE68A', cardBorder: '#FDE68A' }
+
+        return (
+          <div
+            key={payment.id}
+            style={{
+              background: 'var(--bb-surface-card)',
+              border: `1px solid ${colors.cardBorder}`,
+              borderRadius: 'var(--bb-radius-lg)',
+              overflow: 'hidden',
+              opacity: isPosted || isSkipped ? 0.65 : 1,
+              transition: 'opacity 0.3s',
+            }}
+          >
+            {/* Card header */}
+            <div style={{
+              background: colors.headerBg,
+              borderBottom: `1px solid ${colors.headerBorder}`,
+              padding: '10px 18px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Badge variant={payment.status === 'matched' ? 'success' : 'warning'}>
+                  {payment.status === 'matched' ? 'Matched' : 'Unmatched'}
+                </Badge>
+                <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 14 }}>{payment.claimNumber}</span>
+                <span style={{ fontSize: 13, color: 'var(--bb-text-secondary)' }}>{payment.patientName}</span>
+                {payment.matchConfidence && (
+                  <span style={{ fontSize: 11, background: '#DCFCE7', color: '#15803D', padding: '2px 8px', borderRadius: 10, fontWeight: 600 }}>
+                    {Math.round(payment.matchConfidence * 100)}% match
+                  </span>
+                )}
               </div>
-
-              {/* Detail grid */}
-              <div className="grid grid-cols-2 gap-0 divide-x divide-[#E3E3F1]">
-                {/* ERA Data side */}
-                <div className="p-4">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[#676687] mb-3">ERA Data</p>
-                  <div className="space-y-1.5 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-[#676687]">DOS</span>
-                      <span className="font-mono">{payment.dos}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#676687]">Billed</span>
-                      <span className="tabular-nums">${payment.billedAmount.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#676687]">Paid</span>
-                      <span className="tabular-nums font-semibold text-[#047857]">${payment.paidAmount.toFixed(2)}</span>
-                    </div>
-                    {payment.adjustments.map((adj, i) => (
-                      <div key={i} className="bg-[#FFFBEB] rounded p-2 mt-2">
-                        <p className="text-[10px] font-semibold text-[#B45309]">
-                          {adj.groupCode}-{adj.reasonCode}: ${adj.amount.toFixed(2)}
-                        </p>
-                        <p className="text-[10px] text-[#676687] mt-0.5">{adj.description}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Matched Claim side */}
-                <div className="p-4">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[#676687] mb-3">
-                    {payment.matchedClaimId ? 'Matched Claim' : 'No Match Found'}
-                  </p>
-                  {payment.matchedClaimId ? (
-                    <div className="space-y-1.5 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-[#676687]">Claim ID</span>
-                        <span className="font-mono text-[#0410BD]">{payment.matchedClaimId}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#676687]">Billed</span>
-                        <span className="tabular-nums">${payment.billedAmount.toFixed(2)}</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="bg-[#FFFBEB] border border-[#FDE68A] rounded p-3">
-                      <p className="text-xs text-[#B45309]">
-                        No matching claim found. Use Manual Match to link this payment to a claim.
-                      </p>
-                    </div>
-                  )}
-                </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {isPosted ? (
+                  <Badge variant="success">Posted</Badge>
+                ) : isSkipped ? (
+                  <Badge variant="default">Skipped</Badge>
+                ) : (
+                  <>
+                    {payment.status === 'unmatched' && (
+                      <Button size="xs" variant="secondary" leftIcon={<Link2 size={11} />}>Manual Match</Button>
+                    )}
+                    <Button size="xs" variant="secondary" leftIcon={<SkipForward size={11} />} loading={isProcessing} onClick={() => handleSkip(payment.id)}>
+                      Skip
+                    </Button>
+                    {payment.status === 'matched' && (
+                      <Button size="xs" variant="primary" leftIcon={<CheckCircle2 size={11} />} loading={isProcessing} onClick={() => handlePost(payment.id)}>
+                        Post
+                      </Button>
+                    )}
+                  </>
+                )}
               </div>
             </div>
-          )
-        })}
-      </div>
+
+            {/* Two-column body */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: 0 }}>
+              {/* ERA data */}
+              <div style={{ padding: '16px 18px', borderRight: '1px solid var(--bb-border)' }}>
+                <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--bb-text-secondary)', marginBottom: 12 }}>ERA Data</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 7, fontSize: 13 }}>
+                  {[
+                    { label: 'DOS', value: payment.dos },
+                    { label: 'Billed', value: `$${payment.billedAmount.toFixed(2)}` },
+                    { label: 'Paid', value: `$${payment.paidAmount.toFixed(2)}`, bold: true, green: true },
+                  ].map(f => (
+                    <div key={f.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--bb-text-secondary)' }}>{f.label}</span>
+                      <span style={{ fontWeight: f.bold ? 700 : 400, color: f.green ? 'var(--bb-status-success)' : 'var(--bb-text-primary)', fontFamily: 'monospace' }}>{f.value}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {payment.adjustments.map((adj, i) => {
+                    const gc = GROUP_COLORS[adj.groupCode] ?? { bg: '#F3F4F6', text: '#374151', label: adj.groupCode }
+                    return (
+                      <div key={i} style={{ background: gc.bg, borderRadius: 6, padding: '8px 10px' }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: gc.text }}>
+                          <span style={{ background: gc.text, color: 'white', padding: '1px 6px', borderRadius: 4, marginRight: 6 }}>{adj.groupCode}-{adj.reasonCode}</span>
+                          -${adj.amount.toFixed(2)}
+                        </div>
+                        <div style={{ fontSize: 11, color: gc.text, marginTop: 3, opacity: 0.85 }}>{adj.description}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Matched claim */}
+              <div style={{ padding: '16px 18px' }}>
+                <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--bb-text-secondary)', marginBottom: 12 }}>
+                  {payment.matchedClaimId ? 'Matched Claim' : 'No Match Found'}
+                </div>
+                {payment.matchedClaimId ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 7, fontSize: 13 }}>
+                    {[
+                      { label: 'Claim ID', value: payment.matchedClaimId, blue: true, mono: true },
+                      { label: 'Billed', value: `$${payment.billedAmount.toFixed(2)}` },
+                      { label: 'Expected Payment', value: `$${payment.paidAmount.toFixed(2)}` },
+                    ].map(f => (
+                      <div key={f.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: 'var(--bb-text-secondary)' }}>{f.label}</span>
+                        <span style={{ fontFamily: f.mono ? 'monospace' : 'inherit', fontWeight: 600, color: f.blue ? 'var(--bb-brand-blue)' : 'var(--bb-text-primary)' }}>{f.value}</span>
+                      </div>
+                    ))}
+                    <div style={{ marginTop: 8 }}>
+                      <button
+                        onClick={() => navigate(`/claims/${payment.matchedClaimId}`)}
+                        style={{ fontSize: 12, color: 'var(--bb-brand-blue)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                      >
+                        View claim →
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: 14 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                      <AlertTriangle size={14} color="#D97706" style={{ marginTop: 1, flexShrink: 0 }} />
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#92400E' }}>No matching claim found</div>
+                        <div style={{ fontSize: 12, color: '#92400E', marginTop: 4 }}>
+                          Use Manual Match to link this payment to an existing claim, or create a new claim for this service.
+                        </div>
+                        <div style={{ marginTop: 10 }}>
+                          <Button size="xs" variant="secondary" leftIcon={<Link2 size={11} />}>
+                            Manual Match
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

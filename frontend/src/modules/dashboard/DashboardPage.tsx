@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Users, FileText, AlertCircle, DollarSign, TrendingUp, Clock, AlertTriangle, CheckCircle2, XCircle, RotateCcw } from 'lucide-react'
+import { Users, FileText, AlertCircle, DollarSign, TrendingUp, Clock, CheckCircle2, XCircle, RotateCcw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { apiClient as api } from '../../services/api'
 import { useAuthStore } from '../../stores/authStore'
