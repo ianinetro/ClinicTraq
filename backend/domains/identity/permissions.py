@@ -80,12 +80,24 @@ PERM_REPORTS_CLINICAL = "reports:clinical"
 PERM_REPORTS_OPERATIONAL = "reports:operational"
 
 # ── Router-level shorthand aliases (used by require_permission() in routers) ──
-# These map to the granular permissions above — included in role lists below.
-PERM_PATIENTS_READ    = "patients:read"    # alias for patients:view
-PERM_PATIENTS_WRITE   = "patients:write"   # alias for patients:create + edit
-PERM_CLAIMS_READ      = "claims:read"      # alias for billing:view_claims
-PERM_CLAIMS_WRITE     = "claims:write"     # alias for billing:submit/correct_claims
-PERM_MASTER_DATA_READ = "master_data:read" # alias for settings:view
+PERM_PATIENTS_READ      = "patients:read"
+PERM_PATIENTS_WRITE     = "patients:write"
+PERM_VISITS_READ        = "visits:read"
+PERM_VISITS_WRITE       = "visits:write"
+PERM_CLAIMS_READ        = "claims:read"
+PERM_CLAIMS_WRITE       = "claims:write"
+PERM_PAYMENTS_READ      = "payments:read"
+PERM_PAYMENTS_WRITE     = "payments:write"
+PERM_MASTER_DATA_READ   = "master_data:read"
+PERM_MASTER_DATA_WRITE  = "master_data:write"
+PERM_USERS_READ         = "users:read"
+PERM_USERS_WRITE        = "users:write"
+PERM_ROLES_READ         = "roles:read"
+PERM_ROLES_WRITE        = "roles:write"
+PERM_AUDIT_READ         = "audit:read"
+PERM_SEARCH_READ        = "search:read"
+PERM_WORK_QUEUE_READ    = "work_queue:read"
+PERM_WORK_QUEUE_WRITE   = "work_queue:write"
 
 # ── Role → permission sets ────────────────────────────────────────────────────
 
@@ -322,20 +334,63 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
 
 
 def get_permissions_for_role(role: str) -> list[str]:
-    """Return the permission list for a given role name, including router-level aliases."""
+    """Return permissions for a role, including all router-level shorthand aliases."""
     base = ROLE_PERMISSIONS.get(role, [])
+    s = set(base)
     aliases: list[str] = []
-    base_set = set(base)
-    if PERM_PATIENTS_VIEW in base_set or PERM_PATIENTS_CREATE in base_set:
+
+    # patients
+    if PERM_PATIENTS_VIEW in s or PERM_PATIENTS_CREATE in s:
         aliases.append(PERM_PATIENTS_READ)
-    if PERM_PATIENTS_CREATE in base_set or PERM_PATIENTS_EDIT_DEMOGRAPHICS in base_set or PERM_PATIENTS_EDIT_INSURANCE in base_set:
+    if PERM_PATIENTS_CREATE in s or PERM_PATIENTS_EDIT_DEMOGRAPHICS in s or PERM_PATIENTS_EDIT_INSURANCE in s:
         aliases.append(PERM_PATIENTS_WRITE)
-    if PERM_BILLING_VIEW_CLAIMS in base_set:
+
+    # visits (clinical access = visits access)
+    if PERM_PATIENTS_VIEW in s:
+        aliases.append(PERM_VISITS_READ)
+    if PERM_CLINICAL_ROOM_PATIENT in s or PERM_BILLING_ENTER_CHARGES in s or PERM_PATIENTS_CREATE in s:
+        aliases.append(PERM_VISITS_WRITE)
+
+    # claims
+    if PERM_BILLING_VIEW_CLAIMS in s:
         aliases.append(PERM_CLAIMS_READ)
-    if PERM_BILLING_SUBMIT_CLAIMS in base_set or PERM_BILLING_CORRECT_CLAIMS in base_set:
+    if PERM_BILLING_SUBMIT_CLAIMS in s or PERM_BILLING_CORRECT_CLAIMS in s:
         aliases.append(PERM_CLAIMS_WRITE)
-    if PERM_SETTINGS_VIEW in base_set:
+
+    # payments
+    if PERM_BILLING_VIEW_ERA in s or PERM_BILLING_VIEW_AR in s:
+        aliases.append(PERM_PAYMENTS_READ)
+    if PERM_BILLING_POST_PAYMENTS in s or PERM_BILLING_POST_ADJUSTMENTS in s:
+        aliases.append(PERM_PAYMENTS_WRITE)
+
+    # master data (payers, providers, codes)
+    if PERM_SETTINGS_VIEW in s:
         aliases.append(PERM_MASTER_DATA_READ)
+    if PERM_SETTINGS_MANAGE_PAYERS in s or PERM_SETTINGS_MANAGE_PROVIDERS in s or PERM_SETTINGS_MANAGE_FEE_SCHEDULES in s:
+        aliases.append(PERM_MASTER_DATA_WRITE)
+
+    # users & roles
+    if PERM_SETTINGS_MANAGE_USERS in s:
+        aliases.append(PERM_USERS_READ)
+        aliases.append(PERM_USERS_WRITE)
+        aliases.append(PERM_ROLES_READ)
+    if PERM_SETTINGS_MANAGE_ROLES in s:
+        aliases.append(PERM_ROLES_WRITE)
+
+    # work queue
+    if PERM_PATIENTS_VIEW in s:
+        aliases.append(PERM_WORK_QUEUE_READ)
+    if PERM_BILLING_WORK_DENIALS in s or PERM_BILLING_FILE_APPEALS in s:
+        aliases.append(PERM_WORK_QUEUE_WRITE)
+
+    # search & audit
+    if PERM_PATIENTS_VIEW in s:
+        aliases.append(PERM_SEARCH_READ)
+    if PERM_SETTINGS_MANAGE_USERS in s:
+        aliases.append(PERM_AUDIT_READ)
+
+    # org permissions are already in ROLE_PERMISSIONS with full codes — no alias needed
+
     return base + aliases
 
 
