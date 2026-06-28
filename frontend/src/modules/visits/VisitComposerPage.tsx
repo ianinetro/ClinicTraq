@@ -213,7 +213,10 @@ export function VisitComposerPage() {
       setSubmitted(true)
       setTimeout(() => navigate('/visits'), 1800)
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Failed to save visit'
+      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
+      const msg = Array.isArray(detail)
+        ? detail.map((d: { msg?: string }) => d.msg ?? JSON.stringify(d)).join('; ')
+        : (typeof detail === 'string' ? detail : 'Failed to save visit')
       alert(msg)
     }
   }

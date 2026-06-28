@@ -19,6 +19,32 @@ export function PaymentsPage() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [eraPage, setEraPage] = useState(1)
+  const [eraUploading, setEraUploading] = useState(false)
+
+  function handleERAImport() {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.835,.edi,.txt'
+    input.onchange = async () => {
+      const file = input.files?.[0]
+      if (!file) return
+      setEraUploading(true)
+      try {
+        const formData = new FormData()
+        formData.append('file', file)
+        const { apiClient } = await import('../../services/api')
+        await apiClient.post('/payments/era/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        alert(`ERA file "${file.name}" uploaded successfully. Review the ERA Files tab.`)
+      } catch {
+        alert('ERA upload failed. Please check the file format and try again.')
+      } finally {
+        setEraUploading(false)
+      }
+    }
+    input.click()
+  }
 
   const { data: paymentsData, isLoading: paymentsLoading } = usePayments({
     search: search || undefined,
@@ -170,8 +196,8 @@ export function PaymentsPage() {
           onClick: () => setShowPostPayment(true),
         }}
         secondaryAction={{
-          label: 'Import ERA',
-          onClick: () => {},
+          label: eraUploading ? 'Uploading…' : 'Import ERA',
+          onClick: handleERAImport,
         }}
       />
 
@@ -217,7 +243,7 @@ export function PaymentsPage() {
             getRowId={(row) => row.id}
             emptyTitle="No ERA files imported"
             emptyDescription="Import an ERA file to start posting payments."
-            emptyAction={{ label: 'Import ERA', onClick: () => {} }}
+            emptyAction={{ label: 'Import ERA', onClick: handleERAImport }}
           />
         </TabPanel>
 
