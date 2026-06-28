@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
+import { apiClient } from '../../services/api'
 import { Tabs, TabList, Tab, TabPanel } from '../../components/ui/Tabs'
 import { Button } from '../../components/ui/Button'
 import { StatusBadge } from '../../components/shared/StatusBadge'
@@ -65,35 +66,18 @@ interface ActivityEvent {
 
 // ─── Data fetching helpers ───────────────────────────────────────────────────
 
-function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('auth_token')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
+function stripBase(url: string) { return url.replace(/^\/api\/v1/, '') }
 
 async function apiFetch<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: authHeaders() })
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`)
-  return res.json() as Promise<T>
+  return (await apiClient.get<T>(stripBase(url))).data
 }
 
 async function apiPatch<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`)
-  return res.json() as Promise<T>
+  return (await apiClient.patch<T>(stripBase(url), body)).data
 }
 
 async function apiPost<T>(url: string, body?: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`)
-  return res.json() as Promise<T>
+  return (await apiClient.post<T>(stripBase(url), body)).data
 }
 
 // ─── Utility helpers ─────────────────────────────────────────────────────────
