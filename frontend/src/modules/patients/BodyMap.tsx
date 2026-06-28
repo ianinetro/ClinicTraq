@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Plus, X, Search } from 'lucide-react'
 import { clsx } from 'clsx'
-import apiClient from '../../services/api'
+import { apiClient } from '../../services/api'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
