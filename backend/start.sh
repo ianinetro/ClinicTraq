@@ -44,11 +44,7 @@ except Exception as exc:
     sys.exit(1)
 PYEOF
 
-echo "=== Imports passed, running migrations ===" >&2
-alembic upgrade head
-echo "=== Seeding admin user ===" >&2
-python /app/seed_admin.py
-echo "=== Migrations done, starting gunicorn ===" >&2
+echo "=== Imports passed, starting gunicorn ===" >&2
 exec gunicorn main:app \
     -k uvicorn.workers.UvicornWorker \
     --bind "0.0.0.0:${WEBSITES_PORT:-8000}" \

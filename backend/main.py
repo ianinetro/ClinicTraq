@@ -28,16 +28,59 @@ logger = logging.getLogger("clinictraq")
 logging.basicConfig(level=logging.DEBUG if settings.DEBUG else logging.INFO)
 
 
+async def _seed_admin() -> None:
+    """Idempotent: create default tenant + superuser if not present."""
+    import os, uuid
+    from passlib.context import CryptContext
+    from sqlalchemy import select
+    from database import AsyncSessionLocal
+    from domains.identity.models import Tenant, User
+
+    pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    slug = os.environ.get("SEED_TENANT_SLUG", "clinictraq")
+    name = os.environ.get("SEED_TENANT_NAME", "ClinicTraq")
+    email = os.environ.get("SEED_ADMIN_EMAIL", "admin@clinictraq.com")
+    password = os.environ.get("SEED_ADMIN_PASSWORD", "ClinicTraq2026!")
+    first = os.environ.get("SEED_ADMIN_FIRST", "Admin")
+    last = os.environ.get("SEED_ADMIN_LAST", "User")
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(Tenant).where(Tenant.slug == slug))
+        tenant = result.scalar_one_or_none()
+        if tenant is None:
+            tenant = Tenant(id=uuid.uuid4(), name=name, slug=slug,
+                            is_active=True, plan="standard", timezone="UTC")
+            session.add(tenant)
+            await session.flush()
+            logger.info("Seeded tenant: %s", slug)
+
+        result = await session.execute(
+            select(User).where(User.tenant_id == tenant.id, User.email == email)
+        )
+        if result.scalar_one_or_none() is None:
+            session.add(User(
+                id=uuid.uuid4(), tenant_id=tenant.id, email=email,
+                password_hash=pwd.hash(password), first_name=first, last_name=last,
+                is_active=True, is_superuser=True,
+            ))
+            logger.info("Seeded admin user: %s", email)
+
+        await session.commit()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Starting ClinicTraq backend — environment: %s", settings.ENVIRONMENT)
-    # In production use Alembic; in dev optionally create tables
-    if settings.ENVIRONMENT == "development":
-        try:
-            async with engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
-        except Exception as exc:
-            logger.warning("Dev auto-migrate skipped (DB unreachable at startup): %s", exc)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("Schema sync complete (create_all)")
+    except Exception as exc:
+        logger.warning("Schema sync skipped (DB unreachable at startup): %s", exc)
+    try:
+        await _seed_admin()
+    except Exception as exc:
+        logger.warning("Seed skipped: %s", exc)
     yield
     logger.info("Shutting down ClinicTraq backend")
     await engine.dispose()
