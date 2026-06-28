@@ -46,6 +46,8 @@ PYEOF
 
 echo "=== Imports passed, running migrations ===" >&2
 alembic upgrade head
+echo "=== Seeding admin user ===" >&2
+python /app/seed_admin.py
 echo "=== Migrations done, starting gunicorn ===" >&2
 exec gunicorn main:app \
     -k uvicorn.workers.UvicornWorker \
