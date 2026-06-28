@@ -161,20 +161,6 @@ def create_app() -> FastAPI:
     async def health_check():
         return {"status": "ok", "environment": settings.ENVIRONMENT}
 
-    import os as _os
-    _SEED_SECRET = _os.environ.get("SEED_ENDPOINT_SECRET", "")
-
-    @app.post("/admin/seed", tags=["admin"], include_in_schema=False)
-    async def run_seed(request: Request):
-        if not _SEED_SECRET or request.headers.get("x-seed-secret") != _SEED_SECRET:
-            return JSONResponse(status_code=403, content={"detail": "Forbidden"})
-        try:
-            await _seed_admin()
-            return {"status": "ok", "detail": "Seed complete"}
-        except Exception as exc:
-            logger.exception("Seed endpoint error: %s", exc)
-            return JSONResponse(status_code=500, content={"detail": str(exc)})
-
     return app
 
 
