@@ -205,8 +205,9 @@ function BillingDashboard() {
   }
 
   const totalOpen = summary
-    ? Object.values(summary as unknown as Record<string, number>).reduce((a, b) => a + b, 0)
+    ? Object.values(summary).filter((v): v is number => typeof v === 'number').reduce((a, b) => a + b, 0)
     : 0
+
 
   const displayName = user?.name ?? 'there'
 
@@ -847,3 +848,4 @@ export function DashboardPage() {
   if (isDoctor) return <DoctorDashboard />
   return <FrontDeskDashboard />
 }
+
