@@ -46,7 +46,11 @@ PYEOF
 
 echo "=== Running database migrations ===" >&2
 alembic upgrade head
-echo "=== Migrations done, starting gunicorn ===" >&2
+echo "=== Migrations done ===" >&2
+
+echo "=== Running org seed (safe to re-run) ===" >&2
+python scripts/setup_org.py || echo "Org seed skipped (already exists or error)" >&2
+echo "=== Seed done, starting gunicorn ===" >&2
 exec gunicorn main:app \
     -k uvicorn.workers.UvicornWorker \
     --bind "0.0.0.0:${WEBSITES_PORT:-8000}" \
