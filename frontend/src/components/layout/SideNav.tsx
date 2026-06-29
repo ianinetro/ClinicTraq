@@ -192,17 +192,6 @@ export function SideNav({ isOpen, onClose }: SideNavProps) {
 
   return (
     <>
-      {isOpen && (
-        <div
-          onClick={onClose}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 40,
-            background: 'rgba(0,0,0,0.5)',
-          }}
-        />
-      )}
       <aside style={{
         position: 'fixed', left: 0, top: 0, bottom: 0,
         width: 240, zIndex: 50,
