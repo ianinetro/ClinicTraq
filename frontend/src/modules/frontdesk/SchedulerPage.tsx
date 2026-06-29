@@ -64,12 +64,7 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   cancelled: { bg: '#F9FAFB', color: '#9CA3AF' },
 }
 
-const PROVIDERS = [
-  { id: 'p1', name: 'Dr. Sarah Chen' },
-  { id: 'p2', name: 'Dr. Marcus Webb' },
-  { id: 'p3', name: 'Dr. Priya Kapoor' },
-  { id: 'p4', name: 'NP Jordan Ellis' },
-]
+interface Provider { id: string; name: string }
 
 // Grid constants
 const HOUR_START = 7   // 7am
@@ -252,17 +247,20 @@ function NewAppointmentModal({
   prefillTime,
   onClose,
   onCreated,
+  providers,
 }: {
   prefillDate?: string
   prefillTime?: string
   onClose: () => void
   onCreated: () => void
+  providers: Provider[]
 }) {
+  const defaultProviderId = providers[0]?.id ?? ''
   const [form, setForm] = useState<NewApptForm>({
     patientSearch: '',
     patientId: '',
     patientName: '',
-    providerId: PROVIDERS[0].id,
+    providerId: defaultProviderId,
     appointmentType: 'office_visit',
     date: prefillDate ?? format(new Date(), 'yyyy-MM-dd'),
     startTime: prefillTime ?? '09:00',
@@ -394,7 +392,10 @@ function NewAppointmentModal({
             <div>
               <label style={labelStyle}>Provider</label>
               <select value={form.providerId} onChange={e => set('providerId', e.target.value)} style={inputStyle}>
-                {PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {providers.length > 0
+                  ? providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)
+                  : <option value="">No providers available</option>
+                }
               </select>
             </div>
             <div>
@@ -494,6 +495,21 @@ export function SchedulerPage() {
 
   const dateFrom = format(days[0], 'yyyy-MM-dd')
   const dateTo = format(days[6], 'yyyy-MM-dd')
+
+  const { data: providers = [] } = useQuery<Provider[]>({
+    queryKey: ['providers'],
+    queryFn: async () => {
+      try {
+        const res = await apiClient.get('/providers', { params: { limit: 100 } })
+        const items = Array.isArray(res.data) ? res.data : res.data?.items ?? []
+        return items.map((p: { id: string; first_name?: string; last_name?: string; full_name?: string }) => ({
+          id: p.id,
+          name: p.full_name ?? `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim(),
+        }))
+      } catch { return [] }
+    },
+    staleTime: 5 * 60_000,
+  })
 
   const { data: appointments = [] } = useQuery<Appointment[]>({
     queryKey: ['appointments-week', dateFrom, dateTo],
@@ -734,6 +750,7 @@ export function SchedulerPage() {
           prefillTime={selectedSlot.time}
           onClose={() => setSelectedSlot(null)}
           onCreated={() => void queryClient.invalidateQueries({ queryKey: ['appointments-week', dateFrom, dateTo] })}
+          providers={providers}
         />
       )}
 

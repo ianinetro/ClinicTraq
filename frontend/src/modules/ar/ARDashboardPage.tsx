@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { BarChart3, TrendingUp, AlertCircle, DollarSign, Clock, Filter } from 'lucide-react'
 import { PageHeader } from '../../components/shell/PageHeader'
+import { apiClient } from '../../services/api'
 
 interface ARBucket {
   bucket: string
@@ -21,21 +23,35 @@ interface ARSummary {
   buckets: ARBucket[]
 }
 
-function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('auth_token')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
-
-async function apiFetch<T>(url: string): Promise<T> {
-  const r = await fetch(url, { headers: authHeaders() })
-  if (!r.ok) throw new Error(String(r.status))
-  return r.json()
+interface AgedClaim {
+  id: string
+  claim_number: string
+  patient_name: string
+  payer_name: string
+  dos: string
+  total_charges: number
+  balance: number
+  age_days: number
+  bucket: string
 }
 
 function useARSummary() {
   return useQuery<ARSummary>({
     queryKey: ['ar-summary'],
-    queryFn: () => apiFetch('/api/v1/ar/summary'),
+    queryFn: async () => (await apiClient.get('/ar/summary')).data,
+    retry: false,
+  })
+}
+
+function useAgedClaims(payer: string) {
+  return useQuery<AgedClaim[]>({
+    queryKey: ['ar-claims', payer],
+    queryFn: async () => {
+      try {
+        const res = await apiClient.get('/ar/claims', { params: { payer: payer || undefined, limit: 100 } })
+        return Array.isArray(res.data) ? res.data : res.data?.items ?? []
+      } catch { return [] }
+    },
     retry: false,
   })
 }
@@ -47,8 +63,10 @@ function fmt(n: number) {
 const BUCKET_COLORS = ['#0410BD', '#16A34A', '#D97706', '#DC2626', '#7C3AED']
 
 export function ARDashboardPage() {
+  const navigate = useNavigate()
   const [filterPayer, setFilterPayer] = useState('')
   const { data, isLoading, error } = useARSummary()
+  const { data: agedClaims = [] } = useAgedClaims(filterPayer)
 
   const buckets: ARBucket[] = data?.buckets ?? [
     { bucket: 'Current (0–30)', count: 0, amount: data?.current ?? 0, pct: 0 },
@@ -152,15 +170,38 @@ export function ARDashboardPage() {
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td colSpan={8} style={{ padding: '40px 0', textAlign: 'center' }}>
-                <BarChart3 size={32} style={{ color: '#E3E3F1', margin: '0 auto 10px', display: 'block' }} />
-                <div style={{ fontSize: 14, fontWeight: 500, color: '#12122C' }}>Aged claims list</div>
-                <div style={{ fontSize: 13, color: '#9CA3AF', marginTop: 4 }}>
-                  Connect the /ar/claims backend endpoint to populate this table.
-                </div>
-              </td>
-            </tr>
+            {agedClaims.length === 0 ? (
+              <tr>
+                <td colSpan={8} style={{ padding: '40px 0', textAlign: 'center' }}>
+                  <BarChart3 size={32} style={{ color: '#E3E3F1', margin: '0 auto 10px', display: 'block' }} />
+                  <div style={{ fontSize: 14, fontWeight: 500, color: '#12122C' }}>No aged claims</div>
+                  <div style={{ fontSize: 13, color: '#9CA3AF', marginTop: 4 }}>All balances are current or the /ar/claims endpoint is not yet configured.</div>
+                </td>
+              </tr>
+            ) : agedClaims.map(c => (
+              <tr
+                key={c.id}
+                onClick={() => navigate(`/claims/${c.id}`)}
+                style={{ cursor: 'pointer', borderBottom: '1px solid #F3F4F6' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')}
+                onMouseLeave={e => (e.currentTarget.style.background = '')}
+              >
+                <td style={{ padding: '10px 16px', fontSize: 12, fontFamily: 'monospace' }}>{c.claim_number}</td>
+                <td style={{ padding: '10px 16px', fontSize: 13 }}>{c.patient_name}</td>
+                <td style={{ padding: '10px 16px', fontSize: 13, color: '#6B7280' }}>{c.payer_name}</td>
+                <td style={{ padding: '10px 16px', fontSize: 13 }}>{c.dos ? new Date(c.dos).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</td>
+                <td style={{ padding: '10px 16px', fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>${c.total_charges?.toFixed(2) ?? '—'}</td>
+                <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 600, color: '#DC2626', fontVariantNumeric: 'tabular-nums' }}>${c.balance?.toFixed(2) ?? '—'}</td>
+                <td style={{ padding: '10px 16px', fontSize: 13, color: c.age_days > 90 ? '#DC2626' : c.age_days > 60 ? '#D97706' : '#374151' }}>{c.age_days}d</td>
+                <td style={{ padding: '10px 16px' }}>
+                  <span style={{
+                    fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 99,
+                    background: c.age_days > 90 ? '#FEF2F2' : c.age_days > 60 ? '#FFF7ED' : '#F3F4F6',
+                    color: c.age_days > 90 ? '#DC2626' : c.age_days > 60 ? '#D97706' : '#6B7280',
+                  }}>{c.bucket ?? `${c.age_days}d`}</span>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
