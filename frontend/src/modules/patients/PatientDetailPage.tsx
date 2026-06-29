@@ -64,35 +64,20 @@ interface ActivityEvent {
 
 // ─── Data fetching helpers ───────────────────────────────────────────────────
 
-function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('auth_token')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
+import { apiClient } from '../../services/api'
+
+function stripBase(url: string) { return url.replace(/^\/api\/v1/, '') }
 
 async function apiFetch<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: authHeaders() })
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`)
-  return res.json() as Promise<T>
+  return (await apiClient.get<T>(stripBase(url))).data
 }
 
 async function apiPatch<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`)
-  return res.json() as Promise<T>
+  return (await apiClient.patch<T>(stripBase(url), body)).data
 }
 
 async function apiPost<T>(url: string, body?: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`)
-  return res.json() as Promise<T>
+  return (await apiClient.post<T>(stripBase(url), body)).data
 }
 
 // ─── Utility helpers ─────────────────────────────────────────────────────────
@@ -373,8 +358,8 @@ function OverviewTab({ patient, visits, claims, insurance, onEditPatient }: {
         {/* Body Map */}
         <SectionCard>
           <SectionHeader title="Body Map" />
-          <div style={{ padding: '16px', display: 'flex', justifyContent: 'center' }}>
-            <BodyMap patientId={patient.id} sex={p.sex ?? p.gender ?? undefined} visits={recentVisits} />
+          <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'center', maxHeight: 220, overflow: 'hidden' }}>
+            <BodyMap patientId={patient.id} sex={p.sex ?? p.gender ?? undefined} visits={recentVisits} compact />
           </div>
         </SectionCard>
 
@@ -586,7 +571,7 @@ function DemographicsTab({ patient }: { patient: Patient }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 900 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 1100, margin: '0 auto' }}>
       {/* Name section */}
       <SectionCard>
         <SectionHeader title="Name" />
@@ -879,7 +864,7 @@ function InsuranceTab({ patientId, insurance, refetch: _refetch }: {
   async function checkEligibility(insId: string) {
     setCheckingId(insId)
     try {
-      const res = await apiPost<Record<string, unknown>>(`/api/v1/patients/${patientId}/eligibility-check`)
+      const res = await apiPost<Record<string, unknown>>(`/patients/${patientId}/eligibility-check`)
       setEligibilityResults(p => ({ ...p, [insId]: res }))
     } catch {
       // silently fail for demo
@@ -1287,7 +1272,7 @@ function NotesTab({ patientId, activity }: { patientId: string; activity: Activi
     if (!note.trim()) return
     setSaving(true)
     try {
-      await apiPost(`/api/v1/patients/${patientId}/activity`, { note })
+      await apiPost(`/patients/${patientId}/activity`, { note })
       setNote('')
     } catch {
       // ignore
@@ -1411,34 +1396,35 @@ export function PatientDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { data: patient, isLoading } = usePatient(id ?? '')
+  const [activeTab, setActiveTab] = useState('overview')
 
   const { data: visits = [] } = useQuery<Visit[]>({
     queryKey: ['patient-visits', id],
-    queryFn: () => apiFetch(`/api/v1/patients/${id}/visits`),
+    queryFn: () => apiFetch(`/patients/${id}/visits`),
     enabled: !!id,
   })
 
   const { data: claims = [] } = useQuery<Claim[]>({
     queryKey: ['patient-claims', id],
-    queryFn: () => apiFetch(`/api/v1/patients/${id}/claims`),
+    queryFn: () => apiFetch(`/patients/${id}/claims`),
     enabled: !!id,
   })
 
   const { data: payments = [] } = useQuery<Payment[]>({
     queryKey: ['patient-payments', id],
-    queryFn: () => apiFetch(`/api/v1/patients/${id}/payments`),
+    queryFn: () => apiFetch(`/patients/${id}/payments`),
     enabled: !!id,
   })
 
   const { data: insurance = [], refetch: refetchInsurance } = useQuery<PatientInsuranceFull[]>({
     queryKey: ['patient-insurance', id],
-    queryFn: () => apiFetch(`/api/v1/patients/${id}/insurance`),
+    queryFn: () => apiFetch(`/patients/${id}/insurance`),
     enabled: !!id,
   })
 
   const { data: activity = [] } = useQuery<ActivityEvent[]>({
     queryKey: ['patient-activity', id],
-    queryFn: () => apiFetch(`/api/v1/patients/${id}/activity`),
+    queryFn: () => apiFetch(`/patients/${id}/activity`),
     enabled: !!id,
   })
 
@@ -1470,8 +1456,6 @@ export function PatientDetailPage() {
   const initials = `${(p.first_name ?? p.firstName ?? '?')[0]}${(p.last_name ?? p.lastName ?? '?')[0]}`
   const dob = p.dob ?? p.dateOfBirth
   const age = calcAge(dob)
-
-  const [activeTab, setActiveTab] = useState('overview')
 
   return (
     <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
