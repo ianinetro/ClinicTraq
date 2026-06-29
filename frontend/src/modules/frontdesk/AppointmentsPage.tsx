@@ -46,6 +46,11 @@ interface Appointment {
   notes?: string
   chief_complaint?: string
   visit_id?: string
+  // readiness fields (populated by backend or derived client-side)
+  coverage_status?: 'active' | 'inactive' | 'unknown'
+  outstanding_balance?: number
+  forms_complete?: boolean
+  copay_collected?: boolean
 }
 
 interface PatientSearchResult {
@@ -531,6 +536,56 @@ function CancelButton({ apptId }: { apptId: string }) {
   )
 }
 
+// ─── Readiness chips ─────────────────────────────────────────────────────────
+
+function ReadinessChips({ appt }: { appt: Appointment }) {
+  const chips: { label: string; bg: string; color: string; title: string }[] = []
+
+  const cov = appt.coverage_status ?? 'unknown'
+  if (cov === 'active') {
+    chips.push({ label: 'Coverage ✓', bg: '#ECFDF5', color: '#16A34A', title: 'Insurance coverage verified active' })
+  } else if (cov === 'inactive') {
+    chips.push({ label: 'No Coverage', bg: '#FEF2F2', color: '#DC2626', title: 'Insurance coverage inactive or missing' })
+  } else {
+    chips.push({ label: 'Cov Unknown', bg: '#F3F4F6', color: '#9CA3AF', title: 'Coverage status not verified' })
+  }
+
+  if (appt.outstanding_balance != null && appt.outstanding_balance > 0) {
+    chips.push({
+      label: `Bal $${appt.outstanding_balance.toFixed(0)}`,
+      bg: '#FFFBEB', color: '#D97706',
+      title: `Outstanding patient balance: $${appt.outstanding_balance.toFixed(2)}`,
+    })
+  }
+
+  if (appt.forms_complete === false) {
+    chips.push({ label: 'Forms Pending', bg: '#FFF7ED', color: '#C2410C', title: 'Intake forms not completed' })
+  } else if (appt.forms_complete === true) {
+    chips.push({ label: 'Forms ✓', bg: '#F0FDF4', color: '#166534', title: 'Intake forms complete' })
+  }
+
+  if (appt.copay_collected === false && (appt.coverage_status === 'active')) {
+    chips.push({ label: 'Copay Due', bg: '#EFF0FF', color: '#0410BD', title: 'Copay not yet collected' })
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+      {chips.map(c => (
+        <span
+          key={c.label}
+          title={c.title}
+          style={{
+            fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
+            background: c.bg, color: c.color, whiteSpace: 'nowrap',
+          }}
+        >
+          {c.label}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 // ─── Appointment Row ──────────────────────────────────────────────────────────
 
 function AppointmentRow({
@@ -578,9 +633,9 @@ function AppointmentRow({
         {APPT_TYPE_LABELS[appt.appointment_type] ?? appt.appointment_type}
       </td>
 
-      {/* Office */}
-      <td style={{ padding: '12px 16px', fontSize: 12, color: '#6B6B8A', whiteSpace: 'nowrap' }}>
-        {appt.office_name ?? '—'}
+      {/* Readiness */}
+      <td style={{ padding: '12px 16px' }}>
+        <ReadinessChips appt={appt} />
       </td>
 
       {/* Status */}
@@ -867,7 +922,7 @@ export function AppointmentsPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 780 }}>
               <thead>
                 <tr style={{ background: '#F2F2F8' }}>
-                  {['Time', 'Patient', 'Provider', 'Type', 'Office', 'Status', 'Actions'].map(h => (
+                  {['Time', 'Patient', 'Provider', 'Type', 'Readiness', 'Status', 'Actions'].map(h => (
                     <th key={h} style={{
                       padding: '9px 16px', textAlign: 'left',
                       fontSize: 11, fontWeight: 700, color: '#6B6B8A',
