@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   UserPlus, CheckCircle2, Clock, Calendar, Search,
   AlertCircle, ArrowRight, RefreshCw, Stethoscope,
-  LogIn, ChevronRight,
+  LogIn, ChevronRight, ShieldAlert, DollarSign, FileWarning,
 } from 'lucide-react'
 import { apiClient as api } from '../../services/api'
 import { format } from 'date-fns'
@@ -21,6 +21,9 @@ interface Appointment {
   phone?: string
   insurance?: string
   chief_complaint?: string
+  coverage_status?: 'active' | 'inactive' | 'unknown'
+  outstanding_balance?: number
+  forms_complete?: boolean
 }
 
 interface Schedule {
@@ -139,6 +142,52 @@ function AppointmentRow({ appt, onAdvance }: { appt: Appointment; onAdvance: (id
         )}
       </td>
     </tr>
+  )
+}
+
+function ReadinessBlockers({ appointments }: { appointments: Appointment[] }) {
+  type Blocker = { patient_id: string; patient_name: string; issues: { icon: React.ElementType; label: string; color: string }[] }
+  const blockers: Blocker[] = appointments
+    .filter(a => ['scheduled', 'confirmed'].includes(a.status))
+    .reduce<Blocker[]>((acc, a) => {
+      const issues: Blocker['issues'] = []
+      if (a.coverage_status === 'inactive') issues.push({ icon: ShieldAlert, label: 'No coverage', color: '#DC2626' })
+      else if (!a.coverage_status || a.coverage_status === 'unknown') issues.push({ icon: ShieldAlert, label: 'Cov unverified', color: '#D97706' })
+      if (a.outstanding_balance != null && a.outstanding_balance > 0) issues.push({ icon: DollarSign, label: `$${a.outstanding_balance.toFixed(0)} balance`, color: '#D97706' })
+      if (a.forms_complete === false) issues.push({ icon: FileWarning, label: 'Forms missing', color: '#C2410C' })
+      if (issues.length) acc.push({ patient_id: a.patient_id, patient_name: a.patient_name, issues })
+      return acc
+    }, [])
+
+  if (blockers.length === 0) return null
+
+  return (
+    <div style={{ background: 'white', border: '1px solid #FECACA', borderRadius: 10, overflow: 'hidden' }}>
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid #FEE2E2', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FFF5F5' }}>
+        <div style={{ fontWeight: 700, fontSize: 13, color: '#DC2626', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <AlertCircle size={14} />
+          Readiness Blockers
+        </div>
+        <span style={{ fontSize: 11, background: '#FEF2F2', color: '#DC2626', padding: '2px 7px', borderRadius: 99, fontWeight: 700 }}>
+          {blockers.length}
+        </span>
+      </div>
+      <div>
+        {blockers.map(b => (
+          <div key={b.patient_id} style={{ padding: '10px 14px', borderBottom: '1px solid #FFF1F2', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#12122C' }}>{b.patient_name}</div>
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+              {b.issues.map(issue => (
+                <span key={issue.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: issue.color, background: '#FEF2F2', padding: '2px 6px', borderRadius: 4 }}>
+                  <issue.icon size={10} />
+                  {issue.label}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -302,6 +351,7 @@ export function FrontDeskDashboardPage() {
 
         {/* Right column */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <ReadinessBlockers appointments={appointments} />
           <RoomingQueue appointments={appointments} />
 
           {/* Quick actions */}
