@@ -84,6 +84,42 @@ interface ClaimForm {
 
 const POINTER_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']
 
+// ─── Validation ───────────────────────────────────────────────────────────────
+
+function validateStep(step: number, form: ClaimForm): { errors: string[]; warnings: string[] } {
+  const errors: string[] = []
+  const warnings: string[] = []
+  const npiPattern = /^[0-9]{10}$/
+  const taxIdPattern = /^\d{2}-\d{7}$/
+
+  if (step >= 1) {
+    if (!form.patient) errors.push('Patient is required')
+  }
+  if (step >= 2) {
+    if (!form.insuranceType) errors.push('Insurance type is required')
+    if (!form.insuredId) errors.push('Insured ID is required')
+    if (!form.groupNumber) warnings.push('Group number is blank — verify with payer')
+  }
+  if (step >= 3) {
+    const validDx = form.diagnoses.filter(d => d.code)
+    if (validDx.length === 0) errors.push('At least one diagnosis code is required')
+    const validLines = form.serviceLines.filter(l => l.cpt)
+    if (validLines.length === 0) errors.push('At least one service line (CPT code) is required')
+    for (const line of validLines) {
+      if (!line.dos_from) errors.push(`Service line ${line.cpt}: date of service is required`)
+      if (!parseFloat(line.charge) || parseFloat(line.charge) <= 0) errors.push(`Service line ${line.cpt}: charge must be greater than 0`)
+      if (!parseInt(line.units) || parseInt(line.units) <= 0) errors.push(`Service line ${line.cpt}: units must be at least 1`)
+    }
+    if (form.referringNpi && !npiPattern.test(form.referringNpi)) errors.push('Referring provider NPI must be exactly 10 digits')
+  }
+  if (step >= 4) {
+    if (!form.billingName) errors.push('Billing provider name is required')
+    if (!form.billingNpi || !npiPattern.test(form.billingNpi)) errors.push('Billing provider NPI must be exactly 10 digits')
+    if (!form.billingTaxId || !taxIdPattern.test(form.billingTaxId)) warnings.push('Tax ID should be in format XX-XXXXXXX')
+  }
+  return { errors, warnings }
+}
+
 const POS_CODES = [
   { code: '11', label: '11 - Office' },
   { code: '12', label: '12 - Home' },
@@ -172,11 +208,23 @@ function StepPatient({ form, setForm }: { form: ClaimForm; setForm: React.Dispat
     debounceRef.current = setTimeout(() => doSearch(val), 300)
   }
 
-  function selectPatient(p: PatientResult) {
+  function selectPatient(raw: Record<string, unknown>) {
+    const p: PatientResult = {
+      id: String(raw.id),
+      first_name: String(raw.first_name ?? raw.firstName ?? ''),
+      last_name: String(raw.last_name ?? raw.lastName ?? ''),
+      date_of_birth: String(raw.dob ?? raw.dateOfBirth ?? raw.date_of_birth ?? ''),
+      mrn: String(raw.mrn ?? raw.account_number ?? raw.accountNumber ?? ''),
+      account_number: String(raw.account_number ?? raw.accountNumber ?? ''),
+      phone: String(raw.phone_cell ?? raw.phone_home ?? raw.phone ?? ''),
+      primary_insurance_name: String(raw.primary_insurance_name ?? raw.primaryInsuranceName ?? ''),
+      member_id: String(raw.member_id ?? raw.memberId ?? ''),
+    }
     setForm(f => ({
-      ...f, patient: p,
+      ...f,
+      patient: p,
       insuredId: p.member_id ?? '',
-      insuredName: `${p.last_name}, ${p.first_name}`,
+      insuredName: [p.last_name, p.first_name].filter(Boolean).join(', '),
       dos: new Date().toISOString().split('T')[0],
     }))
     setQ('')
@@ -210,10 +258,18 @@ function StepPatient({ form, setForm }: { form: ClaimForm; setForm: React.Dispat
             background: 'white', border: '1px solid #E3E3F1', borderRadius: 8,
             boxShadow: '0 4px 16px rgba(0,0,0,0.12)', marginTop: 4, overflow: 'hidden',
           }}>
-            {results.map(p => (
+            {results.map(p => {
+              const raw = p as unknown as Record<string, unknown>
+              const firstName = String(raw.first_name ?? raw.firstName ?? '')
+              const lastName = String(raw.last_name ?? raw.lastName ?? '')
+              const dob = String(raw.dob ?? raw.dateOfBirth ?? raw.date_of_birth ?? '')
+              const mrn = String(raw.mrn ?? raw.account_number ?? raw.accountNumber ?? '')
+              const acct = String(raw.account_number ?? raw.accountNumber ?? '')
+              const insName = String(raw.primary_insurance_name ?? raw.primaryInsuranceName ?? '')
+              return (
               <button
                 key={p.id}
-                onClick={() => selectPatient(p)}
+                onClick={() => selectPatient(raw)}
                 style={{
                   width: '100%', padding: '10px 14px', border: 'none', background: 'white',
                   cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10,
@@ -227,19 +283,19 @@ function StepPatient({ form, setForm }: { form: ClaimForm; setForm: React.Dispat
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 14, fontWeight: 600, color: '#12122C' }}>
-                    {p.last_name}, {p.first_name}
+                    {lastName}{lastName && firstName ? ', ' : ''}{firstName}
                   </div>
                   <div style={{ fontSize: 12, color: '#6B7280', marginTop: 1 }}>
-                    {p.date_of_birth ? `DOB: ${p.date_of_birth}` : ''}{p.mrn ? `  |  MRN: ${p.mrn}` : ''}{p.account_number ? `  |  Acct: ${p.account_number}` : ''}
+                    {dob ? `DOB: ${dob}` : ''}{mrn ? `  |  MRN: ${mrn}` : ''}{acct ? `  |  Acct: ${acct}` : ''}
                   </div>
                 </div>
-                {p.primary_insurance_name && (
+                {insName && (
                   <span style={{ fontSize: 11, color: '#6B7280', background: '#F3F4F6', padding: '2px 6px', borderRadius: 4 }}>
-                    {p.primary_insurance_name}
+                    {insName}
                   </span>
                 )}
               </button>
-            ))}
+            )})}
           </div>
         )}
         {searched && results.length === 0 && !searching && (
@@ -704,12 +760,14 @@ function StepBillingProvider({ form, setForm }: { form: ClaimForm; setForm: Reac
 
 // ─── Step 5: Review + Submit ───────────────────────────────────────────────────
 
-function StepReview({ form, claimId, validationIssues, onValidate, validating }: {
+function StepReview({ form, claimId, validationIssues, onValidate, validating, formErrors, formWarnings }: {
   form: ClaimForm
   claimId: string | null
   validationIssues: { severity: string; code: string; message: string }[] | null
   onValidate: () => void
   validating: boolean
+  formErrors: string[]
+  formWarnings: string[]
 }) {
   const total = form.serviceLines.reduce((s, l) => s + (parseFloat(l.charge) || 0) * (parseInt(l.units) || 1), 0)
 
@@ -760,6 +818,25 @@ function StepReview({ form, claimId, validationIssues, onValidate, validating }:
           Total Charge: ${total.toFixed(2)}
         </div>
       </div>
+
+      {/* Form validation summary */}
+      {(formErrors.length > 0 || formWarnings.length > 0) && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Claim Validation Summary</div>
+          {formErrors.map((e, i) => (
+            <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '8px 10px', borderRadius: 6, background: '#FEF2F2', border: '1px solid #FECACA' }}>
+              <AlertCircle size={14} style={{ color: '#DC2626', flexShrink: 0, marginTop: 1 }} />
+              <span style={{ fontSize: 12, color: '#DC2626' }}>{e}</span>
+            </div>
+          ))}
+          {formWarnings.map((w, i) => (
+            <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '8px 10px', borderRadius: 6, background: '#FFFBEB', border: '1px solid #FDE68A' }}>
+              <AlertCircle size={14} style={{ color: '#D97706', flexShrink: 0, marginTop: 1 }} />
+              <span style={{ fontSize: 12, color: '#D97706' }}>{w}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Validation */}
       <div>
@@ -855,6 +932,14 @@ export function ClaimComposerPage() {
   const [validationIssues, setValidationIssues] = useState<{ severity: string; code: string; message: string }[] | null>(null)
   const [validating, setValidating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [stepErrors, setStepErrors] = useState<string[]>([])
+  const [stepWarnings, setStepWarnings] = useState<string[]>([])
+
+  useEffect(() => {
+    const { errors, warnings } = validateStep(step, form)
+    setStepErrors(errors)
+    setStepWarnings(warnings)
+  }, [form, step])
 
   async function saveProgress(): Promise<string | null> {
     if (!form.patient) { setError('Please select a patient first'); return null }
@@ -942,14 +1027,16 @@ export function ClaimComposerPage() {
   }
 
   async function goNext() {
-    if (step === 1 && !form.patient) { setError('Please select a patient'); return }
+    const { errors } = validateStep(step, form)
+    if (errors.length > 0) { setError(errors[0]); return }
     if (step === 4) { await saveProgress() }
     setError(null)
     setStep(s => Math.min(s + 1, 5))
   }
 
-  const canProceed = step !== 1 || !!form.patient
+  const canProceed = validateStep(step, form).errors.length === 0
   const blockingIssues = (validationIssues ?? []).filter(i => i.severity === 'blocking')
+  const fullValidationErrors = validateStep(99, form).errors
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
@@ -1001,6 +1088,8 @@ export function ClaimComposerPage() {
             validationIssues={validationIssues}
             onValidate={handleValidate}
             validating={validating}
+            formErrors={fullValidationErrors}
+            formWarnings={validateStep(99, form).warnings}
           />
         )}
       </div>
@@ -1008,6 +1097,28 @@ export function ClaimComposerPage() {
       {error && (
         <div style={{ marginTop: 12, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 14px', color: '#DC2626', fontSize: 13 }}>
           {error}
+        </div>
+      )}
+
+      {/* Validation banners */}
+      {stepErrors.length > 0 && (
+        <div style={{ marginTop: 12, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {stepErrors.map((e, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, color: '#DC2626' }}>
+              <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+              {e}
+            </div>
+          ))}
+        </div>
+      )}
+      {stepWarnings.length > 0 && (
+        <div style={{ marginTop: 8, background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {stepWarnings.map((w, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, color: '#D97706' }}>
+              <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+              {w}
+            </div>
+          ))}
         </div>
       )}
 
@@ -1045,15 +1156,21 @@ export function ClaimComposerPage() {
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={submitting || blockingIssues.length > 0}
+                disabled={submitting || blockingIssues.length > 0 || fullValidationErrors.length > 0}
+                title={fullValidationErrors.length > 0 ? fullValidationErrors[0] : undefined}
                 style={{
-                  height: 38, padding: '0 18px', background: blockingIssues.length > 0 ? '#9CA3AF' : '#0410BD', color: 'white',
-                  border: 'none', borderRadius: 8, cursor: submitting || blockingIssues.length > 0 ? 'default' : 'pointer',
+                  height: 38, padding: '0 18px',
+                  background: (blockingIssues.length > 0 || fullValidationErrors.length > 0) ? '#9CA3AF' : '#0410BD',
+                  color: 'white', border: 'none', borderRadius: 8,
+                  cursor: (submitting || blockingIssues.length > 0 || fullValidationErrors.length > 0) ? 'default' : 'pointer',
                   fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6,
                 }}
               >
                 <Send size={14} />
-                {submitting ? 'Submitting…' : blockingIssues.length > 0 ? `${blockingIssues.length} blocking issue${blockingIssues.length > 1 ? 's' : ''}` : 'Submit Claim'}
+                {submitting ? 'Submitting…'
+                  : fullValidationErrors.length > 0 ? `${fullValidationErrors.length} issue${fullValidationErrors.length > 1 ? 's' : ''} to fix`
+                  : blockingIssues.length > 0 ? `${blockingIssues.length} blocking issue${blockingIssues.length > 1 ? 's' : ''}`
+                  : 'Submit Claim'}
               </button>
             </>
           )}
