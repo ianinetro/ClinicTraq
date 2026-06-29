@@ -30,8 +30,17 @@ interface AuthState {
   refreshUser: () => Promise<void>
 }
 
+function loadUser(): UserContext | null {
+  try {
+    const raw = localStorage.getItem('auth_user')
+    return raw ? (JSON.parse(raw) as UserContext) : null
+  } catch {
+    return null
+  }
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
-  user: null,
+  user: loadUser(),
   isAuthenticated: !!localStorage.getItem('auth_token'),
   activeClinicId: localStorage.getItem('active_clinic_id'),
 
@@ -40,12 +49,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { access_token, refresh_token, user } = res.data
     localStorage.setItem('auth_token', access_token)
     localStorage.setItem('refresh_token', refresh_token)
+    localStorage.setItem('auth_user', JSON.stringify(user))
     if (user.clinicId) localStorage.setItem('active_clinic_id', user.clinicId)
     set({ user, isAuthenticated: true, activeClinicId: user.clinicId ?? null })
   },
 
   logout: () => {
-    localStorage.clear()
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('refresh_token')
+    localStorage.removeItem('auth_user')
+    localStorage.removeItem('active_clinic_id')
     set({ user: null, isAuthenticated: false, activeClinicId: null })
     window.location.href = '/login'
   },
@@ -69,6 +82,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   refreshUser: async () => {
     try {
       const res = await api.get('/auth/me')
+      localStorage.setItem('auth_user', JSON.stringify(res.data))
       set({ user: res.data })
     } catch {
       // token expired — stay logged in but with stale user

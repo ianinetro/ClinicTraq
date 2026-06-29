@@ -340,9 +340,9 @@ export function ClaimDetailPage() {
       {/* Financial summary */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
         {[
-          { label: 'Billed', value: `$${claim.totalBilled.toFixed(2)}`, sub: 'total charged' },
-          { label: 'Paid', value: `$${claim.totalPaid.toFixed(2)}`, sub: 'received', ok: claim.totalPaid > 0 },
-          { label: 'Balance', value: `$${claim.totalBalance.toFixed(2)}`, sub: 'outstanding', warn: claim.totalBalance > 0 },
+          { label: 'Billed', value: `$${(claim.totalBilled ?? 0).toFixed(2)}`, sub: 'total charged' },
+          { label: 'Paid', value: `$${(claim.totalPaid ?? 0).toFixed(2)}`, sub: 'received', ok: (claim.totalPaid ?? 0) > 0 },
+          { label: 'Balance', value: `$${(claim.totalBalance ?? 0).toFixed(2)}`, sub: 'outstanding', warn: (claim.totalBalance ?? 0) > 0 },
         ].map(k => (
           <div key={k.label} style={{ background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)', borderRadius: 'var(--bb-radius-lg)', padding: '16px 20px' }}>
             <div style={{ fontSize: 12, color: 'var(--bb-text-secondary)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{k.label}</div>
@@ -441,13 +441,13 @@ export function ClaimDetailPage() {
                     <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: 12 }}>{sl.mods || '—'}</td>
                     <td style={{ padding: '10px 14px', fontSize: 13 }}>{sl.dos}</td>
                     <td style={{ padding: '10px 14px', fontSize: 13 }}>{sl.units}</td>
-                    <td style={{ padding: '10px 14px', fontSize: 13 }}>${sl.billed.toFixed(2)}</td>
-                    <td style={{ padding: '10px 14px', fontSize: 13 }}>{sl.allowed > 0 ? `$${sl.allowed.toFixed(2)}` : '—'}</td>
-                    <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, color: sl.paid > 0 ? 'var(--bb-status-success)' : 'var(--bb-text-secondary)' }}>
-                      {sl.paid > 0 ? `$${sl.paid.toFixed(2)}` : '—'}
+                    <td style={{ padding: '10px 14px', fontSize: 13 }}>${(sl.billed ?? 0).toFixed(2)}</td>
+                    <td style={{ padding: '10px 14px', fontSize: 13 }}>{(sl.allowed ?? 0) > 0 ? `$${(sl.allowed ?? 0).toFixed(2)}` : '—'}</td>
+                    <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, color: (sl.paid ?? 0) > 0 ? 'var(--bb-status-success)' : 'var(--bb-text-secondary)' }}>
+                      {(sl.paid ?? 0) > 0 ? `$${(sl.paid ?? 0).toFixed(2)}` : '—'}
                     </td>
                     <td style={{ padding: '10px 14px', fontSize: 13, color: 'var(--bb-status-danger)' }}>
-                      {sl.adjustment > 0 ? `-$${sl.adjustment.toFixed(2)}` : '—'}
+                      {(sl.adjustment ?? 0) > 0 ? `-$${(sl.adjustment ?? 0).toFixed(2)}` : '—'}
                     </td>
                     <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--bb-status-danger)', maxWidth: 220 }}>{sl.adjReason || '—'}</td>
                   </tr>
@@ -456,11 +456,11 @@ export function ClaimDetailPage() {
               <tfoot>
                 <tr style={{ borderTop: '2px solid var(--bb-border)', background: 'var(--bb-surface-app)' }}>
                   <td colSpan={4} style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13 }}>Totals</td>
-                  <td style={{ padding: '10px 14px', fontWeight: 700, fontSize: 13 }}>${claim.totalBilled.toFixed(2)}</td>
+                  <td style={{ padding: '10px 14px', fontWeight: 700, fontSize: 13 }}>${(claim.totalBilled ?? 0).toFixed(2)}</td>
                   <td />
-                  <td style={{ padding: '10px 14px', fontWeight: 700, fontSize: 13, color: 'var(--bb-status-success)' }}>${claim.totalPaid.toFixed(2)}</td>
+                  <td style={{ padding: '10px 14px', fontWeight: 700, fontSize: 13, color: 'var(--bb-status-success)' }}>${(claim.totalPaid ?? 0).toFixed(2)}</td>
                   <td style={{ padding: '10px 14px', fontWeight: 700, fontSize: 13, color: 'var(--bb-status-danger)' }}>
-                    -${claim.serviceLines.reduce((s, sl) => s + sl.adjustment, 0).toFixed(2)}
+                    -${claim.serviceLines.reduce((s, sl) => s + (sl.adjustment ?? 0), 0).toFixed(2)}
                   </td>
                   <td />
                 </tr>

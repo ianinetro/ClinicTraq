@@ -264,6 +264,18 @@ function OverviewTab({ patient, visits, claims, insurance, onEditPatient, isDent
   ].filter(Boolean).join(' ')
 
   return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* ─── DENTAL CHART — full-width, top of page ─── */}
+      {isDental && (
+        <SectionCard>
+          <SectionHeader title="Dental Chart" />
+          <div style={{ padding: '16px 20px', display: 'flex', justifyContent: 'center' }}>
+            <TeethMap patientId={patient.id} />
+          </div>
+        </SectionCard>
+      )}
+
     <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 20, alignItems: 'start' }}>
       {/* ─── LEFT COLUMN ─── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -357,16 +369,15 @@ function OverviewTab({ patient, visits, claims, insurance, onEditPatient, isDent
       {/* ─── RIGHT COLUMN ─── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-        {/* Anatomy Map — body map for medical, teeth chart for dental */}
-        <SectionCard>
-          <SectionHeader title={isDental ? 'Dental Chart' : 'Body Map'} />
-          <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'center' }}>
-            {isDental
-              ? <TeethMap patientId={patient.id} compact />
-              : <BodyMap patientId={patient.id} sex={p.sex ?? p.gender ?? undefined} visits={recentVisits} compact />
-            }
-          </div>
-        </SectionCard>
+        {/* Body Map — only for non-dental clinics */}
+        {!isDental && (
+          <SectionCard>
+            <SectionHeader title="Body Map" />
+            <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'center' }}>
+              <BodyMap patientId={patient.id} sex={p.sex ?? p.gender ?? undefined} visits={recentVisits} compact />
+            </div>
+          </SectionCard>
+        )}
 
         {/* Recent Visits */}
         <SectionCard>
@@ -427,6 +438,7 @@ function OverviewTab({ patient, visits, claims, insurance, onEditPatient, isDent
           )}
         </SectionCard>
       </div>
+    </div>
     </div>
   )
 }

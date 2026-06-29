@@ -1,54 +1,23 @@
 import { useState } from 'react'
 
-// Universal Numbering System (1–32 upper/lower, adult dentition)
-// Odd/even placement: 1-16 upper, 17-32 lower, left-to-right from patient's right
-const TOOTH_POSITIONS: { num: number; cx: number; cy: number; label: string }[] = [
-  // Upper arch (1–16), patient's right to left
-  { num: 1,  cx: 20,  cy: 28, label: 'UR3M' },
-  { num: 2,  cx: 36,  cy: 20, label: 'UR2M' },
-  { num: 3,  cx: 52,  cy: 16, label: 'UR1M' },
-  { num: 4,  cx: 68,  cy: 14, label: 'UR2P' },
-  { num: 5,  cx: 84,  cy: 14, label: 'UR1P' },
-  { num: 6,  cx: 100, cy: 16, label: 'URC'  },
-  { num: 7,  cx: 114, cy: 20, label: 'URI2' },
-  { num: 8,  cx: 126, cy: 24, label: 'URI1' },
-  { num: 9,  cx: 138, cy: 24, label: 'ULI1' },
-  { num: 10, cx: 150, cy: 20, label: 'ULI2' },
-  { num: 11, cx: 164, cy: 16, label: 'ULC'  },
-  { num: 12, cx: 180, cy: 14, label: 'UL1P' },
-  { num: 13, cx: 196, cy: 14, label: 'UL2P' },
-  { num: 14, cx: 212, cy: 16, label: 'UL1M' },
-  { num: 15, cx: 228, cy: 20, label: 'UL2M' },
-  { num: 16, cx: 244, cy: 28, label: 'UL3M' },
-  // Lower arch (17–32), patient's left to right
-  { num: 17, cx: 244, cy: 96, label: 'LL3M' },
-  { num: 18, cx: 228, cy: 104, label: 'LL2M' },
-  { num: 19, cx: 212, cy: 108, label: 'LL1M' },
-  { num: 20, cx: 196, cy: 110, label: 'LL2P' },
-  { num: 21, cx: 180, cy: 110, label: 'LL1P' },
-  { num: 22, cx: 164, cy: 108, label: 'LLC'  },
-  { num: 23, cx: 150, cy: 104, label: 'LLI2' },
-  { num: 24, cx: 138, cy: 100, label: 'LLI1' },
-  { num: 25, cx: 126, cy: 100, label: 'LRI1' },
-  { num: 26, cx: 114, cy: 104, label: 'LRI2' },
-  { num: 27, cx: 100, cy: 108, label: 'LRC'  },
-  { num: 28, cx: 84,  cy: 110, label: 'LR1P' },
-  { num: 29, cx: 68,  cy: 110, label: 'LR2P' },
-  { num: 30, cx: 52,  cy: 108, label: 'LR1M' },
-  { num: 31, cx: 36,  cy: 104, label: 'LR2M' },
-  { num: 32, cx: 20,  cy: 96, label: 'LR3M'  },
-]
+// Universal Numbering System — 1-16 upper (right→left), 17-32 lower (left→right)
+// Each tooth has 5 surfaces: O (occlusal/incisal), B (buccal), L (lingual), M (mesial), D (distal)
+// Layout: 16 teeth per arch, spread across the SVG width
+
+const UPPER_NUMS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+const LOWER_NUMS = [32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17]
 
 type ToothCondition = 'healthy' | 'decay' | 'missing' | 'crown' | 'implant' | 'root_canal' | 'filling'
+type Surface = 'O' | 'B' | 'L' | 'M' | 'D'
 
-const CONDITION_COLORS: Record<ToothCondition, { fill: string; stroke: string }> = {
-  healthy:    { fill: '#F9FAFB', stroke: '#D1D5DB' },
-  decay:      { fill: '#FEF2F2', stroke: '#DC2626' },
-  missing:    { fill: '#F3F4F6', stroke: '#9CA3AF' },
-  crown:      { fill: '#FFFBEB', stroke: '#D97706' },
-  implant:    { fill: '#EFF0FF', stroke: '#0410BD' },
-  root_canal: { fill: '#FDF4FF', stroke: '#7C3AED' },
-  filling:    { fill: '#ECFDF5', stroke: '#16A34A' },
+const CONDITION_COLORS: Record<ToothCondition, { fill: string; stroke: string; dot: string }> = {
+  healthy:    { fill: '#FFFFFF', stroke: '#CBD5E1', dot: '#CBD5E1' },
+  decay:      { fill: '#FEF2F2', stroke: '#DC2626', dot: '#DC2626' },
+  missing:    { fill: '#F1F5F9', stroke: '#94A3B8', dot: '#94A3B8' },
+  crown:      { fill: '#FFFBEB', stroke: '#D97706', dot: '#D97706' },
+  implant:    { fill: '#EFF6FF', stroke: '#2563EB', dot: '#2563EB' },
+  root_canal: { fill: '#FDF4FF', stroke: '#7C3AED', dot: '#7C3AED' },
+  filling:    { fill: '#F0FDF4', stroke: '#16A34A', dot: '#16A34A' },
 }
 
 const CONDITION_LABELS: Record<ToothCondition, string> = {
@@ -59,6 +28,7 @@ const CONDITION_LABELS: Record<ToothCondition, string> = {
 interface ToothStatus {
   toothNum: number
   condition: ToothCondition
+  surfaces?: Partial<Record<Surface, ToothCondition>>
   notes?: string
 }
 
@@ -69,69 +39,183 @@ interface TeethMapProps {
   onToothClick?: (toothNum: number) => void
 }
 
+// Layout constants
+const SVG_W = 680
+const SVG_H = 220
+const TOOTH_W = 32
+const TOOTH_H = 38
+const GAP = 10      // gap between teeth (filler space)
+const STEP = TOOTH_W + GAP
+const ARCH_X_START = 18
+const UPPER_Y = 28
+const LOWER_Y = SVG_H - 28 - TOOTH_H
+const SURFACE_PAD = 5
+const SURFACE_SIZE = (TOOTH_W - SURFACE_PAD * 2) / 3
+
+// Draw 5-surface tooth diagram inside a bounding rect (x,y,w,h)
+// Surfaces: center=occlusal, top=buccal, bottom=lingual, left=mesial, right=distal
+function ToothBlock({
+  x, y, w, h, num, status, isSelected, compact, onClick,
+}: {
+  x: number; y: number; w: number; h: number
+  num: number; status: ToothStatus | undefined
+  isSelected: boolean; compact: boolean
+  onClick: () => void
+}) {
+  const cond: ToothCondition = status?.condition ?? 'healthy'
+  const colors = CONDITION_COLORS[cond]
+  const isMissing = cond === 'missing'
+
+  // Surface override colors
+  const sf = status?.surfaces ?? {}
+  function sfColor(s: Surface) {
+    const c = sf[s] ?? cond
+    return CONDITION_COLORS[c]
+  }
+
+  const cx = x + w / 2
+  const cy = y + h / 2
+  const ow = w * 0.44  // occlusal inner box width
+  const oh = h * 0.42  // occlusal inner box height
+  const ox = cx - ow / 2
+  const oy = cy - oh / 2
+
+  return (
+    <g onClick={onClick} style={{ cursor: 'pointer' }}>
+      {isMissing ? (
+        <>
+          <rect x={x} y={y} width={w} height={h} rx={4}
+            fill="#F8FAFC" stroke="#CBD5E1" strokeWidth={1} strokeDasharray="4,3" />
+          <line x1={x + 4} y1={y + 4} x2={x + w - 4} y2={y + h - 4} stroke="#CBD5E1" strokeWidth={1.5} />
+          <line x1={x + w - 4} y1={y + 4} x2={x + 4} y2={y + h - 4} stroke="#CBD5E1" strokeWidth={1.5} />
+        </>
+      ) : (
+        <>
+          {/* Outer tooth shape */}
+          <rect x={x} y={y} width={w} height={h} rx={5}
+            fill={colors.fill}
+            stroke={isSelected ? '#0410BD' : colors.stroke}
+            strokeWidth={isSelected ? 2.5 : 1.5}
+          />
+          {/* 5-surface diagram (only in non-compact) */}
+          {!compact && (
+            <>
+              {/* Buccal (top) */}
+              <rect x={ox} y={y + 2} width={ow} height={oy - y - 2} rx={2}
+                fill={sfColor('B').fill} stroke={sfColor('B').stroke} strokeWidth={1} />
+              {/* Lingual (bottom) */}
+              <rect x={ox} y={oy + oh} width={ow} height={y + h - 2 - (oy + oh)} rx={2}
+                fill={sfColor('L').fill} stroke={sfColor('L').stroke} strokeWidth={1} />
+              {/* Mesial (left) */}
+              <rect x={x + 2} y={oy} width={ox - x - 2} height={oh} rx={2}
+                fill={sfColor('M').fill} stroke={sfColor('M').stroke} strokeWidth={1} />
+              {/* Distal (right) */}
+              <rect x={ox + ow} y={oy} width={x + w - 2 - (ox + ow)} height={oh} rx={2}
+                fill={sfColor('D').fill} stroke={sfColor('D').stroke} strokeWidth={1} />
+              {/* Occlusal (center) */}
+              <rect x={ox} y={oy} width={ow} height={oh} rx={3}
+                fill={sfColor('O').fill} stroke={sfColor('O').stroke} strokeWidth={1.5} />
+            </>
+          )}
+          {/* Condition dot for compact */}
+          {compact && cond !== 'healthy' && (
+            <circle cx={x + w - 4} cy={y + 4} r={3} fill={colors.dot} stroke="white" strokeWidth={0.8} />
+          )}
+        </>
+      )}
+      {/* Tooth number */}
+      {!compact && (
+        <text x={cx} y={y + h + 10} textAnchor="middle" fontSize={8} fill="#64748B" fontWeight="600">
+          {num}
+        </text>
+      )}
+    </g>
+  )
+}
+
+// Filler gap between teeth (visual space indicator)
+function FillerGap({ x, y, h }: { x: number; y: number; h: number }) {
+  return (
+    <rect x={x} y={y + h * 0.25} width={GAP - 2} height={h * 0.5} rx={2}
+      fill="#F1F5F9" stroke="#E2E8F0" strokeWidth={0.5} />
+  )
+}
+
 export function TeethMap({ toothStatuses = [], compact = false, onToothClick }: TeethMapProps) {
   const [selectedTooth, setSelectedTooth] = useState<number | null>(null)
 
   const statusMap = Object.fromEntries(toothStatuses.map(t => [t.toothNum, t]))
+  const selected = selectedTooth ? statusMap[selectedTooth] : undefined
 
-  function getCondition(num: number): ToothCondition {
-    return statusMap[num]?.condition ?? 'healthy'
+  const svgW = compact ? 440 : SVG_W
+  const scale = svgW / SVG_W
+  const tw = compact ? TOOTH_W * 0.78 : TOOTH_W
+  const th = compact ? TOOTH_H * 0.78 : TOOTH_H
+  const gap = compact ? GAP * 0.78 : GAP
+  const step = tw + gap
+  const startX = compact ? 14 : ARCH_X_START
+  const upperY = compact ? 18 : UPPER_Y
+  const lowerY = compact ? (SVG_H * scale) - 18 - th : LOWER_Y
+
+  const svgH = compact ? Math.round(SVG_H * scale) : SVG_H
+
+  function handleToothClick(num: number) {
+    setSelectedTooth(num === selectedTooth ? null : num)
+    onToothClick?.(num)
   }
 
-  const selected = selectedTooth ? statusMap[selectedTooth] : null
-  const R = compact ? 8 : 11
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'center' }}>
         <svg
-          viewBox="0 0 264 130"
-          style={{ width: compact ? 200 : 280, height: 'auto', display: 'block' }}
+          viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+          style={{ width: compact ? 440 : '100%', maxWidth: SVG_W, height: 'auto', display: 'block' }}
           aria-label="Dental chart"
         >
-          {/* Arch guide lines */}
-          <path d="M 20 28 Q 132 2 244 28" fill="none" stroke="#E5E7EB" strokeWidth="1.5" />
-          <path d="M 20 96 Q 132 124 244 96" fill="none" stroke="#E5E7EB" strokeWidth="1.5" />
+          {/* Arch labels */}
+          {!compact && (
+            <>
+              <text x={SVG_W / 2} y={12} textAnchor="middle" fontSize={8} fill="#94A3B8" fontWeight="700" letterSpacing="1.5">UPPER</text>
+              <text x={SVG_W / 2} y={SVG_H - 2} textAnchor="middle" fontSize={8} fill="#94A3B8" fontWeight="700" letterSpacing="1.5">LOWER</text>
+              {/* Midline indicator */}
+              <line x1={SVG_W / 2} y1={UPPER_Y - 6} x2={SVG_W / 2} y2={UPPER_Y + TOOTH_H + 6} stroke="#E2E8F0" strokeWidth={1} strokeDasharray="3,2" />
+              <line x1={SVG_W / 2} y1={LOWER_Y - 6} x2={SVG_W / 2} y2={LOWER_Y + TOOTH_H + 6} stroke="#E2E8F0" strokeWidth={1} strokeDasharray="3,2" />
+            </>
+          )}
 
-          {TOOTH_POSITIONS.map(({ num, cx, cy }) => {
-            const cond = getCondition(num)
-            const colors = CONDITION_COLORS[cond]
-            const isMissing = cond === 'missing'
-            const isSelected = selectedTooth === num
-
+          {/* Upper arch */}
+          {UPPER_NUMS.map((num, i) => {
+            const x = ARCH_X_START + i * (TOOTH_W + GAP)
             return (
-              <g key={num} onClick={() => { setSelectedTooth(num === selectedTooth ? null : num); onToothClick?.(num) }} style={{ cursor: 'pointer' }}>
-                {isMissing ? (
-                  <line x1={cx - R + 2} y1={cy - R + 2} x2={cx + R - 2} y2={cy + R - 2}
-                    stroke="#9CA3AF" strokeWidth="1.5" strokeDasharray="3,2" />
-                ) : (
-                  <circle cx={cx} cy={cy} r={R}
-                    fill={colors.fill}
-                    stroke={isSelected ? '#0410BD' : colors.stroke}
-                    strokeWidth={isSelected ? 2.5 : 1.5}
-                  />
-                )}
-                {/* Condition indicator dot */}
-                {cond !== 'healthy' && cond !== 'missing' && (
-                  <circle cx={cx + R - 3} cy={cy - R + 3} r={3}
-                    fill={colors.stroke} stroke="white" strokeWidth={1} />
-                )}
-                {!compact && (
-                  <text x={cx} y={cy + 3.5} textAnchor="middle" fontSize={6} fill="#6B7280" fontWeight="600">
-                    {num}
-                  </text>
-                )}
+              <g key={`upper-${num}`}>
+                {i > 0 && <FillerGap x={x - GAP} y={UPPER_Y} h={TOOTH_H} />}
+                <ToothBlock
+                  x={x} y={UPPER_Y} w={TOOTH_W} h={TOOTH_H}
+                  num={num} status={statusMap[num]}
+                  isSelected={selectedTooth === num}
+                  compact={compact}
+                  onClick={() => handleToothClick(num)}
+                />
               </g>
             )
           })}
 
-          {/* UPPER / LOWER labels */}
-          {!compact && (
-            <>
-              <text x={132} y={8} textAnchor="middle" fontSize={7} fill="#9CA3AF" fontWeight="700" letterSpacing="1">UPPER</text>
-              <text x={132} y={127} textAnchor="middle" fontSize={7} fill="#9CA3AF" fontWeight="700" letterSpacing="1">LOWER</text>
-            </>
-          )}
+          {/* Lower arch */}
+          {LOWER_NUMS.map((num, i) => {
+            const x = ARCH_X_START + i * (TOOTH_W + GAP)
+            return (
+              <g key={`lower-${num}`}>
+                {i > 0 && <FillerGap x={x - GAP} y={LOWER_Y} h={TOOTH_H} />}
+                <ToothBlock
+                  x={x} y={LOWER_Y} w={TOOTH_W} h={TOOTH_H}
+                  num={num} status={statusMap[num]}
+                  isSelected={selectedTooth === num}
+                  compact={compact}
+                  onClick={() => handleToothClick(num)}
+                />
+              </g>
+            )
+          })}
         </svg>
       </div>
 
@@ -143,22 +227,49 @@ export function TeethMap({ toothStatuses = [], compact = false, onToothClick }: 
         }}>
           <div style={{ fontWeight: 700, color: '#12122C', marginBottom: 4 }}>
             Tooth #{selectedTooth}
-            <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 600, color: CONDITION_COLORS[getCondition(selectedTooth)].stroke }}>
-              {CONDITION_LABELS[getCondition(selectedTooth)]}
+            {' '}
+            <span style={{
+              marginLeft: 6, fontSize: 11, fontWeight: 600,
+              color: CONDITION_COLORS[selected?.condition ?? 'healthy'].stroke,
+              background: CONDITION_COLORS[selected?.condition ?? 'healthy'].fill,
+              border: `1px solid ${CONDITION_COLORS[selected?.condition ?? 'healthy'].stroke}`,
+              borderRadius: 4, padding: '1px 6px',
+            }}>
+              {CONDITION_LABELS[selected?.condition ?? 'healthy']}
             </span>
           </div>
           {selected?.notes && (
-            <div style={{ color: '#6B6B8A', fontSize: 12 }}>{selected.notes}</div>
+            <div style={{ color: '#6B6B8A', fontSize: 12, marginTop: 4 }}>{selected.notes}</div>
+          )}
+          {selected?.surfaces && (
+            <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+              {(Object.entries(selected.surfaces) as [Surface, ToothCondition][]).map(([surf, cond]) => (
+                <span key={surf} style={{
+                  fontSize: 11, fontWeight: 600,
+                  color: CONDITION_COLORS[cond].stroke,
+                  background: CONDITION_COLORS[cond].fill,
+                  border: `1px solid ${CONDITION_COLORS[cond].stroke}`,
+                  borderRadius: 4, padding: '1px 7px',
+                }}>
+                  {surf}: {CONDITION_LABELS[cond]}
+                </span>
+              ))}
+            </div>
           )}
         </div>
       )}
 
       {/* Legend */}
       {!compact && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px' }}>
           {(Object.entries(CONDITION_LABELS) as [ToothCondition, string][]).map(([cond, label]) => (
             <span key={cond} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#374151' }}>
-              <span style={{ width: 10, height: 10, borderRadius: '50%', background: CONDITION_COLORS[cond].fill, border: `1.5px solid ${CONDITION_COLORS[cond].stroke}`, display: 'inline-block' }} />
+              <span style={{
+                width: 11, height: 11, borderRadius: 2,
+                background: CONDITION_COLORS[cond].fill,
+                border: `1.5px solid ${CONDITION_COLORS[cond].stroke}`,
+                display: 'inline-block',
+              }} />
               {label}
             </span>
           ))}
