@@ -45,12 +45,9 @@ const SVG_H = 220
 const TOOTH_W = 32
 const TOOTH_H = 38
 const GAP = 10      // gap between teeth (filler space)
-const STEP = TOOTH_W + GAP
 const ARCH_X_START = 18
 const UPPER_Y = 28
 const LOWER_Y = SVG_H - 28 - TOOTH_H
-const SURFACE_PAD = 5
-const SURFACE_SIZE = (TOOTH_W - SURFACE_PAD * 2) / 3
 
 // Draw 5-surface tooth diagram inside a bounding rect (x,y,w,h)
 // Surfaces: center=occlusal, top=buccal, bottom=lingual, left=mesial, right=distal
@@ -147,17 +144,6 @@ export function TeethMap({ toothStatuses = [], compact = false, onToothClick }: 
   const statusMap = Object.fromEntries(toothStatuses.map(t => [t.toothNum, t]))
   const selected = selectedTooth ? statusMap[selectedTooth] : undefined
 
-  const svgW = compact ? 440 : SVG_W
-  const scale = svgW / SVG_W
-  const tw = compact ? TOOTH_W * 0.78 : TOOTH_W
-  const th = compact ? TOOTH_H * 0.78 : TOOTH_H
-  const gap = compact ? GAP * 0.78 : GAP
-  const step = tw + gap
-  const startX = compact ? 14 : ARCH_X_START
-  const upperY = compact ? 18 : UPPER_Y
-  const lowerY = compact ? (SVG_H * scale) - 18 - th : LOWER_Y
-
-  const svgH = compact ? Math.round(SVG_H * scale) : SVG_H
 
   function handleToothClick(num: number) {
     setSelectedTooth(num === selectedTooth ? null : num)
