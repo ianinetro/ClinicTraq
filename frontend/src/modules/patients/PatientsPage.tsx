@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus } from 'lucide-react'
+import { format } from 'date-fns'
 import { PageHeader } from '../../components/shell/PageHeader'
 import { Table, type ColumnDef } from '../../components/ui/Table'
 import { Button } from '../../components/ui/Button'
 import { SearchInput } from '../../components/shared/SearchInput'
 import { StatusBadge } from '../../components/shared/StatusBadge'
-import { PHIField } from '../../components/shared/PHIField'
 import { usePatients } from '../../services/queries'
 import type { Patient } from '../../types'
 
@@ -36,26 +36,14 @@ export function PatientsPage() {
       id: 'name',
       header: 'Name',
       cell: (row) => (
-        <PHIField
-          value={`${row.firstName} ${row.lastName}`}
-          fieldName="Patient Name"
-          patientId={row.id}
-          fieldType="name"
-          inline
-        />
+        <span className="text-sm font-medium text-[#12122C]">{row.firstName} {row.lastName}</span>
       ),
     },
     {
       id: 'dob',
       header: 'Date of Birth',
       cell: (row) => (
-        <PHIField
-          value={row.dateOfBirth}
-          fieldName="Date of Birth"
-          patientId={row.id}
-          fieldType="dob"
-          inline
-        />
+        <span className="text-sm tabular-nums text-[#676687]">{row.dateOfBirth ? format(new Date(row.dateOfBirth), 'MM/dd/yyyy') : '—'}</span>
       ),
     },
     {

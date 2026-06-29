@@ -475,41 +475,27 @@ export function VisitDetailPage() {
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bb-surface-app)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-      {/* Header bar */}
-      <div style={{
-        background: 'var(--bb-brand-ink)',
-        padding: '0 20px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        minHeight: '48px',
-        flexShrink: 0,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+      {/* Back + title + save row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <button
             onClick={() => navigate('/visits')}
-            style={{ color: '#9999BB', background: 'none', border: 'none', fontSize: '13px', cursor: 'pointer', padding: 0 }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--bb-text-secondary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
           >
             ← Visits
           </button>
-          <h1 style={{ color: '#fff', fontSize: '14px', fontWeight: 700, margin: 0 }}>
-            Edit Visit —{' '}
-            <span style={{ color: '#9999CC', fontWeight: 400 }}>Visit ID: {visit.id}</span>
+          <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--bb-text-primary)' }}>
+            Edit Visit{' '}
+            <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--bb-text-secondary)' }}>— {visit.id.slice(0, 8)}</span>
           </h1>
         </div>
         <SaveButtons onUpdate={handleUpdate} onCancel={() => navigate('/visits')} onApply={handleUpdate} saved={saved} />
       </div>
 
       {/* Tab bar */}
-      <div style={{
-        background: 'var(--bb-brand-ink)',
-        padding: '0 20px',
-        display: 'flex',
-        gap: '2px',
-        borderTop: '1px solid rgba(255,255,255,0.08)',
-      }}>
+      <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid var(--bb-border)' }}>
         {tabs.map(tab => (
           <button
             key={tab.id}
@@ -517,11 +503,12 @@ export function VisitDetailPage() {
             style={{
               padding: '8px 18px',
               fontSize: '13px',
-              fontWeight: activeTab === tab.id ? 700 : 400,
-              color: activeTab === tab.id ? '#fff' : 'rgba(255,255,255,0.5)',
-              background: activeTab === tab.id ? 'rgba(255,255,255,0.12)' : 'transparent',
+              fontWeight: activeTab === tab.id ? 600 : 400,
+              color: activeTab === tab.id ? 'var(--bb-brand-blue)' : 'var(--bb-text-secondary)',
+              background: 'transparent',
               border: 'none',
               borderBottom: activeTab === tab.id ? '2px solid var(--bb-brand-blue)' : '2px solid transparent',
+              marginBottom: '-2px',
               cursor: 'pointer',
               letterSpacing: '0.01em',
             }}
@@ -532,7 +519,7 @@ export function VisitDetailPage() {
       </div>
 
       {/* Body */}
-      <div style={{ padding: '16px 20px', flex: 1, overflowY: 'auto' }}>
+      <div style={{ flex: 1 }}>
 
         {/* ── VISIT INFO ─────────────────────────────────────────────────── */}
         {activeTab === 'visit-info' && (
@@ -1042,6 +1029,5 @@ export function VisitDetailPage() {
           <SaveButtons onUpdate={handleUpdate} onCancel={() => navigate('/visits')} onApply={handleUpdate} saved={saved} />
         </div>
       </div>
-    </div>
   )
 }

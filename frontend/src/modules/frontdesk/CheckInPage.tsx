@@ -63,9 +63,9 @@ function Toast({ message, type, onClose }: { message: string; type: 'success' | 
 }
 
 function PatientCard({ patient }: { patient: Patient }) {
-  const age = Math.floor(
+  const age = patient.date_of_birth ? Math.floor(
     (Date.now() - new Date(patient.date_of_birth).getTime()) / (365.25 * 24 * 60 * 60 * 1000)
-  )
+  ) : null
   return (
     <div style={{
       background: '#EFF0FF', border: '1px solid #C7D2FE', borderRadius: 10,
@@ -82,7 +82,7 @@ function PatientCard({ patient }: { patient: Patient }) {
           {patient.first_name} {patient.last_name}
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px' }}>
-          <span style={{ fontSize: 12, color: '#676687' }}>DOB: {format(new Date(patient.date_of_birth), 'MM/dd/yyyy')} ({age} yrs)</span>
+          <span style={{ fontSize: 12, color: '#676687' }}>DOB: {patient.date_of_birth ? format(new Date(patient.date_of_birth), 'MM/dd/yyyy') : '—'}{age !== null ? ` (${age} yrs)` : ''}</span>
           <span style={{ fontSize: 12, color: '#676687' }}>MRN: <strong style={{ color: '#12122C' }}>{patient.mrn}</strong></span>
           {patient.phone && <span style={{ fontSize: 12, color: '#676687' }}>{patient.phone}</span>}
         </div>
@@ -252,7 +252,7 @@ export function CheckInPage() {
             {selectedPatient.first_name} {selectedPatient.last_name}
           </div>
           <div style={{ fontSize: 13, color: '#16A34A', fontWeight: 600, marginBottom: 24 }}>
-            {format(new Date(checkedInAppt.start_time), 'h:mm a')} — {APPT_TYPE_LABELS[checkedInAppt.appointment_type] ?? checkedInAppt.appointment_type}
+            {checkedInAppt.start_time ? format(new Date(checkedInAppt.start_time), 'h:mm a') : '—'} — {APPT_TYPE_LABELS[checkedInAppt.appointment_type] ?? checkedInAppt.appointment_type}
           </div>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
             <button
@@ -343,7 +343,7 @@ export function CheckInPage() {
                           {p.first_name} {p.last_name}
                         </div>
                         <div style={{ fontSize: 11, color: '#676687' }}>
-                          DOB: {format(new Date(p.date_of_birth), 'MM/dd/yyyy')} · MRN: {p.mrn}
+                          DOB: {p.date_of_birth ? format(new Date(p.date_of_birth), 'MM/dd/yyyy') : '—'} · MRN: {p.mrn}
                           {p.phone && ` · ${p.phone}`}
                         </div>
                       </div>
@@ -395,9 +395,9 @@ export function CheckInPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Clock size={14} style={{ color: '#0410BD' }} />
                       <span style={{ fontSize: 14, fontWeight: 700, color: '#12122C' }}>
-                        {format(new Date(appointment.start_time), 'h:mm a')}
+                        {appointment.start_time ? format(new Date(appointment.start_time), 'h:mm a') : '—'}
                         {' – '}
-                        {format(new Date(appointment.end_time), 'h:mm a')}
+                        {appointment.end_time ? format(new Date(appointment.end_time), 'h:mm a') : '—'}
                       </span>
                     </div>
                     <span style={{

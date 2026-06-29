@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Edit3, ShieldCheck, FileText,
@@ -384,7 +384,7 @@ function OverviewTab({ patient, visits, claims, insurance, onEditPatient, isDent
           <SectionHeader
             title="Recent Visits"
             action={
-              <Button size="xs" variant="primary" leftIcon={<Plus size={11} />} onClick={() => navigate(`/visits/new?patient=${patient.id}`)}>
+              <Button size="xs" variant="primary" leftIcon={<Plus size={11} />} onClick={() => setShowNewVisitModal(true)}>
                 New Visit
               </Button>
             }
@@ -446,9 +446,10 @@ function OverviewTab({ patient, visits, claims, insurance, onEditPatient, isDent
 
 // ─── Demographics Tab ─────────────────────────────────────────────────────────
 
-function DemographicsTab({ patient }: { patient: Patient }) {
+function DemographicsTab({ patient, startEditing }: { patient: Patient; startEditing?: boolean }) {
   const queryClient = useQueryClient()
   const [isEditing, setIsEditing] = useState(false)
+  useEffect(() => { if (startEditing) setIsEditing(true) }, [startEditing])
   const [form, setForm] = useState({
     first_name: (patient as PatientFull).first_name ?? patient.firstName ?? '',
     middle_name: (patient as PatientFull).middle_name ?? '',
@@ -1054,7 +1055,7 @@ function VisitsTab({ patientId, visits }: { patientId: string; visits: Visit[] }
         <Button
           size="sm" variant="primary"
           leftIcon={<Plus size={13} />}
-          onClick={() => navigate(`/visits/new?patient=${patientId}`)}
+          onClick={() => setShowNewVisitModal(true)}
         >
           New Visit
         </Button>
@@ -1442,11 +1443,91 @@ interface PatientFull extends Patient {
 
 // ─── Main PatientDetailPage ───────────────────────────────────────────────────
 
+function NewVisitModal({ patientId, patientName, onClose }: { patientId: string; patientName: string; onClose: () => void }) {
+  const navigate = useNavigate()
+  const [form, setForm] = useState({
+    visitDate: new Date().toISOString().slice(0, 10),
+    visitType: '99213',
+    chiefComplaint: '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleCreate() {
+    setSaving(true)
+    setError('')
+    try {
+      const { apiClient } = await import('../../services/api')
+      const res = await apiClient.post('/visits', {
+        patient_id: patientId,
+        visit_date: form.visitDate,
+        visit_type: form.visitType,
+        chief_complaint: form.chiefComplaint || undefined,
+      })
+      onClose()
+      navigate(`/visits/${res.data.id}`)
+    } catch (e: unknown) {
+      setError((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Failed to create visit')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      <div style={{ background: 'var(--bb-surface-card)', borderRadius: 12, padding: 28, width: 420, maxWidth: '90vw', display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--bb-text-primary)' }}>New Visit</h2>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--bb-text-secondary)' }}>{patientName}</p>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--bb-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Date of Service</label>
+            <input type="date" value={form.visitDate} onChange={e => setForm(f => ({ ...f, visitDate: e.target.value }))}
+              style={{ width: '100%', height: 36, padding: '0 10px', fontSize: 13, border: '1px solid var(--bb-border)', borderRadius: 6, boxSizing: 'border-box', outline: 'none' }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--bb-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Visit Type</label>
+            <select value={form.visitType} onChange={e => setForm(f => ({ ...f, visitType: e.target.value }))}
+              style={{ width: '100%', height: 36, padding: '0 10px', fontSize: 13, border: '1px solid var(--bb-border)', borderRadius: 6, background: 'white', boxSizing: 'border-box', outline: 'none' }}>
+              <option value="99202">99202 — New Patient Level 2</option>
+              <option value="99203">99203 — New Patient Level 3</option>
+              <option value="99204">99204 — New Patient Level 4</option>
+              <option value="99212">99212 — Est. Patient Level 2</option>
+              <option value="99213">99213 — Est. Patient Level 3</option>
+              <option value="99214">99214 — Est. Patient Level 4</option>
+              <option value="99215">99215 — Est. Patient Level 5</option>
+              <option value="annual">Annual Wellness</option>
+              <option value="telehealth">Telehealth</option>
+              <option value="procedure">Procedure</option>
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--bb-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Chief Complaint</label>
+            <input type="text" value={form.chiefComplaint} onChange={e => setForm(f => ({ ...f, chiefComplaint: e.target.value }))}
+              placeholder="Reason for visit…"
+              style={{ width: '100%', height: 36, padding: '0 10px', fontSize: 13, border: '1px solid var(--bb-border)', borderRadius: 6, boxSizing: 'border-box', outline: 'none' }} />
+          </div>
+        </div>
+        {error && <p style={{ margin: 0, fontSize: 13, color: 'var(--bb-status-danger)' }}>{error}</p>}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ height: 36, padding: '0 16px', fontSize: 13, border: '1px solid var(--bb-border)', borderRadius: 6, background: 'white', cursor: 'pointer', color: 'var(--bb-text-secondary)' }}>Cancel</button>
+          <button onClick={handleCreate} disabled={saving} style={{ height: 36, padding: '0 16px', fontSize: 13, border: 'none', borderRadius: 6, background: 'var(--bb-brand-blue)', color: 'white', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: saving ? 0.7 : 1 }}>
+            {saving ? 'Creating…' : 'Create Visit'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function PatientDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { data: patient, isLoading } = usePatient(id ?? '')
   const [activeTab, setActiveTab] = useState('overview')
+  const [demographicsEditMode, setDemographicsEditMode] = useState(false)
+  const [showNewVisitModal, setShowNewVisitModal] = useState(false)
   const isDental = localStorage.getItem('clinic_specialty') === 'dental'
 
   const { data: visits = [] } = useQuery<Visit[]>({
@@ -1557,7 +1638,7 @@ export function PatientDetailPage() {
         </div>
         {/* Action buttons */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />} onClick={() => setActiveTab('demographics')}>
+          <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />} onClick={() => { setActiveTab('demographics'); setDemographicsEditMode(true) }}>
             Edit Patient
           </Button>
           <Button
@@ -1588,11 +1669,11 @@ export function PatientDetailPage() {
         </TabList>
 
         <TabPanel id="overview" className="pt-4">
-          <OverviewTab patient={patient} visits={visits} claims={claims} insurance={insurance} onEditPatient={() => setActiveTab('demographics')} isDental={isDental} />
+          <OverviewTab patient={patient} visits={visits} claims={claims} insurance={insurance} onEditPatient={() => { setActiveTab('demographics'); setDemographicsEditMode(true) }} isDental={isDental} />
         </TabPanel>
 
         <TabPanel id="demographics" className="pt-4">
-          <DemographicsTab patient={patient} />
+          <DemographicsTab patient={patient} startEditing={demographicsEditMode} />
         </TabPanel>
 
         <TabPanel id="insurance" className="pt-4">
@@ -1615,6 +1696,13 @@ export function PatientDetailPage() {
           <NotesTab patientId={id ?? ''} activity={activity} onRefresh={() => void refetchActivity()} />
         </TabPanel>
       </Tabs>
+      {showNewVisitModal && (
+        <NewVisitModal
+          patientId={id ?? ''}
+          patientName={fullName}
+          onClose={() => setShowNewVisitModal(false)}
+        />
+      )}
     </div>
   )
 }
