@@ -139,6 +139,24 @@ export function VisitComposerPage() {
   const [procSearch, setProcSearch] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [eligibility, setEligibility] = useState<{ coverage_active?: boolean; copay?: number; deductible?: number; plan_name?: string } | null>(null)
+
+  // ── Step-level validation errors ───────────────────────────────────
+  const [stepErrors, setStepErrors] = useState<Record<string, string>>({})
+
+  function setStepError(key: string, msg: string | undefined) {
+    setStepErrors(prev => {
+      if (msg === undefined) {
+        const next = { ...prev }
+        delete next[key]
+        return next
+      }
+      return { ...prev, [key]: msg }
+    })
+  }
+
+  // Validate procedures: any unit < 1 is invalid
+  const procUnitErrors = form.procedures.map(p => p.units < 1 ? 'Units must be at least 1' : undefined)
+  const hasProcUnitError = procUnitErrors.some(Boolean)
   const [providers, setProviders] = useState<{ id: string; name: string }[]>([])
   const providersRef = useRef(false)
 
@@ -243,9 +261,9 @@ export function VisitComposerPage() {
 
   const canAdvance = () => {
     if (step === 'patient') return !!form.patientId
-    if (step === 'encounter') return !!form.visitDate && !!form.provider
+    if (step === 'encounter') return !!form.visitDate && !!form.visitType && !!form.provider
     if (step === 'diagnoses') return form.diagnoses.length > 0
-    if (step === 'procedures') return form.procedures.length > 0
+    if (step === 'procedures') return !hasProcUnitError
     return true
   }
 
@@ -315,10 +333,14 @@ export function VisitComposerPage() {
               <div style={{ position: 'relative' }}>
                 <input
                   value={form.patientSearch}
-                  onChange={e => searchPatient(e.target.value)}
+                  onChange={e => { searchPatient(e.target.value); if (form.patientId) setStepError('patient', undefined) }}
+                  onBlur={() => { if (form.patientSearch && !form.patientId) setStepError('patient', 'Please select a patient from the results') }}
                   placeholder="Type to search…"
-                  style={inputStyle()}
+                  style={inputStyle({ borderColor: stepErrors.patient ? 'var(--bb-status-danger)' : undefined })}
                 />
+                {stepErrors.patient && (
+                  <span style={{ color: 'var(--bb-status-danger)', fontSize: 12, marginTop: 2, display: 'block' }}>{stepErrors.patient}</span>
+                )}
                 {patientResults.length > 0 && (
                   <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '1px solid var(--bb-border)', borderRadius: 'var(--bb-radius)', boxShadow: '0 4px 16px rgba(0,0,0,0.12)', zIndex: 100, maxHeight: 220, overflowY: 'auto' }}>
                     {patientResults.map(p => (
@@ -381,7 +403,16 @@ export function VisitComposerPage() {
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Encounter Details</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <Field label="Date of Service">
-                <input type="date" value={form.visitDate} onChange={e => set({ visitDate: e.target.value })} style={inputStyle()} />
+                <input
+                  type="date"
+                  value={form.visitDate}
+                  onChange={e => { set({ visitDate: e.target.value }); setStepError('visitDate', e.target.value ? undefined : 'Visit date is required') }}
+                  onBlur={e => setStepError('visitDate', e.target.value ? undefined : 'Visit date is required')}
+                  style={inputStyle({ borderColor: stepErrors.visitDate ? 'var(--bb-status-danger)' : undefined })}
+                />
+                {stepErrors.visitDate && (
+                  <span style={{ color: 'var(--bb-status-danger)', fontSize: 12, marginTop: 2, display: 'block' }}>{stepErrors.visitDate}</span>
+                )}
               </Field>
               <Field label="Visit Type / E&M Code">
                 <select value={form.visitType} onChange={e => set({ visitType: e.target.value })} style={inputStyle()}>
@@ -442,7 +473,12 @@ export function VisitComposerPage() {
         {/* ── Step 4: Diagnoses ── */}
         {step === 'diagnoses' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Diagnoses (ICD-10)</h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Diagnoses (ICD-10)</h3>
+              {form.diagnoses.length === 0 && (
+                <span style={{ color: 'var(--bb-status-danger)', fontSize: 12 }}>At least one diagnosis is required</span>
+              )}
+            </div>
             <Field label="Search ICD-10 code or description">
               <div style={{ position: 'relative' }}>
                 <input
@@ -601,7 +637,16 @@ export function VisitComposerPage() {
                           <input value={p.mods} onChange={e => { const ps = [...form.procedures]; ps[i] = { ...ps[i], mods: e.target.value }; set({ procedures: ps }) }} placeholder="—" style={{ ...inputStyle(), width: 60 }} />
                         </td>
                         <td style={{ padding: '8px 12px' }}>
-                          <input type="number" min={1} value={p.units} onChange={e => { const ps = [...form.procedures]; ps[i] = { ...ps[i], units: parseInt(e.target.value) || 1 }; set({ procedures: ps }) }} style={{ ...inputStyle(), width: 52 }} />
+                          <input
+                            type="number"
+                            min={1}
+                            value={p.units}
+                            onChange={e => { const ps = [...form.procedures]; ps[i] = { ...ps[i], units: parseInt(e.target.value) || 0 }; set({ procedures: ps }) }}
+                            style={{ ...inputStyle(), width: 52, borderColor: (p.units < 1) ? 'var(--bb-status-danger)' : undefined }}
+                          />
+                          {p.units < 1 && (
+                            <span style={{ color: 'var(--bb-status-danger)', fontSize: 12, marginTop: 2, display: 'block' }}>Min 1</span>
+                          )}
                         </td>
                         <td style={{ padding: '8px 12px', fontWeight: 600 }}>${(p.fee * p.units).toFixed(2)}</td>
                         <td style={{ padding: '8px 12px' }}>

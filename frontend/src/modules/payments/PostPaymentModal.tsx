@@ -50,6 +50,41 @@ export function PostPaymentModal({ onClose, onSuccess }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
+  // ── Field-level validation errors ──────────────────────────────────
+  const [fieldErrors, setFieldErrors] = useState<{
+    paymentDate?: string
+    amount?: string
+    appliedAmount?: string
+  }>({})
+  const [touched, setTouched] = useState<{ paymentDate?: boolean; amount?: boolean }>({})
+
+  function validateField(name: 'paymentDate' | 'amount', value: string) {
+    setFieldErrors(prev => {
+      const next = { ...prev }
+      if (name === 'paymentDate') {
+        next.paymentDate = value ? undefined : 'Payment date is required'
+      }
+      if (name === 'amount') {
+        if (!value) next.amount = 'Amount is required'
+        else if (parseFloat(value) <= 0) next.amount = 'Amount must be greater than 0'
+        else next.amount = undefined
+      }
+      return next
+    })
+  }
+
+  function validateApplied() {
+    const payAmt = parseFloat(amount) || 0
+    const applied = applications.reduce((s, a) => s + (parseFloat(a.applied_amount) || 0), 0)
+    setFieldErrors(prev => ({
+      ...prev,
+      appliedAmount: applied > payAmt + 0.005 ? `Applied amount ($${applied.toFixed(2)}) exceeds payment amount ($${payAmt.toFixed(2)})` : undefined,
+    }))
+  }
+
+  const hasErrors = !!(fieldErrors.paymentDate || fieldErrors.amount || fieldErrors.appliedAmount)
+  const isFormIncomplete = !paymentDate || !amount || parseFloat(amount) <= 0
+
   async function searchClaims(q: string) {
     if (q.length < 2) { setClaimResults([]); return }
     try {
@@ -97,8 +132,15 @@ export function PostPaymentModal({ onClose, onSuccess }: Props) {
   const unapplied = (parseFloat(amount) || 0) - totalApplied
 
   async function handleSave() {
-    if (!amount || parseFloat(amount) <= 0) { setError('Enter a payment amount'); return }
-    if (!paymentDate) { setError('Payment date is required'); return }
+    // Run full validation on submit attempt
+    const dateErr = paymentDate ? undefined : 'Payment date is required'
+    const amtErr = !amount ? 'Amount is required' : parseFloat(amount) <= 0 ? 'Amount must be greater than 0' : undefined
+    const payAmt = parseFloat(amount) || 0
+    const applied = applications.reduce((s, a) => s + (parseFloat(a.applied_amount) || 0), 0)
+    const appErr = applied > payAmt + 0.005 ? `Applied amount ($${applied.toFixed(2)}) exceeds payment amount ($${payAmt.toFixed(2)})` : undefined
+    setFieldErrors({ paymentDate: dateErr, amount: amtErr, appliedAmount: appErr })
+    setTouched({ paymentDate: true, amount: true })
+    if (dateErr || amtErr || appErr) return
     setSaving(true)
     setError(null)
     try {
@@ -174,11 +216,30 @@ export function PostPaymentModal({ onClose, onSuccess }: Props) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
                     <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Payment Date *</label>
-                    <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} style={inp} />
+                    <input
+                      type="date"
+                      value={paymentDate}
+                      onChange={e => { setPaymentDate(e.target.value); validateField('paymentDate', e.target.value) }}
+                      onBlur={e => { setTouched(t => ({ ...t, paymentDate: true })); validateField('paymentDate', e.target.value) }}
+                      style={{ ...inp, borderColor: (touched.paymentDate && fieldErrors.paymentDate) ? '#DC2626' : undefined }}
+                    />
+                    {touched.paymentDate && fieldErrors.paymentDate && (
+                      <span style={{ color: 'var(--bb-status-danger)', fontSize: 12, marginTop: 2, display: 'block' }}>{fieldErrors.paymentDate}</span>
+                    )}
                   </div>
                   <div>
                     <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Amount *</label>
-                    <input type="number" value={amount} onChange={e => setAmount(e.target.value)} style={inp} placeholder="0.00" min={0} step={0.01} />
+                    <input
+                      type="number"
+                      value={amount}
+                      onChange={e => { setAmount(e.target.value); validateField('amount', e.target.value); setTimeout(validateApplied, 0) }}
+                      onBlur={e => { setTouched(t => ({ ...t, amount: true })); validateField('amount', e.target.value) }}
+                      style={{ ...inp, borderColor: (touched.amount && fieldErrors.amount) ? '#DC2626' : undefined }}
+                      placeholder="0.00" min={0} step={0.01}
+                    />
+                    {touched.amount && fieldErrors.amount && (
+                      <span style={{ color: 'var(--bb-status-danger)', fontSize: 12, marginTop: 2, display: 'block' }}>{fieldErrors.amount}</span>
+                    )}
                   </div>
                   <div>
                     <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Payment Type</label>
@@ -269,7 +330,7 @@ export function PostPaymentModal({ onClose, onSuccess }: Props) {
                             <td style={{ padding: '5px 8px', fontWeight: 600 }}>{app.claim_number}</td>
                             <td style={{ padding: '5px 8px', color: '#374151' }}>{app.patient_name}</td>
                             <td style={{ padding: '5px 8px' }}>
-                              <input type="number" value={app.applied_amount} onChange={e => updateApplication(i, 'applied_amount', e.target.value)}
+                              <input type="number" value={app.applied_amount} onChange={e => { updateApplication(i, 'applied_amount', e.target.value); setTimeout(validateApplied, 0) }}
                                 style={{ ...inp, height: 28, width: 70, fontSize: 11 }} step={0.01} />
                             </td>
                             <td style={{ padding: '5px 8px' }}>
@@ -289,12 +350,17 @@ export function PostPaymentModal({ onClose, onSuccess }: Props) {
                         ))}
                       </tbody>
                     </table>
-                    <div style={{ padding: '8px 12px', background: '#F9FAFB', display: 'flex', justifyContent: 'flex-end', gap: 20, fontSize: 12 }}>
-                      <span>Applied: <strong>${totalApplied.toFixed(2)}</strong></span>
-                      <span>Adjusted: <strong>${totalAdjusted.toFixed(2)}</strong></span>
-                      <span style={{ color: unapplied > 0.005 ? '#D97706' : '#16A34A', fontWeight: 700 }}>
-                        Unapplied: ${unapplied.toFixed(2)}
-                      </span>
+                    <div style={{ padding: '8px 12px', background: '#F9FAFB', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {fieldErrors.appliedAmount && (
+                        <span style={{ color: 'var(--bb-status-danger)', fontSize: 12 }}>{fieldErrors.appliedAmount}</span>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 20, fontSize: 12 }}>
+                        <span>Applied: <strong>${totalApplied.toFixed(2)}</strong></span>
+                        <span>Adjusted: <strong>${totalAdjusted.toFixed(2)}</strong></span>
+                        <span style={{ color: unapplied > 0.005 ? '#D97706' : '#16A34A', fontWeight: 700 }}>
+                          Unapplied: ${unapplied.toFixed(2)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -313,8 +379,8 @@ export function PostPaymentModal({ onClose, onSuccess }: Props) {
               </button>
               <button
                 onClick={handleSave}
-                disabled={saving}
-                style={{ height: 36, padding: '0 20px', background: '#0410BD', color: 'white', border: 'none', borderRadius: 8, cursor: saving ? 'default' : 'pointer', fontSize: 13, fontWeight: 700 }}
+                disabled={saving || hasErrors || isFormIncomplete}
+                style={{ height: 36, padding: '0 20px', background: '#0410BD', color: 'white', border: 'none', borderRadius: 8, cursor: (saving || hasErrors || isFormIncomplete) ? 'default' : 'pointer', fontSize: 13, fontWeight: 700, opacity: (hasErrors || isFormIncomplete) ? 0.5 : 1 }}
               >
                 {saving ? 'Posting…' : 'Post Payment'}
               </button>
