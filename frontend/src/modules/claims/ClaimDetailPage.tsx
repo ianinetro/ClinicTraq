@@ -275,7 +275,7 @@ export function ClaimDetailPage() {
             </button>
           )}
           {claim.status === 'Denied' && (
-            <Button variant="secondary">
+            <Button variant="secondary" onClick={() => void handleSubmitClaim()}>
               <RotateCcw size={14} />
               Resubmit
             </Button>

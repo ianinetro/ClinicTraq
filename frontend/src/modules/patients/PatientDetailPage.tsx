@@ -1509,10 +1509,16 @@ export function PatientDetailPage() {
           <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />} onClick={() => setActiveTab('demographics')}>
             Edit Patient
           </Button>
-          <Button size="sm" variant="secondary" leftIcon={<ShieldCheck size={13} />}>
+          <Button
+            size="sm" variant="secondary" leftIcon={<ShieldCheck size={13} />}
+            onClick={() => setActiveTab('insurance')}
+          >
             Check Eligibility
           </Button>
-          <Button size="sm" variant="secondary" leftIcon={<FileText size={13} />}>
+          <Button
+            size="sm" variant="secondary" leftIcon={<FileText size={13} />}
+            onClick={() => setActiveTab('payments')}
+          >
             Generate Statement
           </Button>
         </div>

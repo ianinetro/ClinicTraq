@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Check, User, Stethoscope, ClipboardList, DollarSign, Plus, Trash2, Activity } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
@@ -41,7 +41,7 @@ interface FormState {
 const EMPTY: FormState = {
   patientSearch: '', patientName: '', patientId: '', dob: '', mrn: '', insurance: '',
   visitDate: new Date().toISOString().slice(0, 10),
-  visitType: '99213', provider: 'Dr. Jennifer Smith', facility: 'Springfield Medical Group', posCode: '11',
+  visitType: '99213', provider: '', facility: '', posCode: '11',
   chiefComplaint: '',
   diagnoses: [],
   procedures: [],
@@ -139,6 +139,26 @@ export function VisitComposerPage() {
   const [procSearch, setProcSearch] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [eligibility, setEligibility] = useState<{ coverage_active?: boolean; copay?: number; deductible?: number; plan_name?: string } | null>(null)
+  const [providers, setProviders] = useState<{ id: string; name: string }[]>([])
+  const providersRef = useRef(false)
+
+  useEffect(() => {
+    if (providersRef.current) return
+    providersRef.current = true
+    api.get('/providers', { params: { limit: 100 } })
+      .then(r => {
+        const items = Array.isArray(r.data) ? r.data : r.data?.items ?? []
+        const list = items.map((p: { id: string; first_name?: string; last_name?: string; full_name?: string }) => ({
+          id: p.id,
+          name: p.full_name ?? `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim(),
+        }))
+        if (list.length > 0) {
+          setProviders(list)
+          setForm(f => ({ ...f, provider: list[0].id }))
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   const icdSearch = useCodeSearch('/icd10/search', diagSearch)
   const cptSearch = useCodeSearch('/cpt/search', procSearch)
@@ -374,16 +394,14 @@ export function VisitComposerPage() {
               </Field>
               <Field label="Rendering Provider">
                 <select value={form.provider} onChange={e => set({ provider: e.target.value })} style={inputStyle()}>
-                  <option>Dr. Jennifer Smith</option>
-                  <option>Dr. Marcus Johnson</option>
-                  <option>Dr. Priya Patel</option>
+                  {providers.length > 0
+                    ? providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)
+                    : <option value={form.provider}>{form.provider || 'Loading providers…'}</option>
+                  }
                 </select>
               </Field>
               <Field label="Facility">
-                <select value={form.facility} onChange={e => set({ facility: e.target.value })} style={inputStyle()}>
-                  <option>Springfield Medical Group</option>
-                  <option>Springfield Urgent Care</option>
-                </select>
+                <input value={form.facility} onChange={e => set({ facility: e.target.value })} style={inputStyle()} placeholder="Facility name" />
               </Field>
               <Field label="POS Code">
                 <select value={form.posCode} onChange={e => set({ posCode: e.target.value })} style={inputStyle()}>

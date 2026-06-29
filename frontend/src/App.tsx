@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuthStore } from './stores/authStore'
 import { AppShell } from './components/layout/AppShell'
+import { ErrorBoundary } from './components/shared/ErrorBoundary'
 import { LoginPage } from './modules/auth/LoginPage'
 import { DashboardPage } from './modules/dashboard/DashboardPage'
 import { PatientsPage } from './modules/patients/PatientsPage'
@@ -51,7 +52,9 @@ export default function App() {
       <Route
         element={
           <ProtectedRoute>
-            <AppShell />
+            <ErrorBoundary>
+              <AppShell />
+            </ErrorBoundary>
           </ProtectedRoute>
         }
       >

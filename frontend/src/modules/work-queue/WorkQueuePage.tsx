@@ -218,8 +218,21 @@ function BillingSubQueuePanel({ items, navigate }: { items: WorkItem[]; navigate
                     )}
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => navigate(`/claims/${item.claimId}`)} style={{ height: 30, padding: '0 14px', background: '#0410BD', color: 'white', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>View Claim</button>
-                      <button style={{ height: 30, padding: '0 12px', background: 'white', color: '#374151', border: '1px solid #E0E0EF', borderRadius: 6, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}><RotateCcw size={11} /> Log Action</button>
-                      <button style={{ height: 30, padding: '0 12px', background: '#ECFDF5', color: '#047857', border: '1px solid #A7F3D0', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}><CheckCircle2 size={11} /> Resolve</button>
+                      <button
+                        onClick={() => {
+                          const note = window.prompt('Log action note:')
+                          if (!note) return
+                          api.post(`/work-queue/${item.id}/log`, { note }).catch(() => null)
+                        }}
+                        style={{ height: 30, padding: '0 12px', background: 'white', color: '#374151', border: '1px solid #E0E0EF', borderRadius: 6, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                      ><RotateCcw size={11} /> Log Action</button>
+                      <button
+                        onClick={() => {
+                          if (!window.confirm('Mark this item as resolved?')) return
+                          api.patch(`/work-queue/${item.id}`, { status: 'resolved' }).catch(() => null)
+                        }}
+                        style={{ height: 30, padding: '0 12px', background: '#ECFDF5', color: '#047857', border: '1px solid #A7F3D0', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                      ><CheckCircle2 size={11} /> Resolve</button>
                     </div>
                   </div>
                 )}
