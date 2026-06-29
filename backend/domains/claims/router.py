@@ -237,7 +237,7 @@ async def cms1500_preview(
             "cpt_code": l.cpt_code,
             "modifiers": l.modifiers,
             "units": l.units,
-            "charge_amount": float(l.charge_amount),
+            "charge_amount": float(l.charge_amount or 0),
             "revenue_code": l.revenue_code,
         }
         for l in claim.lines
@@ -364,9 +364,13 @@ async def download_cms1500_pdf(
     import os
     from fastapi.responses import Response
     from jinja2 import Environment, FileSystemLoader
-    from weasyprint import HTML as WeasyHTML
     from domains.patients.models import Patient, PatientInsurance
     from domains.master_data.models import Provider, Payer, BillingProvider
+
+    try:
+        from weasyprint import HTML as WeasyHTML
+    except ImportError:
+        raise HTTPException(status_code=500, detail="PDF generation library not available on this server.")
 
     claim = await _load_claim(db, claim_id, ctx.tenant_id)
 
@@ -397,7 +401,7 @@ async def download_cms1500_pdf(
             "cpt_code": l.cpt_code,
             "modifiers": l.modifiers or [],
             "diagnosis_pointers": l.diagnosis_pointers or [1],
-            "charge_amount": float(l.charge_amount),
+            "charge_amount": float(l.charge_amount or 0),
             "units": l.units,
         }
         for l in claim.lines
@@ -433,8 +437,8 @@ async def download_cms1500_pdf(
         place_of_service="11",
         diagnosis_codes=diagnosis_codes,
         service_lines=service_lines,
-        total_charge=float(claim.total_charge),
-        total_paid=float(claim.total_paid),
+        total_charge=float(claim.total_charge or 0),
+        total_paid=float(claim.total_paid or 0),
         provider_name=f"{prov.first_name} {prov.last_name}" if prov else "",
         provider_npi=prov.npi if prov else "",
         rendering_provider_npi=prov.npi if prov else "",
@@ -450,7 +454,10 @@ async def download_cms1500_pdf(
         signature_date=str(claim.date_of_service) if claim.date_of_service else "",
     )
 
-    pdf_bytes = WeasyHTML(string=rendered_html).write_pdf()
+    try:
+        pdf_bytes = WeasyHTML(string=rendered_html).write_pdf()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"PDF rendering failed: {exc}")
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
