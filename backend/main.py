@@ -25,6 +25,7 @@ from domains.audit.router import router as audit_router
 from domains.search.router import router as search_router
 from domains.identity.org_router import router as org_router
 from domains.scheduling.router import router as scheduling_router
+from domains.ar.router import router as ar_router
 
 logger = logging.getLogger("clinictraq")
 logging.basicConfig(level=logging.DEBUG if settings.DEBUG else logging.INFO)
@@ -160,6 +161,7 @@ def create_app() -> FastAPI:
     app.include_router(search_router, prefix=prefix)
     app.include_router(org_router, prefix=prefix)
     app.include_router(scheduling_router, prefix="/api/v1", tags=["scheduling"])
+    app.include_router(ar_router, prefix=prefix)
 
     @app.get("/health", tags=["health"])
     async def health_check():

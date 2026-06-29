@@ -30,12 +30,9 @@ export function PaymentsPage() {
       if (!file) return
       setEraUploading(true)
       try {
-        const formData = new FormData()
-        formData.append('file', file)
+        const rawContent = await file.text()
         const { apiClient } = await import('../../services/api')
-        await apiClient.post('/payments/era/upload', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        })
+        await apiClient.post('/payments/era/upload', { file_name: file.name, raw_content: rawContent })
         alert(`ERA file "${file.name}" uploaded successfully. Review the ERA Files tab.`)
       } catch {
         alert('ERA upload failed. Please check the file format and try again.')

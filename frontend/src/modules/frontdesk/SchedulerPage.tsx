@@ -8,6 +8,7 @@ import { apiClient } from '../../services/api'
 import {
   format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay,
   parseISO, setHours, setMinutes, differenceInMinutes,
+  startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval,
 } from 'date-fns'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -378,7 +379,7 @@ function NewAppointmentModal({
                       <User size={13} style={{ color: '#0410BD', flexShrink: 0 }} />
                       <div>
                         <div style={{ fontSize: 12, fontWeight: 600, color: '#12122C' }}>{p.first_name} {p.last_name}</div>
-                        <div style={{ fontSize: 11, color: '#676687' }}>DOB: {format(new Date(p.date_of_birth), 'MM/dd/yyyy')} · {p.mrn}</div>
+                        <div style={{ fontSize: 11, color: '#676687' }}>DOB: {p.date_of_birth ? format(new Date(p.date_of_birth), 'MM/dd/yyyy') : '—'} · {p.mrn}</div>
                       </div>
                     </button>
                   ))}
@@ -481,7 +482,9 @@ export function SchedulerPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const today = new Date()
+  const [viewMode, setViewMode] = useState<'week' | 'month'>('week')
   const [weekStart, setWeekStart] = useState(() => startOfWeek(today, { weekStartsOn: 1 }))
+  const [monthStart, setMonthStart] = useState(() => startOfMonth(today))
   const [selectedSlot, setSelectedSlot] = useState<{ date: string; time: string } | null>(null)
   const [popover, setPopover] = useState<{ appt: Appointment; rect: DOMRect } | null>(null)
   const [singleDayMode, setSingleDayMode] = useState(false)
@@ -493,8 +496,12 @@ export function SchedulerPage() {
   const days = weekDays(weekStart)
   const slots = slotTimes()
 
-  const dateFrom = format(days[0], 'yyyy-MM-dd')
-  const dateTo = format(days[6], 'yyyy-MM-dd')
+  const dateFrom = viewMode === 'month'
+    ? format(startOfWeek(monthStart, { weekStartsOn: 0 }), 'yyyy-MM-dd')
+    : format(days[0], 'yyyy-MM-dd')
+  const dateTo = viewMode === 'month'
+    ? format(addDays(endOfMonth(monthStart), 6), 'yyyy-MM-dd')
+    : format(days[6], 'yyyy-MM-dd')
 
   const { data: providers = [] } = useQuery<Provider[]>({
     queryKey: ['providers'],
@@ -576,21 +583,38 @@ export function SchedulerPage() {
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 20, fontWeight: 800, color: '#12122C', letterSpacing: '-0.4px' }}>Scheduler</div>
           <div style={{ fontSize: 13, color: '#676687', marginTop: 1 }}>
-            {format(days[0], 'MMM d')} – {format(days[6], 'MMM d, yyyy')}
+            {viewMode === 'month'
+              ? format(monthStart, 'MMMM yyyy')
+              : `${format(days[0], 'MMM d')} – ${format(days[6], 'MMM d, yyyy')}`
+            }
           </div>
         </div>
-        {/* Week nav */}
+        {/* View toggle */}
+        <div style={{ display: 'flex', borderRadius: 8, border: '1px solid #E0E0EF', overflow: 'hidden' }}>
+          {(['week', 'month'] as const).map(v => (
+            <button key={v} onClick={() => setViewMode(v)} style={{
+              padding: '0 12px', height: 32, background: viewMode === v ? '#0410BD' : 'white',
+              color: viewMode === v ? 'white' : '#374151', border: 'none', cursor: 'pointer',
+              fontSize: 12, fontWeight: 600, borderRight: v === 'week' ? '1px solid #E0E0EF' : 'none',
+            }}>
+              {v.charAt(0).toUpperCase() + v.slice(1)}
+            </button>
+          ))}
+        </div>
+        {/* Nav */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <button onClick={() => setWeekStart(w => subWeeks(w, 1))} style={{ width: 32, height: 32, borderRadius: 7, background: 'white', border: '1px solid #E0E0EF', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#6B6B8A' }}>
+          <button onClick={() => viewMode === 'week' ? setWeekStart(w => subWeeks(w, 1)) : setMonthStart(m => subMonths(m, 1))}
+            style={{ width: 32, height: 32, borderRadius: 7, background: 'white', border: '1px solid #E0E0EF', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#6B6B8A' }}>
             <ChevronLeft size={16} />
           </button>
           <button
-            onClick={() => setWeekStart(startOfWeek(today, { weekStartsOn: 1 }))}
-            style={{ height: 32, padding: '0 12px', background: isSameDay(weekStart, startOfWeek(today, { weekStartsOn: 1 })) ? '#0410BD' : 'white', color: isSameDay(weekStart, startOfWeek(today, { weekStartsOn: 1 })) ? 'white' : '#374151', border: '1px solid #E0E0EF', borderRadius: 7, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+            onClick={() => { setWeekStart(startOfWeek(today, { weekStartsOn: 1 })); setMonthStart(startOfMonth(today)) }}
+            style={{ height: 32, padding: '0 12px', background: 'white', color: '#374151', border: '1px solid #E0E0EF', borderRadius: 7, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
           >
             Today
           </button>
-          <button onClick={() => setWeekStart(w => addWeeks(w, 1))} style={{ width: 32, height: 32, borderRadius: 7, background: 'white', border: '1px solid #E0E0EF', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#6B6B8A' }}>
+          <button onClick={() => viewMode === 'week' ? setWeekStart(w => addWeeks(w, 1)) : setMonthStart(m => addMonths(m, 1))}
+            style={{ width: 32, height: 32, borderRadius: 7, background: 'white', border: '1px solid #E0E0EF', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#6B6B8A' }}>
             <ChevronRight size={16} />
           </button>
         </div>
@@ -603,7 +627,7 @@ export function SchedulerPage() {
       </div>
 
       {/* Single-day tabs on mobile */}
-      {singleDayMode && (
+      {viewMode === 'week' && singleDayMode && (
         <div style={{ display: 'flex', gap: 4, marginBottom: 12, overflowX: 'auto' }}>
           {days.map((d, i) => {
             const isToday = isSameDay(d, today)
@@ -622,8 +646,82 @@ export function SchedulerPage() {
         </div>
       )}
 
-      {/* Calendar grid */}
-      <div style={{ background: 'white', border: '1px solid #E0E0EF', borderRadius: 10, overflow: 'hidden', flex: 1 }}>
+      {/* Month grid */}
+      {viewMode === 'month' && (() => {
+        const monthEnd = endOfMonth(monthStart)
+        const gridStart = startOfWeek(monthStart, { weekStartsOn: 0 })
+        const gridEnd = addDays(startOfWeek(addDays(monthEnd, 6), { weekStartsOn: 0 }), 6)
+        const gridDays = eachDayOfInterval({ start: gridStart, end: gridEnd })
+        const CELL_COLORS: Record<string, string> = {
+          office_visit: '#0410BD', new_patient: '#16A34A', follow_up: '#D97706',
+          telehealth: '#7C3AED', procedure: '#DC2626',
+        }
+        return (
+          <div style={{ background: 'white', border: '1px solid #E0E0EF', borderRadius: 10, overflow: 'hidden' }}>
+            {/* Day-of-week headers */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid #E0E0EF' }}>
+              {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
+                <div key={d} style={{ padding: '8px 0', textAlign: 'center', fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{d}</div>
+              ))}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+              {gridDays.map((day, i) => {
+                const isCurrentMonth = day >= monthStart && day <= monthEnd
+                const isToday = isSameDay(day, today)
+                const dayAppts = appointments.filter(a => {
+                  try { return isSameDay(parseISO(a.start_time), day) } catch { return false }
+                })
+                return (
+                  <div
+                    key={i}
+                    onClick={() => { setSelectedSlot({ date: format(day, 'yyyy-MM-dd'), time: '09:00' }) }}
+                    style={{
+                      minHeight: 96, padding: '6px 6px 4px', cursor: 'pointer',
+                      background: isToday ? '#EFF6FF' : 'white',
+                      borderRight: (i + 1) % 7 !== 0 ? '1px solid #F3F4F6' : 'none',
+                      borderBottom: i < gridDays.length - 7 ? '1px solid #F3F4F6' : 'none',
+                      opacity: isCurrentMonth ? 1 : 0.35,
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = isToday ? '#EFF6FF' : '#FAFAFA' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = isToday ? '#EFF6FF' : 'white' }}
+                  >
+                    <div style={{
+                      width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+                      background: isToday ? '#0410BD' : 'transparent',
+                      fontSize: 12, fontWeight: isToday ? 700 : 500,
+                      color: isToday ? 'white' : isCurrentMonth ? '#12122C' : '#9CA3AF',
+                    }}>
+                      {format(day, 'd')}
+                    </div>
+                    {dayAppts.slice(0, 3).map(appt => (
+                      <div
+                        key={appt.id}
+                        onClick={e => { e.stopPropagation(); handleApptClick(appt, e) }}
+                        style={{
+                          fontSize: 10, fontWeight: 600, padding: '2px 5px', borderRadius: 4, marginBottom: 2,
+                          background: CELL_COLORS[appt.appointment_type] ?? '#6B7280',
+                          color: 'white', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {appt.start_time ? format(parseISO(appt.start_time), 'h:mma') : ''} {appt.patient_name}
+                      </div>
+                    ))}
+                    {dayAppts.length > 3 && (
+                      <div style={{ fontSize: 10, color: '#6B7280', fontWeight: 600, paddingLeft: 5 }}>
+                        +{dayAppts.length - 3} more
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Calendar grid (week view) */}
+      {viewMode === 'week' && <div style={{ background: 'white', border: '1px solid #E0E0EF', borderRadius: 10, overflow: 'hidden', flex: 1 }}>
         {/* Day headers */}
         <div style={{ display: 'grid', gridTemplateColumns: `56px repeat(${displayDays.length}, 1fr)`, borderBottom: '1px solid #E0E0EF' }}>
           <div style={{ padding: '8px 0', borderRight: '1px solid #E0E0EF' }} />
@@ -717,7 +815,7 @@ export function SchedulerPage() {
             })}
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Legend */}
       <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: '6px 14px', alignItems: 'center' }}>

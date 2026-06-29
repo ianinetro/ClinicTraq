@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -265,6 +265,28 @@ async def reverse_payment(
 
 
 # ── ERA ───────────────────────────────────────────────────────────────────────
+
+@router.get("/era", response_model=dict)
+async def list_era_files(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, le=100, alias="pageSize"),
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("payments:read")),
+):
+    from domains.payments.models import ERAFile as ERAFileModel
+    offset = (page - 1) * page_size
+    count_q = select(func.count()).select_from(ERAFileModel).where(ERAFileModel.tenant_id == ctx.tenant_id)
+    total = (await db.execute(count_q)).scalar_one()
+    stmt = (
+        select(ERAFileModel)
+        .where(ERAFileModel.tenant_id == ctx.tenant_id)
+        .order_by(ERAFileModel.created_at.desc())
+        .offset(offset).limit(page_size)
+    )
+    items = (await db.execute(stmt)).scalars().all()
+    return {"items": [ERAFileResponse.model_validate(i) for i in items], "total": total, "page": page, "page_size": page_size}
+
 
 @router.post("/era/upload", response_model=ERAFileResponse, status_code=status.HTTP_201_CREATED)
 async def upload_era(

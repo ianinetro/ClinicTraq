@@ -138,7 +138,7 @@ export function NewPatientPage() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 740 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 740, margin: '0 auto' }}>
       <Button variant="ghost" size="sm" style={{ alignSelf: 'flex-start' }} onClick={() => navigate('/patients')}>
         <ArrowLeft size={14} /> Patients
       </Button>

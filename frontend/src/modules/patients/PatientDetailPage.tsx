@@ -17,6 +17,7 @@ import { Badge } from '../../components/ui/Badge'
 // import { Input } from '../../components/ui/Input'
 // import { Select } from '../../components/ui/Select'
 import { BodyMap } from './BodyMap'
+import { TeethMap } from './TeethMap'
 import { usePatient } from '../../services/queries'
 import type { Patient, Visit, Claim, Payment } from '../../types'
 
@@ -236,12 +237,13 @@ function visitRowBg(days: number): string {
   return 'rgba(22,163,74,0.06)'
 }
 
-function OverviewTab({ patient, visits, claims, insurance, onEditPatient }: {
+function OverviewTab({ patient, visits, claims, insurance, onEditPatient, isDental = false }: {
   patient: Patient
   visits: Visit[]
   claims: Claim[]
   insurance: PatientInsuranceFull[]
   onEditPatient: () => void
+  isDental?: boolean
 }) {
   const navigate = useNavigate()
   const p = patient as PatientFull
@@ -355,11 +357,14 @@ function OverviewTab({ patient, visits, claims, insurance, onEditPatient }: {
       {/* ─── RIGHT COLUMN ─── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-        {/* Body Map */}
+        {/* Anatomy Map — body map for medical, teeth chart for dental */}
         <SectionCard>
-          <SectionHeader title="Body Map" />
-          <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'center', maxHeight: 220, overflow: 'hidden' }}>
-            <BodyMap patientId={patient.id} sex={p.sex ?? p.gender ?? undefined} visits={recentVisits} compact />
+          <SectionHeader title={isDental ? 'Dental Chart' : 'Body Map'} />
+          <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'center' }}>
+            {isDental
+              ? <TeethMap patientId={patient.id} compact />
+              : <BodyMap patientId={patient.id} sex={p.sex ?? p.gender ?? undefined} visits={recentVisits} compact />
+            }
           </div>
         </SectionCard>
 
@@ -1410,6 +1415,7 @@ export function PatientDetailPage() {
   const navigate = useNavigate()
   const { data: patient, isLoading } = usePatient(id ?? '')
   const [activeTab, setActiveTab] = useState('overview')
+  const isDental = localStorage.getItem('clinic_specialty') === 'dental'
 
   const { data: visits = [] } = useQuery<Visit[]>({
     queryKey: ['patient-visits', id],
@@ -1550,7 +1556,7 @@ export function PatientDetailPage() {
         </TabList>
 
         <TabPanel id="overview" className="pt-4">
-          <OverviewTab patient={patient} visits={visits} claims={claims} insurance={insurance} onEditPatient={() => setActiveTab('demographics')} />
+          <OverviewTab patient={patient} visits={visits} claims={claims} insurance={insurance} onEditPatient={() => setActiveTab('demographics')} isDental={isDental} />
         </TabPanel>
 
         <TabPanel id="demographics" className="pt-4">

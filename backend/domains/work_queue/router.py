@@ -153,6 +153,45 @@ async def work_queue_summary(
     )
 
 
+_BILLING_STAGE_TYPES: Dict[str, List[str]] = {
+    "ready_to_bill": ["missing_info"],
+    "validation_failures": ["missing_info", "superbill_mismatch"],
+    "ready_to_submit": ["stale_claim"],
+    "rejections": ["claim_denial"],
+    "denials": ["claim_denial"],
+    "era_unmatched": ["era_match_needed"],
+    "secondary_pending": ["secondary_billing"],
+    "aging_claims": ["stale_claim", "tfl_warning"],
+}
+
+
+@router.get("/work-queue/billing/{stage}")
+async def billing_stage_items(
+    stage: str,
+    limit: int = Query(50, le=200),
+    offset: int = Query(0),
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("work_queue:read")),
+):
+    types = _BILLING_STAGE_TYPES.get(stage, [])
+    stmt = (
+        select(WorkItem)
+        .where(
+            WorkItem.tenant_id == ctx.tenant_id,
+            WorkItem.status.in_([WORK_ITEM_STATUS_OPEN, WORK_ITEM_STATUS_IN_PROGRESS]),
+        )
+        .options(selectinload(WorkItem.notes))
+        .order_by(WorkItem.created_at.desc())
+        .offset(offset).limit(limit)
+    )
+    if types:
+        stmt = stmt.where(WorkItem.item_type.in_(types))
+    result = await db.execute(stmt)
+    items = result.scalars().all()
+    return {"stage": stage, "items": [WorkItemResponse.model_validate(i) for i in items], "total": len(items)}
+
+
 @router.post("/work-queue", response_model=WorkItemResponse, status_code=status.HTTP_201_CREATED)
 async def create_work_item(
     body: WorkItemCreate,

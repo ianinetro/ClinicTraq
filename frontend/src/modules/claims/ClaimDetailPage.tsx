@@ -95,7 +95,44 @@ export function ClaimDetailPage() {
 
   const { data: claim = EMPTY_CLAIM, isLoading, isError } = useQuery<ClaimData>({
     queryKey: ['claims', claimId],
-    queryFn: async () => (await api.get(`/claims/${claimId}`)).data,
+    queryFn: async () => {
+      const raw = (await api.get(`/claims/${claimId}`)).data
+      const statusMap: Record<string, ClaimStatus> = {
+        draft: 'Draft', pending: 'Pending', submitted: 'Submitted',
+        denied: 'Denied', paid: 'Paid', partial: 'Partial',
+      }
+      return {
+        ...EMPTY_CLAIM,
+        claimId: String(raw.id ?? claimId),
+        status: statusMap[raw.status?.toLowerCase()] ?? 'Draft',
+        submitDate: raw.last_submitted_at ? new Date(raw.last_submitted_at).toLocaleDateString() : '—',
+        payerControlNumber: raw.payer_claim_number ?? '',
+        totalBilled: raw.total_charge ?? 0,
+        totalPaid: raw.total_paid ?? 0,
+        totalBalance: raw.balance ?? 0,
+        diagnoses: (raw.diagnoses_snapshot ?? []).map((d: Record<string, string>, i: number) => ({
+          icd10: d.diagnosis_code ?? d.icd10_code ?? '—',
+          description: d.description ?? '',
+          pointer: String.fromCharCode(65 + i),
+        })),
+        serviceLines: (raw.lines ?? []).map((l: Record<string, unknown>) => ({
+          cpt: String(l.cpt_code ?? ''),
+          mods: Array.isArray(l.modifiers) ? (l.modifiers as string[]).join(', ') : '',
+          dos: raw.date_of_service ? new Date(raw.date_of_service as string).toLocaleDateString() : '—',
+          units: Number(l.units ?? 1),
+          billed: Number(l.charge_amount ?? 0),
+          allowed: Number(l.allowed_amount ?? 0),
+          paid: Number(l.paid_amount ?? 0),
+          adjustment: Number(l.adjustment_amount ?? 0),
+          adjReason: '',
+        })),
+        validationIssues: (raw.validation_issues ?? []).map((v: Record<string, string>) => ({
+          severity: v.severity as 'blocking' | 'warning' | 'info',
+          code: v.code ?? '',
+          message: v.message ?? '',
+        })),
+      } as ClaimData
+    },
     enabled: !!claimId,
   })
 

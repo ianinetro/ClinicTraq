@@ -702,32 +702,29 @@ export function BodyMap({ patientId: _patientId, sex = 'male', visits = [], comp
   const regionAnnotations = selectedRegion ? annotations.filter(a => a.region === selectedRegion) : []
   const regionVisits = selectedRegion && markerMap[selectedRegion] ? markerMap[selectedRegion].visits : []
 
-  // SVG layout: two figures side by side in a 360×460 container
-  // Each figure occupies a 160×420 slot; labels below at y=440
-  const svgW = compact ? 240 : 360
-  const svgH = compact ? 320 : 460
-  const figW = compact ? 120 : 160
-  const figH = compact ? 300 : 420
+  // SVG layout: two figures side by side in a fixed 360×460 viewBox.
+  // CSS controls actual rendered size — this ensures uniform scaling, so click
+  // hit areas always match the visual shapes regardless of container size.
+  const FULL_W = 360
+  const FULL_H = 460
+  const figW = 160
+  const figH = 420
 
   return (
     <div className="select-none">
       {/* Dual-figure SVG */}
       <div
         className="relative"
+        style={{ width: compact ? 220 : 360 }}
         onClick={() => { setSelectedRegion(null); setAddingAnnotation(false) }}
       >
         <svg
-          width={svgW}
-          height={svgH}
-          viewBox={`0 0 ${svgW} ${svgH}`}
-          className="overflow-visible"
+          viewBox={`0 0 ${FULL_W} ${FULL_H}`}
+          style={{ width: '100%', height: 'auto', display: 'block' }}
           aria-label="Body map — front and back views"
         >
           {/* FRONT figure */}
-          <g
-            transform={`scale(${figW / 160}, ${figH / 420})`}
-            onClick={e => e.stopPropagation()}
-          >
+          <g onClick={e => e.stopPropagation()}>
             <BodyFigure
               view="front"
               sex={normalizedSex}
@@ -738,9 +735,9 @@ export function BodyMap({ patientId: _patientId, sex = 'male', visits = [], comp
             />
           </g>
 
-          {/* BACK figure — translated right by figW px */}
+          {/* BACK figure — translated right by 160px (half the viewBox width) */}
           <g
-            transform={`translate(${figW}, 0) scale(${figW / 160}, ${figH / 420})`}
+            transform={`translate(${figW + 40}, 0)`}
             onClick={e => e.stopPropagation()}
           >
             <BodyFigure
@@ -768,7 +765,7 @@ export function BodyMap({ patientId: _patientId, sex = 'male', visits = [], comp
                 FRONT
               </text>
               <text
-                x={figW + figW / 2}
+                x={figW + 40 + figW / 2}
                 y={figH + 20}
                 textAnchor="middle"
                 fontSize={10}
