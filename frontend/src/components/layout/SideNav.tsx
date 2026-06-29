@@ -209,6 +209,7 @@ export function SideNav({ isOpen, onClose }: SideNavProps) {
         background: 'var(--bb-brand-ink)',
         display: 'flex', flexDirection: 'column',
         transition: 'transform 0.25s',
+        transform: isOpen ? 'translateX(0)' : 'translateX(-240px)',
         overflowY: 'auto',
       }}>
         {/* Header */}

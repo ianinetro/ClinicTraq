@@ -340,6 +340,28 @@ async def get_patient_activity(
     return []
 
 
+@router.post("/patients/{patient_id}/activity", status_code=201)
+async def add_patient_note(
+    patient_id: uuid.UUID,
+    body: dict,
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("patients:write")),
+):
+    await _require_patient(patient_id, ctx, db)
+    note_text = body.get("note", "").strip()
+    if not note_text:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=422, detail="Note text is required")
+    return {
+        "id": str(uuid.uuid4()),
+        "event_type": "note",
+        "description": note_text,
+        "user_name": f"{current_user.first_name} {current_user.last_name}".strip() or current_user.email,
+        "created_at": __import__("datetime").datetime.utcnow().isoformat(),
+    }
+
+
 # ── Body Map Annotations ──────────────────────────────────────────────────────
 
 @router.get("/patients/{patient_id}/body-map-annotations", response_model=List[BodyMapAnnotationResponse])

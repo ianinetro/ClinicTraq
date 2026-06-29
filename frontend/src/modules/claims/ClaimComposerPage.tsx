@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useCallback, useRef, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Search, Plus, Trash2, ChevronRight, ChevronLeft, Download, Printer, Send, CheckCircle2, AlertCircle, X, User } from 'lucide-react'
 import { apiClient as api } from '../../services/api'
 
@@ -818,11 +818,40 @@ const STEPS = [
 
 export function ClaimComposerPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [step, setStep] = useState(1)
   const [form, setForm] = useState<ClaimForm>(INIT)
   const [claimId, setClaimId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+
+  // Pre-fill patient from ?patient=<id> query param
+  useEffect(() => {
+    const patientId = searchParams.get('patient')
+    if (!patientId) return
+    api.get(`/patients/${patientId}`).then(res => {
+      const p = res.data
+      const patient: PatientResult = {
+        id: p.id,
+        first_name: p.first_name ?? p.firstName ?? '',
+        last_name: p.last_name ?? p.lastName ?? '',
+        date_of_birth: p.dob ?? p.dateOfBirth,
+        mrn: p.account_number ?? p.accountNumber,
+        account_number: p.account_number ?? p.accountNumber,
+        phone: p.phone_cell ?? p.phone_home ?? p.phone,
+        primary_insurance_name: p.primary_insurance_name,
+        member_id: p.member_id,
+      }
+      setForm(f => ({
+        ...f,
+        patient,
+        insuredId: patient.member_id ?? '',
+        insuredName: `${patient.last_name}, ${patient.first_name}`,
+        dos: new Date().toISOString().split('T')[0],
+      }))
+      setStep(2)
+    }).catch(() => {})
+  }, [searchParams])
   const [validationIssues, setValidationIssues] = useState<{ severity: string; code: string; message: string }[] | null>(null)
   const [validating, setValidating] = useState(false)
   const [error, setError] = useState<string | null>(null)

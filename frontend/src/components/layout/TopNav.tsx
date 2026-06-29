@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Menu, Bell, LogOut, ChevronDown, Building2 } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Menu, Bell, LogOut, ChevronDown, Building2, CheckCircle2 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '../../stores/authStore'
 import { apiClient as api } from '../../services/api'
@@ -13,6 +13,18 @@ export function TopNav({ onMenuClick, pageTitle }: TopNavProps) {
   const { user, logout, activeClinicId, setActiveClinic } = useAuthStore()
   const [showDropdown, setShowDropdown] = useState(false)
   const [showClinicPicker, setShowClinicPicker] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const notifRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setShowNotifications(false)
+      }
+    }
+    if (showNotifications) document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showNotifications])
 
   // Only fetch clinics for billing/mgmt users who span multiple clinics
   const canSwitchClinic = !!(user?.billingCompanyId || user?.managementGroupId)
@@ -25,7 +37,7 @@ export function TopNav({ onMenuClick, pageTitle }: TopNavProps) {
 
   return (
     <header style={{
-      position: 'fixed', top: 0, left: 240, right: 0, height: 56, zIndex: 30,
+      position: 'sticky', top: 0, left: 0, right: 0, height: 56, zIndex: 30,
       background: 'var(--bb-surface-card)',
       borderBottom: '1px solid var(--bb-border)',
       display: 'flex', alignItems: 'center',
@@ -95,9 +107,29 @@ export function TopNav({ onMenuClick, pageTitle }: TopNavProps) {
             )}
           </div>
         )}
-        <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--bb-text-secondary)', display: 'flex', padding: 8, borderRadius: 'var(--bb-radius)', position: 'relative' }}>
-          <Bell size={18} />
-        </button>
+        <div ref={notifRef} style={{ position: 'relative' }}>
+          <button
+            onClick={() => setShowNotifications(v => !v)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--bb-text-secondary)', display: 'flex', padding: 8, borderRadius: 'var(--bb-radius)', position: 'relative' }}
+          >
+            <Bell size={18} />
+          </button>
+          {showNotifications && (
+            <div style={{
+              position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 100,
+              background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)',
+              borderRadius: 'var(--bb-radius)', boxShadow: 'var(--bb-shadow-md)', width: 300,
+            }}>
+              <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--bb-border)', fontWeight: 600, fontSize: 13, color: 'var(--bb-text-primary)' }}>
+                Notifications
+              </div>
+              <div style={{ padding: '24px 14px', textAlign: 'center', color: 'var(--bb-text-secondary)', fontSize: 13, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                <CheckCircle2 size={22} style={{ color: 'var(--bb-status-success)' }} />
+                All caught up — no new notifications
+              </div>
+            </div>
+          )}
+        </div>
         <div style={{ position: 'relative' }}>
           <button
             onClick={() => setShowDropdown(v => !v)}

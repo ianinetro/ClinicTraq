@@ -99,7 +99,7 @@ export default function App() {
         <Route path="/billing/workspaces" element={<Suspense fallback={<Fallback />}><WorkspaceManagerPage /></Suspense>} />
 
         {/* Admin / Settings */}
-        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/settings/*" element={<SettingsPage />} />
         <Route path="/organization" element={<OrgManagementPage />} />
         <Route path="/admin/clinics" element={<Suspense fallback={<Fallback />}><AdminClinicsPage /></Suspense>} />
         <Route path="/ar" element={<Suspense fallback={<Fallback />}><ARDashboardPage /></Suspense>} />

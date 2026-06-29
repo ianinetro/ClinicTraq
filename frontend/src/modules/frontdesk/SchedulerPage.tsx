@@ -302,13 +302,14 @@ function NewAppointmentModal({
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      if (!form.patientId) throw new Error('Please select a patient')
       if (!form.date || !form.startTime) throw new Error('Date and time are required')
       const startDt = new Date(`${form.date}T${form.startTime}:00`)
       if (isNaN(startDt.getTime())) throw new Error('Invalid date/time')
       const endDt = new Date(startDt.getTime() + form.duration * 60 * 1000)
       await apiClient.post('/appointments', {
         patient_id: form.patientId,
-        provider_id: form.providerId,
+        provider_id: form.providerId || null,
         appointment_type: form.appointmentType,
         start_time: startDt.toISOString(),
         end_time: endDt.toISOString(),
@@ -316,7 +317,7 @@ function NewAppointmentModal({
       })
     },
     onSuccess: () => { onCreated(); onClose() },
-    onError: () => setError('Failed to create appointment. Please try again.'),
+    onError: (e: Error) => setError(e.message || 'Failed to create appointment. Please try again.'),
   })
 
   function set<K extends keyof NewApptForm>(key: K, val: NewApptForm[K]) {

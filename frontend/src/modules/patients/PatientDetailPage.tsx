@@ -448,6 +448,7 @@ function OverviewTab({ patient, visits, claims, insurance, onEditPatient, isDent
 
 function DemographicsTab({ patient }: { patient: Patient }) {
   const queryClient = useQueryClient()
+  const [isEditing, setIsEditing] = useState(false)
   const [form, setForm] = useState({
     first_name: (patient as PatientFull).first_name ?? patient.firstName ?? '',
     middle_name: (patient as PatientFull).middle_name ?? '',
@@ -537,6 +538,7 @@ function DemographicsTab({ patient }: { patient: Patient }) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['patients', patient.id] })
       setSaved(true)
+      setIsEditing(false)
       setTimeout(() => setSaved(false), 2500)
     },
   })
@@ -544,6 +546,7 @@ function DemographicsTab({ patient }: { patient: Patient }) {
   const age = calcAge(form.dob)
 
   function field(label: string, key: keyof typeof form, opts?: { readOnly?: boolean; type?: string }) {
+    const ro = opts?.readOnly || !isEditing
     return (
       <div>
         <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--bb-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>
@@ -552,12 +555,12 @@ function DemographicsTab({ patient }: { patient: Patient }) {
         <input
           type={opts?.type ?? 'text'}
           value={String(form[key] ?? '')}
-          readOnly={opts?.readOnly}
+          readOnly={ro}
           onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
           style={{
             height: 32, width: '100%', padding: '0 10px', fontSize: 13,
-            border: '1px solid var(--bb-border)', borderRadius: 6,
-            background: opts?.readOnly ? 'var(--bb-surface-app)' : 'var(--bb-surface-card)',
+            border: `1px solid ${ro ? 'transparent' : 'var(--bb-border)'}`, borderRadius: 6,
+            background: ro ? 'transparent' : 'var(--bb-surface-card)',
             color: 'var(--bb-text-primary)', outline: 'none',
           }}
         />
@@ -844,16 +847,27 @@ function DemographicsTab({ patient }: { patient: Patient }) {
         </div>
       </SectionCard>
 
-      {/* Save */}
+      {/* Edit / Save controls */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <Button
-          variant="primary"
-          size="sm"
-          loading={mutation.isPending}
-          onClick={() => mutation.mutate(form)}
-        >
-          Save Demographics
-        </Button>
+        {!isEditing ? (
+          <Button variant="secondary" size="sm" leftIcon={<Edit3 size={13} />} onClick={() => setIsEditing(true)}>
+            Edit Demographics
+          </Button>
+        ) : (
+          <>
+            <Button
+              variant="primary"
+              size="sm"
+              loading={mutation.isPending}
+              onClick={() => mutation.mutate(form)}
+            >
+              Save Changes
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setIsEditing(false)}>
+              Cancel
+            </Button>
+          </>
+        )}
         {saved && (
           <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--bb-status-success)' }}>
             <CheckCircle size={14} />
@@ -1277,9 +1291,10 @@ function PaymentsTab({ payments }: { payments: Payment[] }) {
 
 // ─── Notes & Activity Tab ─────────────────────────────────────────────────────
 
-function NotesTab({ patientId, activity }: { patientId: string; activity: ActivityEvent[] }) {
+function NotesTab({ patientId, activity, onRefresh }: { patientId: string; activity: ActivityEvent[]; onRefresh?: () => void }) {
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   function eventIcon(type: string) {
     if (type.includes('visit')) return <Stethoscope size={14} />
@@ -1301,11 +1316,13 @@ function NotesTab({ patientId, activity }: { patientId: string; activity: Activi
   async function saveNote() {
     if (!note.trim()) return
     setSaving(true)
+    setSaveError('')
     try {
-      await apiPost(`/patients/${patientId}/activity`, { note })
+      await apiPost(`/api/v1/patients/${patientId}/activity`, { note })
       setNote('')
+      onRefresh?.()
     } catch {
-      // ignore
+      setSaveError('Failed to save note. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -1330,7 +1347,10 @@ function NotesTab({ patientId, activity }: { patientId: string; activity: Activi
               fontFamily: 'inherit',
             }}
           />
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            {saveError ? (
+              <span style={{ fontSize: 12, color: 'var(--bb-status-danger)' }}>{saveError}</span>
+            ) : <span />}
             <Button size="sm" variant="primary" loading={saving} onClick={() => void saveNote()}>
               Save Note
             </Button>
@@ -1453,7 +1473,7 @@ export function PatientDetailPage() {
     enabled: !!id,
   })
 
-  const { data: activity = [] } = useQuery<ActivityEvent[]>({
+  const { data: activity = [], refetch: refetchActivity } = useQuery<ActivityEvent[]>({
     queryKey: ['patient-activity', id],
     queryFn: () => apiFetch(`/patients/${id}/activity`),
     enabled: !!id,
@@ -1592,7 +1612,7 @@ export function PatientDetailPage() {
         </TabPanel>
 
         <TabPanel id="notes" className="pt-4">
-          <NotesTab patientId={id ?? ''} activity={activity} />
+          <NotesTab patientId={id ?? ''} activity={activity} onRefresh={() => void refetchActivity()} />
         </TabPanel>
       </Tabs>
     </div>

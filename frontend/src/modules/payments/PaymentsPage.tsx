@@ -183,7 +183,7 @@ export function PaymentsPage() {
   ]
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-4 space-y-3">
       <PageHeader
         title="Payments"
         description="Track insurance and patient payments, import ERA files"
