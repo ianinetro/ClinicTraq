@@ -237,12 +237,13 @@ function visitRowBg(days: number): string {
   return 'rgba(22,163,74,0.06)'
 }
 
-function OverviewTab({ patient, visits, claims, insurance, onEditPatient, isDental = false }: {
+function OverviewTab({ patient, visits, claims, insurance, onEditPatient, onNewVisit, isDental = false }: {
   patient: Patient
   visits: Visit[]
   claims: Claim[]
   insurance: PatientInsuranceFull[]
   onEditPatient: () => void
+  onNewVisit: () => void
   isDental?: boolean
 }) {
   const navigate = useNavigate()
@@ -384,7 +385,7 @@ function OverviewTab({ patient, visits, claims, insurance, onEditPatient, isDent
           <SectionHeader
             title="Recent Visits"
             action={
-              <Button size="xs" variant="primary" leftIcon={<Plus size={11} />} onClick={() => setShowNewVisitModal(true)}>
+              <Button size="xs" variant="primary" leftIcon={<Plus size={11} />} onClick={onNewVisit}>
                 New Visit
               </Button>
             }
@@ -534,8 +535,13 @@ function DemographicsTab({ patient, startEditing }: { patient: Patient; startEdi
   const [saved, setSaved] = useState(false)
 
   const mutation = useMutation({
-    mutationFn: (data: Partial<typeof form>) =>
-      apiPatch<Patient>(`/api/v1/patients/${patient.id}`, data),
+    mutationFn: (data: Partial<typeof form>) => {
+      // Strip empty strings so the backend doesn't reject them as invalid dates/enums
+      const payload = Object.fromEntries(
+        Object.entries(data).filter(([, v]) => v !== '' && v !== null && v !== undefined)
+      )
+      return apiPatch<Patient>(`/api/v1/patients/${patient.id}`, payload)
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['patients', patient.id] })
       setSaved(true)
@@ -1027,7 +1033,7 @@ function InfoCell({ label, value, mono = false }: { label: string; value: string
 
 // ─── Visits Tab ───────────────────────────────────────────────────────────────
 
-function VisitsTab({ patientId, visits }: { patientId: string; visits: Visit[] }) {
+function VisitsTab({ patientId, visits, onNewVisit }: { patientId: string; visits: Visit[]; onNewVisit: () => void }) {
   const navigate = useNavigate()
   const [filter, setFilter] = useState('all')
 
@@ -1055,7 +1061,7 @@ function VisitsTab({ patientId, visits }: { patientId: string; visits: Visit[] }
         <Button
           size="sm" variant="primary"
           leftIcon={<Plus size={13} />}
-          onClick={() => setShowNewVisitModal(true)}
+          onClick={onNewVisit}
         >
           New Visit
         </Button>
@@ -1669,7 +1675,7 @@ export function PatientDetailPage() {
         </TabList>
 
         <TabPanel id="overview" className="pt-4">
-          <OverviewTab patient={patient} visits={visits} claims={claims} insurance={insurance} onEditPatient={() => { setActiveTab('demographics'); setDemographicsEditMode(true) }} isDental={isDental} />
+          <OverviewTab patient={patient} visits={visits} claims={claims} insurance={insurance} onEditPatient={() => { setActiveTab('demographics'); setDemographicsEditMode(true) }} onNewVisit={() => setShowNewVisitModal(true)} isDental={isDental} />
         </TabPanel>
 
         <TabPanel id="demographics" className="pt-4">
@@ -1681,7 +1687,7 @@ export function PatientDetailPage() {
         </TabPanel>
 
         <TabPanel id="visits" className="pt-4">
-          <VisitsTab patientId={id ?? ''} visits={visits} />
+          <VisitsTab patientId={id ?? ''} visits={visits} onNewVisit={() => setShowNewVisitModal(true)} />
         </TabPanel>
 
         <TabPanel id="claims" className="pt-4">

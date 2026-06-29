@@ -161,7 +161,7 @@ export function PaymentsPage() {
       header: 'Imported',
       cell: (row) => (
         <span className="text-sm text-[#676687] tabular-nums">
-          {format(new Date(row.importedAt), 'MM/dd/yyyy HH:mm')}
+          {row.importedAt ? format(new Date(row.importedAt), 'MM/dd/yyyy HH:mm') : '—'}
         </span>
       ),
     },

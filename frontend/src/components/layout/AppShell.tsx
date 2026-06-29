@@ -56,7 +56,6 @@ export function AppShell() {
           <TopNav onMenuClick={() => setSidebarCollapsed(v => !v)} pageTitle={title} />
           <main style={{
             flex: 1,
-            padding: '24px',
             background: 'var(--bb-surface-app)',
             minHeight: 'calc(100vh - 56px)',
           }}>
