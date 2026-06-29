@@ -1029,5 +1029,6 @@ export function VisitDetailPage() {
           <SaveButtons onUpdate={handleUpdate} onCancel={() => navigate('/visits')} onApply={handleUpdate} saved={saved} />
         </div>
       </div>
+    </div>
   )
 }
