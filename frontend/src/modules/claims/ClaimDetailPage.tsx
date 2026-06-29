@@ -163,6 +163,15 @@ export function ClaimDetailPage() {
     }
   }
 
+  async function handleSubmitClaim() {
+    try {
+      await api.post(`/claims/${claimId}/submit`)
+      navigate('/claims')
+    } catch {
+      alert('Failed to submit claim. Please validate first.')
+    }
+  }
+
   async function handleCreateSecondary() {
     setCreatingSecondary(true)
     try {
@@ -272,7 +281,7 @@ export function ClaimDetailPage() {
             </Button>
           )}
           {(claim.status === 'Draft' || claim.status === 'Pending') && (
-            <Button variant="primary">
+            <Button variant="primary" onClick={() => void handleSubmitClaim()}>
               <Send size={14} />
               Submit Claim
             </Button>

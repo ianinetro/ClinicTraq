@@ -275,12 +275,14 @@ export function WorkspaceManagerPage() {
         </div>
       </div>
 
-      {error && (
+      {error && !data && (
         <div style={{
-          background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10,
-          padding: 16, color: '#DC2626', fontSize: 14, marginBottom: 20,
+          background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10,
+          padding: '12px 16px', color: '#92400E', fontSize: 13, marginBottom: 20,
+          display: 'flex', alignItems: 'center', gap: 8,
         }}>
-          Could not load workspace data. Check that the backend is running.
+          <Building2 size={15} />
+          Workspace data is unavailable — the billing workspace endpoint may not be configured yet. Showing empty state.
         </div>
       )}
 

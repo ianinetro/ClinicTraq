@@ -112,8 +112,8 @@ function AppointmentBlock({
   onClick: (appt: Appointment, e: React.MouseEvent) => void
   dayIndex: number
 }) {
-  const start = parseISO(appt.start_time)
-  const end = parseISO(appt.end_time)
+  const start = appt.start_time ? parseISO(appt.start_time) : new Date()
+  const end = appt.end_time ? parseISO(appt.end_time) : new Date(start.getTime() + 30 * 60000)
   const top = timeToTop(start)
   const height = timeToHeight(start, end)
   const colors = APPT_COLORS[appt.appointment_type] ?? APPT_COLORS.office_visit
@@ -150,7 +150,7 @@ function AppointmentBlock({
       </div>
       {!isShort && (
         <div style={{ fontSize: 10, color: colors.text, opacity: 0.75, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {format(start, 'h:mm')} · {APPT_TYPE_LABELS[appt.appointment_type]}
+          {appt.start_time ? format(start, 'h:mm') : '—'} · {APPT_TYPE_LABELS[appt.appointment_type]}
         </div>
       )}
     </button>
@@ -187,7 +187,7 @@ function AppointmentPopover({
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: '#12122C' }}>{appt.patient_name}</div>
           <div style={{ fontSize: 11, color: '#676687', marginTop: 1 }}>
-            {format(parseISO(appt.start_time), 'h:mm a')} – {format(parseISO(appt.end_time), 'h:mm a')}
+            {appt.start_time ? format(parseISO(appt.start_time), 'h:mm a') : '—'} – {appt.end_time ? format(parseISO(appt.end_time), 'h:mm a') : '—'}
           </div>
         </div>
         <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', padding: 0, display: 'flex' }}>
@@ -303,7 +303,9 @@ function NewAppointmentModal({
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      if (!form.date || !form.startTime) throw new Error('Date and time are required')
       const startDt = new Date(`${form.date}T${form.startTime}:00`)
+      if (isNaN(startDt.getTime())) throw new Error('Invalid date/time')
       const endDt = new Date(startDt.getTime() + form.duration * 60 * 1000)
       await apiClient.post('/appointments', {
         patient_id: form.patientId,

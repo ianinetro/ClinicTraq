@@ -68,7 +68,7 @@ export function ARDashboardPage() {
   ]
 
   return (
-    <div className="p-6 space-y-6" style={{ maxWidth: 1100 }}>
+    <div className="p-6 space-y-6" style={{ maxWidth: 1100, margin: '0 auto' }}>
       <PageHeader
         title="A/R Aging"
         description="Accounts receivable aging analysis across all payers"
