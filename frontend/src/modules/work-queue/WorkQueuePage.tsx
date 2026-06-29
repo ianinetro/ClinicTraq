@@ -252,8 +252,43 @@ export function WorkQueuePage() {
   const [search, setSearch] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [assignFilter, setAssignFilter] = useState('')
+  const [logActionId, setLogActionId] = useState<string | null>(null)
+  const [logNote, setLogNote] = useState('')
+  const [resolving, setResolving] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
 
-  const { data } = useQuery({
+  function showToast(msg: string) {
+    setToast(msg)
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  async function handleMarkResolved(item: WorkItem) {
+    setResolving(item.id)
+    try {
+      await api.patch(`/work-queue/${item.id}`, { status: 'resolved' })
+      showToast(`Task resolved: ${item.taskType}`)
+      refetch()
+    } catch {
+      showToast('Failed to resolve task. Please try again.')
+    } finally {
+      setResolving(null)
+    }
+  }
+
+  async function handleLogAction(item: WorkItem) {
+    if (!logNote.trim()) return
+    try {
+      await api.post(`/work-queue/${item.id}/notes`, { note: logNote })
+      showToast('Action logged successfully.')
+      setLogActionId(null)
+      setLogNote('')
+      refetch()
+    } catch {
+      showToast('Failed to log action. Please try again.')
+    }
+  }
+
+  const { data, refetch } = useQuery({
     queryKey: ['work-queue'],
     queryFn: async () => (await api.get('/work-queue')).data,
   })
@@ -314,6 +349,12 @@ export function WorkQueuePage() {
           </button>
         ))}
       </div>
+
+      {toast && (
+        <div style={{ position: 'fixed', bottom: 24, right: 24, background: '#12122C', color: 'white', borderRadius: 8, padding: '12px 20px', fontSize: 13, fontWeight: 500, zIndex: 9999, boxShadow: '0 4px 16px rgba(0,0,0,0.25)' }}>
+          {toast}
+        </div>
+      )}
 
       {view === 'billing' ? (
         <BillingSubQueuePanel items={allItems} navigate={navigate} />
@@ -448,16 +489,38 @@ export function WorkQueuePage() {
                           </div>
                         )}
                       </div>
+                      {logActionId === item.id && (
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 12px', background: '#F2F2F8', borderRadius: 6 }}>
+                          <textarea
+                            autoFocus
+                            value={logNote}
+                            onChange={e => setLogNote(e.target.value)}
+                            placeholder="Describe the action taken…"
+                            style={{ flex: 1, height: 60, padding: '6px 10px', fontSize: 13, border: '1px solid #BABACE', borderRadius: 6, resize: 'none', outline: 'none' }}
+                          />
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <button onClick={() => handleLogAction(item)} style={{ height: 30, padding: '0 12px', background: '#0410BD', color: 'white', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Save</button>
+                            <button onClick={() => { setLogActionId(null); setLogNote('') }} style={{ height: 30, padding: '0 12px', background: 'white', color: '#676687', border: '1px solid #BABACE', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>Cancel</button>
+                          </div>
+                        </div>
+                      )}
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button onClick={() => navigate(`/claims/${item.claimId}`)} style={{ height: 32, padding: '0 14px', background: '#0410BD', color: 'white', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>View claim</button>
-                        <button style={{ height: 32, padding: '0 14px', background: '#EFF0FF', color: '#0410BD', border: '1px solid #BABACE', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <button
+                          onClick={() => navigate(`/work-queue/${item.id}/reassign`)}
+                          style={{ height: 32, padding: '0 14px', background: '#EFF0FF', color: '#0410BD', border: '1px solid #BABACE', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
                           <User size={12} /> Reassign
                         </button>
-                        <button style={{ height: 32, padding: '0 14px', background: 'white', color: '#676687', border: '1px solid #BABACE', borderRadius: 6, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <button
+                          onClick={() => { setLogActionId(item.id); setLogNote('') }}
+                          style={{ height: 32, padding: '0 14px', background: 'white', color: '#676687', border: '1px solid #BABACE', borderRadius: 6, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
                           <RotateCcw size={12} /> Log action
                         </button>
-                        <button style={{ height: 32, padding: '0 14px', background: '#ECFDF5', color: '#047857', border: '1px solid #A7F3D0', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-                          <CheckCircle2 size={12} /> Mark resolved
+                        <button
+                          disabled={resolving === item.id || item.status === 'resolved'}
+                          onClick={() => handleMarkResolved(item)}
+                          style={{ height: 32, padding: '0 14px', background: item.status === 'resolved' ? '#D1FAE5' : '#ECFDF5', color: '#047857', border: '1px solid #A7F3D0', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: item.status === 'resolved' ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 5, opacity: resolving === item.id ? 0.6 : 1 }}>
+                          <CheckCircle2 size={12} /> {resolving === item.id ? 'Saving…' : item.status === 'resolved' ? 'Resolved' : 'Mark resolved'}
                         </button>
                       </div>
                     </div>

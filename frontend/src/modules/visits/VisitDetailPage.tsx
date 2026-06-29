@@ -340,6 +340,22 @@ export function VisitDetailPage() {
   const [capitation, setCapitation] = useState(false)
   const [cobIndicator, setCobIndicator] = useState(false)
   const [billingNotes, setBillingNotes] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [submitResult, setSubmitResult] = useState<{ ok: boolean; message: string } | null>(null)
+
+  async function handleClearinghouseSubmit() {
+    setSubmitting(true)
+    setSubmitResult(null)
+    try {
+      await apiClient.post(`/visits/${id}/submit-claim`)
+      setSubmitResult({ ok: true, message: 'Claim submitted to clearinghouse successfully.' })
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Submission failed. Ensure all charge lines and diagnoses are complete.'
+      setSubmitResult({ ok: false, message: msg })
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   // Seed form state once visit loads
   if (visit && visitStatus === '') {
@@ -1001,16 +1017,23 @@ export function VisitDetailPage() {
                   <p style={{ fontSize: '13px', color: 'var(--bb-text-secondary)', marginBottom: '12px', lineHeight: '1.5' }}>
                     Submit this visit's charges to the clearinghouse. Ensure all charge lines and diagnoses are complete before submitting.
                   </p>
+                  {submitResult && (
+                    <div style={{ marginBottom: 10, padding: '8px 12px', borderRadius: 6, fontSize: 13, background: submitResult.ok ? '#ECFDF5' : '#FEF2F2', color: submitResult.ok ? '#047857' : '#B91C1C', border: `1px solid ${submitResult.ok ? '#A7F3D0' : '#FECACA'}` }}>
+                      {submitResult.message}
+                    </div>
+                  )}
                   <button
-                    onClick={() => alert('Submitted to clearinghouse (mock)')}
+                    disabled={submitting}
+                    onClick={handleClearinghouseSubmit}
                     style={{
                       height: '32px', padding: '0 18px',
-                      background: 'var(--bb-brand-blue)', color: '#fff',
+                      background: submitting ? '#6B7FE0' : 'var(--bb-brand-blue)', color: '#fff',
                       border: 'none', borderRadius: '4px',
-                      fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                      fontSize: '13px', fontWeight: 600, cursor: submitting ? 'default' : 'pointer',
+                      opacity: submitting ? 0.7 : 1,
                     }}
                   >
-                    Submit to Clearinghouse
+                    {submitting ? 'Submitting…' : 'Submit to Clearinghouse'}
                   </button>
                 </div>
               </div>

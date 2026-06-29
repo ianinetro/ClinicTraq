@@ -768,13 +768,13 @@ function FrontDeskDashboard() {
             icon={<ShieldCheck size={24} />}
             label="Verify Eligibility"
             description="Check insurance coverage"
-            onClick={() => addToast({ variant: 'info', message: 'Eligibility check coming soon.' })}
+            onClick={() => navigate('/patients?action=eligibility')}
           />
           <QuickActionCard
             icon={<DollarSign size={24} />}
             label="Collect Copay"
             description="Record a patient payment"
-            onClick={() => addToast({ variant: 'info', message: 'Copay collection coming soon.' })}
+            onClick={() => navigate('/payments?action=post')}
           />
         </div>
       </div>
