@@ -666,7 +666,7 @@ export function ClaimDetailPage() {
                       <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 13, color: '#DC2626' }}>{denial.carc_code}</span>
                       {denial.rarc_code && <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#6B7280' }}>{denial.rarc_code}</span>}
                       {denial.denied_amount !== undefined && (
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#DC2626' }}>-${denial.denied_amount.toFixed(2)}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#DC2626' }}>-${(denial.denied_amount ?? 0).toFixed(2)}</span>
                       )}
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

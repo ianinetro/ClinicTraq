@@ -169,16 +169,16 @@ export function ERAReviewPage() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-[#676687]">Billed</span>
-                      <span className="tabular-nums">${payment.billedAmount.toFixed(2)}</span>
+                      <span className="tabular-nums">${(payment.billedAmount ?? 0).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-[#676687]">Paid</span>
-                      <span className="tabular-nums font-semibold text-[#047857]">${payment.paidAmount.toFixed(2)}</span>
+                      <span className="tabular-nums font-semibold text-[#047857]">${(payment.paidAmount ?? 0).toFixed(2)}</span>
                     </div>
                     {payment.adjustments.map((adj, i) => (
                       <div key={i} className="bg-[#FFFBEB] rounded p-2 mt-2">
                         <p className="text-[10px] font-semibold text-[#B45309]">
-                          {adj.groupCode}-{adj.reasonCode}: ${adj.amount.toFixed(2)}
+                          {adj.groupCode}-{adj.reasonCode}: ${(adj.amount ?? 0).toFixed(2)}
                         </p>
                         <p className="text-[10px] text-[#676687] mt-0.5">{adj.description}</p>
                       </div>
@@ -199,7 +199,7 @@ export function ERAReviewPage() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-[#676687]">Billed</span>
-                        <span className="tabular-nums">${payment.billedAmount.toFixed(2)}</span>
+                        <span className="tabular-nums">${(payment.billedAmount ?? 0).toFixed(2)}</span>
                       </div>
                     </div>
                   ) : (

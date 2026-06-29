@@ -72,7 +72,7 @@ export function PostPaymentModal({ onClose, onSuccess }: Props) {
       claim_id: claim.id,
       claim_number: claim.claim_number,
       patient_name: claim.patient_name,
-      applied_amount: claim.balance.toFixed(2),
+      applied_amount: (claim.balance ?? 0).toFixed(2),
       adjustment_amount: '0.00',
       carc_code: '',
     }])
@@ -246,7 +246,7 @@ export function PostPaymentModal({ onClose, onSuccess }: Props) {
                             <strong>{c.claim_number}</strong> · {c.patient_name}
                             {c.date_of_service && ` · DOS: ${c.date_of_service}`}
                           </span>
-                          <span style={{ color: '#374151', fontWeight: 600 }}>Bal: ${c.balance.toFixed(2)}</span>
+                          <span style={{ color: '#374151', fontWeight: 600 }}>Bal: ${(c.balance ?? 0).toFixed(2)}</span>
                         </button>
                       ))}
                     </div>

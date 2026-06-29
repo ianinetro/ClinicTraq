@@ -183,7 +183,7 @@ function BillingSubQueuePanel({ items, navigate }: { items: WorkItem[]; navigate
                       <span style={{ fontSize: 13, fontWeight: 600, color: '#12122C' }}>{item.patient}</span>
                       <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#0410BD', fontWeight: 700 }}>{item.claimId}</span>
                       {item.amount != null && (
-                        <span style={{ fontSize: 12, color: '#374151', fontVariantNumeric: 'tabular-nums' }}>${item.amount.toFixed(2)}</span>
+                        <span style={{ fontSize: 12, color: '#374151', fontVariantNumeric: 'tabular-nums' }}>${(item.amount ?? 0).toFixed(2)}</span>
                       )}
                       {item.errorCode && (
                         <span style={{ fontSize: 11, fontWeight: 600, color: '#DC2626', background: '#FEF2F2', padding: '1px 6px', borderRadius: 4 }}>{item.errorCode}</span>

@@ -74,7 +74,7 @@ export function VisitsPage() {
       align: 'right',
       cell: (row) => (
         <span className="text-sm tabular-nums">
-          {row.totalCharges > 0 ? `$${row.totalCharges.toFixed(2)}` : '—'}
+          {row.totalCharges > 0 ? `$${(row.totalCharges ?? 0).toFixed(2)}` : '—'}
         </span>
       ),
     },

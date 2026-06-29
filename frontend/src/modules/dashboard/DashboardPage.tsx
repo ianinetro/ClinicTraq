@@ -146,7 +146,7 @@ function BillingDashboard() {
       header: 'Amount',
       align: 'right',
       cell: (row) => row.amount != null ? (
-        <span className="text-sm tabular-nums">${row.amount.toFixed(2)}</span>
+        <span className="text-sm tabular-nums">${(row.amount ?? 0).toFixed(2)}</span>
       ) : <span className="text-[#BABACE]">—</span>,
     },
     {
@@ -344,7 +344,7 @@ function BillingDashboard() {
             {selectedItem.amount != null && (
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6B6B8A] mb-1">Amount</p>
-                <p className="text-sm tabular-nums">${selectedItem.amount.toFixed(2)}</p>
+                <p className="text-sm tabular-nums">${(selectedItem.amount ?? 0).toFixed(2)}</p>
               </div>
             )}
             <div>

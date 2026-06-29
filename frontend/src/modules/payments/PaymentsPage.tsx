@@ -86,14 +86,14 @@ export function PaymentsPage() {
       header: 'Amount',
       align: 'right',
       sortable: true,
-      cell: (row) => <span className="text-sm font-medium tabular-nums">${row.amount.toFixed(2)}</span>,
+      cell: (row) => <span className="text-sm font-medium tabular-nums">${(row.amount ?? 0).toFixed(2)}</span>,
     },
     {
       id: 'appliedAmount',
       header: 'Applied',
       align: 'right',
       cell: (row) => (
-        <span className="text-sm tabular-nums text-[#047857]">${row.appliedAmount.toFixed(2)}</span>
+        <span className="text-sm tabular-nums text-[#047857]">${(row.appliedAmount ?? 0).toFixed(2)}</span>
       ),
     },
     {
@@ -102,7 +102,7 @@ export function PaymentsPage() {
       align: 'right',
       cell: (row) => (
         <span className={`text-sm tabular-nums font-medium ${row.unappliedAmount > 0 ? 'text-[#B45309]' : 'text-[#676687]'}`}>
-          ${row.unappliedAmount.toFixed(2)}
+          ${(row.unappliedAmount ?? 0).toFixed(2)}
         </span>
       ),
     },
@@ -138,7 +138,7 @@ export function PaymentsPage() {
       id: 'totalAmount',
       header: 'Total',
       align: 'right',
-      cell: (row) => <span className="text-sm tabular-nums font-medium">${row.totalAmount.toFixed(2)}</span>,
+      cell: (row) => <span className="text-sm tabular-nums font-medium">${(row.totalAmount ?? 0).toFixed(2)}</span>,
     },
     {
       id: 'matched',

@@ -95,7 +95,7 @@ export function ClaimsPage() {
       align: 'right',
       sortable: true,
       cell: (row) => (
-        <span className="text-sm tabular-nums">${row.totalCharges.toFixed(2)}</span>
+        <span className="text-sm tabular-nums">${(row.totalCharges ?? 0).toFixed(2)}</span>
       ),
     },
     {
@@ -104,7 +104,7 @@ export function ClaimsPage() {
       align: 'right',
       cell: (row) => (
         <span className="text-sm tabular-nums text-[#047857]">
-          {row.totalPaid > 0 ? `$${row.totalPaid.toFixed(2)}` : '—'}
+          {(row.totalPaid ?? 0) > 0 ? `$${(row.totalPaid ?? 0).toFixed(2)}` : '—'}
         </span>
       ),
     },
@@ -114,7 +114,7 @@ export function ClaimsPage() {
       align: 'right',
       cell: (row) => (
         <span className={`text-sm tabular-nums font-medium ${row.balance > 0 ? 'text-[#B91C1C]' : 'text-[#676687]'}`}>
-          ${row.balance.toFixed(2)}
+          ${(row.balance ?? 0).toFixed(2)}
         </span>
       ),
     },
