@@ -1023,7 +1023,13 @@ export function ClaimComposerPage() {
   async function handlePrintCMS1500() {
     const id = claimId ?? await saveProgress()
     if (!id) return
-    window.open(`/api/v1/claims/${id}/cms1500/pdf`, '_blank')
+    try {
+      const res = await api.get(`/claims/${id}/cms1500/pdf`, { responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      window.open(url, '_blank')
+    } catch {
+      setError('PDF generation failed. Please try again.')
+    }
   }
 
   async function goNext() {

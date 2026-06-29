@@ -715,7 +715,7 @@ export function BodyMap({ patientId: _patientId, sex = 'male', visits = [], comp
       {/* Dual-figure SVG */}
       <div
         className="relative"
-        style={{ width: compact ? 220 : 360 }}
+        style={{ width: compact ? 290 : 360 }}
         onClick={() => { setSelectedRegion(null); setAddingAnnotation(false) }}
       >
         <svg

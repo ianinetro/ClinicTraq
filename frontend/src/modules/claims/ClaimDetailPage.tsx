@@ -285,9 +285,19 @@ export function ClaimDetailPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <Button variant="ghost" size="sm" onClick={async () => {
+            try {
+              const res = await api.get(`/claims/${claimId}/cms1500/preview`, { responseType: 'blob' })
+              const url = URL.createObjectURL(new Blob([res.data], { type: 'text/html' }))
+              window.open(url, '_blank')
+            } catch { alert('Preview failed') }
+          }}>
+            <Printer size={14} />
+            CMS-1500 Preview
+          </Button>
           <Button variant="ghost" size="sm" onClick={handlePrintCMS1500}>
             <Printer size={14} />
-            CMS-1500
+            CMS-1500 PDF
           </Button>
           <Button variant="ghost" size="sm" onClick={handleDownload837}>
             <Download size={14} />

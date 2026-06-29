@@ -370,12 +370,77 @@ function OverviewTab({ patient, visits, claims, insurance, onEditPatient, onNewV
       {/* ─── RIGHT COLUMN ─── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-        {/* Body Map — only for non-dental clinics */}
+        {/* Body Map + Active Conditions — only for non-dental clinics */}
         {!isDental && (
           <SectionCard>
-            <SectionHeader title="Body Map" />
-            <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'center' }}>
-              <BodyMap patientId={patient.id} sex={p.sex ?? p.gender ?? undefined} visits={recentVisits} compact />
+            <SectionHeader title="Clinical Overview" />
+            <div style={{ display: 'grid', gridTemplateColumns: '290px 1fr', gap: 0 }}>
+              {/* Body Map */}
+              <div style={{ padding: '10px 12px', borderRight: '1px solid var(--bb-border)' }}>
+                <BodyMap patientId={patient.id} sex={p.sex ?? p.gender ?? undefined} visits={recentVisits} compact />
+              </div>
+              {/* Side panel: active conditions, allergies, medications */}
+              <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', maxHeight: 380 }}>
+                {/* Active Conditions */}
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--bb-text-secondary)', marginBottom: 6 }}>Active Conditions</div>
+                  {(() => {
+                    type DxRaw = { diagnosis_code?: string; icd10Code?: string; code?: string; description?: string }
+                    const allDx = recentVisits.flatMap(v => (v.diagnoses ?? []) as DxRaw[])
+                    const unique = Array.from(new Map(allDx.map(d => [d.diagnosis_code ?? d.icd10Code ?? d.code, d])).values()).slice(0, 8)
+                    return unique.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {unique.map((d, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                            <span style={{ fontFamily: 'monospace', fontSize: 11, background: 'var(--bb-surface-app)', padding: '1px 5px', borderRadius: 3, color: 'var(--bb-brand-blue)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                              {d.diagnosis_code ?? d.icd10Code ?? d.code ?? '—'}
+                            </span>
+                            <span style={{ color: 'var(--bb-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {d.description ?? '—'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 12, color: 'var(--bb-text-secondary)' }}>No diagnoses on record</div>
+                    )
+                  })()}
+                </div>
+
+                {/* Allergies */}
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--bb-text-secondary)', marginBottom: 6 }}>Allergies</div>
+                  {(patient as PatientFull).allergies && (patient as PatientFull).allergies!.length > 0 ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {((patient as PatientFull).allergies ?? []).slice(0, 6).map((a: string, i: number) => (
+                        <span key={i} style={{ fontSize: 11, background: 'rgba(220,38,38,0.08)', color: 'var(--bb-status-danger)', padding: '2px 7px', borderRadius: 10, fontWeight: 600 }}>
+                          {a}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 12, color: 'var(--bb-text-secondary)' }}>NKDA</div>
+                  )}
+                </div>
+
+                {/* Visit Stats */}
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--bb-text-secondary)', marginBottom: 6 }}>Visit Summary</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    {[
+                      { label: 'Total Visits', value: String(visits.length) },
+                      { label: 'Last Visit', value: recentVisits[0]?.visitDate ? fmtDate(recentVisits[0].visitDate) : '—' },
+                      { label: 'Open Claims', value: String(claims.filter(c => !['paid', 'void', 'denied'].includes(c.status)).length) },
+                      { label: 'Balance Due', value: fmtCurrency(claims.reduce((s, c) => s + (c.balance ?? 0), 0)) },
+                    ].map(({ label, value }) => (
+                      <div key={label} style={{ background: 'var(--bb-surface-app)', borderRadius: 6, padding: '7px 10px' }}>
+                        <div style={{ fontSize: 10, color: 'var(--bb-text-secondary)', marginBottom: 2 }}>{label}</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--bb-text-primary)' }}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </SectionCard>
         )}
@@ -1507,6 +1572,7 @@ interface PatientFull extends Patient {
   city?: string
   state?: string
   zip?: string
+  allergies?: string[]
 }
 
 // ─── Main PatientDetailPage ───────────────────────────────────────────────────

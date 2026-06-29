@@ -4,365 +4,424 @@
 <meta charset="UTF-8">
 <title>CMS-1500 Health Insurance Claim Form</title>
 <style>
-  body { font-family: Arial, sans-serif; font-size: 9pt; margin: 10mm; color: #000; }
-  h2 { text-align: center; font-size: 11pt; margin: 0 0 6px 0; }
-  .form-title { text-align: center; font-size: 8pt; margin-bottom: 8px; color: #444; }
-  table { width: 100%; border-collapse: collapse; }
-  td, th { border: 1px solid #000; padding: 2px 4px; vertical-align: top; }
-  .label { font-size: 7pt; color: #555; display: block; }
-  .value { font-size: 9pt; font-weight: bold; }
-  .box-num { font-size: 7pt; color: #888; float: right; }
-  .section-header { background: #ddd; font-weight: bold; font-size: 8pt; text-align: center; padding: 2px; }
-  .service-table th { background: #eee; font-size: 8pt; text-align: center; }
-  .service-table td { font-size: 9pt; text-align: center; }
-  .total-row td { font-weight: bold; }
-  .page-break { page-break-before: always; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 8pt;
+  color: #000;
+  background: #fff;
+  padding: 6mm 6mm;
+}
+@page {
+  size: letter;
+  margin: 10mm 8mm;
+}
+.form-wrap { width: 100%; }
+
+/* ── Header ─────────────────────────────────────────────── */
+.form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 2px;
+}
+.form-title-center {
+  text-align: center;
+  flex: 1;
+}
+.form-title-center .main-title {
+  font-size: 10pt;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+.form-title-center .sub-title {
+  font-size: 7pt;
+  color: #444;
+}
+.carrier-box {
+  border: 1px solid #000;
+  width: 220px;
+  min-height: 36px;
+  padding: 3px 5px;
+  font-size: 7pt;
+}
+
+/* ── Grid helpers ───────────────────────────────────────── */
+.grid { display: grid; width: 100%; }
+.row { display: flex; width: 100%; }
+
+/* Every cell is a bordered box */
+.cell {
+  border: 1px solid #000;
+  border-collapse: collapse;
+  padding: 2px 3px;
+  min-height: 18px;
+  position: relative;
+}
+/* Collapse double borders */
+.cell + .cell { border-left: 0; }
+.row + .row .cell { border-top: 0; }
+
+.lbl {
+  font-size: 6.5pt;
+  color: #444;
+  display: block;
+  margin-bottom: 1px;
+}
+.val {
+  font-size: 8.5pt;
+  font-weight: bold;
+  min-height: 9px;
+}
+.box-num {
+  position: absolute;
+  top: 1px;
+  right: 3px;
+  font-size: 6pt;
+  color: #888;
+}
+
+/* Flex proportional columns */
+.w10  { flex: 10; }
+.w12  { flex: 12; }
+.w13  { flex: 13; }
+.w14  { flex: 14; }
+.w15  { flex: 15; }
+.w16  { flex: 16; }
+.w17  { flex: 17; }
+.w18  { flex: 18; }
+.w20  { flex: 20; }
+.w22  { flex: 22; }
+.w25  { flex: 25; }
+.w30  { flex: 30; }
+.w35  { flex: 35; }
+.w40  { flex: 40; }
+.w50  { flex: 50; }
+.w60  { flex: 60; }
+.w70  { flex: 70; }
+.w100 { flex: 100; }
+
+/* ── Section dividers ───────────────────────────────────── */
+.section-bar {
+  background: #ccc;
+  border: 1px solid #000;
+  border-top: 0;
+  font-size: 7pt;
+  font-weight: bold;
+  padding: 2px 4px;
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+
+/* ── Service lines table ─────────────────────────────────── */
+.svc-table { width: 100%; border-collapse: collapse; }
+.svc-table th, .svc-table td {
+  border: 1px solid #000;
+  padding: 2px 3px;
+  font-size: 7.5pt;
+  text-align: center;
+  vertical-align: middle;
+}
+.svc-table th { font-size: 6.5pt; background: #eee; font-weight: bold; }
+.svc-table tr + tr td { border-top: 0; }
+.svc-table th + th, .svc-table td + td { border-left: 0; }
+.svc-row td { min-height: 14px; height: 14px; }
+
+/* ── Bottom section ─────────────────────────────────────── */
+.bottom-grid { display: flex; width: 100%; }
 </style>
 </head>
 <body>
+<div class="form-wrap">
 
-<h2>HEALTH INSURANCE CLAIM FORM</h2>
-<div class="form-title">APPROVED BY NATIONAL UNIFORM CLAIM COMMITTEE (NUCC) 02/12 &nbsp;|&nbsp; CMS-1500 (02-12)</div>
+  <!-- ── TOP HEADER ── -->
+  <div class="form-header">
+    <div style="width:220px; border:1px solid #000; padding:3px 5px; font-size:7pt; min-height:38px;">
+      <span style="font-size:6.5pt; color:#555;">CARRIER NAME / ADDRESS</span><br>
+      <strong>{{ payer_name | default("") }}</strong>
+    </div>
+    <div class="form-title-center" style="padding:0 10px;">
+      <div class="main-title">HEALTH INSURANCE CLAIM FORM</div>
+      <div class="sub-title">APPROVED BY NATIONAL UNIFORM CLAIM COMMITTEE (NUCC) 02/12 &nbsp;|&nbsp; CMS-1500 (02-12)</div>
+    </div>
+    <div style="width:220px; border:1px solid #000; padding:3px 5px; font-size:7pt; min-height:38px;">
+      <span style="font-size:6.5pt; color:#555;">CLAIM NUMBER</span><br>
+      <strong>{{ claim_number | default("") }}</strong>
+    </div>
+  </div>
 
-<table>
-  <!-- Row 1: Insurance type + Insured ID -->
-  <tr>
-    <td colspan="3">
-      <span class="label">1. MEDICARE / MEDICAID / TRICARE / CHAMPVA / GROUP HEALTH PLAN / FECA BLK LUNG / OTHER (ID#)</span>
-      <span class="value">{{ insurance_type | default("OTHER") }}</span>
-    </td>
-    <td colspan="3">
-      <span class="label">1a. INSURED'S I.D. NUMBER</span>
-      <span class="value">{{ insured_id | default("") }}</span>
-    </td>
-  </tr>
+  <!-- ── SECTION: INSURANCE TYPE (Box 1) ── -->
+  <div class="row" style="margin-top:2px;">
+    <div class="cell w100" style="border:1px solid #000;">
+      <span class="lbl">1. MEDICARE &nbsp;☐ &nbsp; MEDICAID &nbsp;☐ &nbsp; TRICARE &nbsp;☐ &nbsp; CHAMPVA &nbsp;☐ &nbsp; GROUP HEALTH PLAN &nbsp;☐ &nbsp; FECA BLK LUNG &nbsp;☐ &nbsp; OTHER &nbsp;☐</span>
+      <span class="box-num">1</span>
+    </div>
+    <div class="cell w40" style="border:1px solid #000; border-left:0;">
+      <span class="lbl">1a. INSURED'S I.D. NUMBER</span>
+      <div class="val">{{ insured_id | default("") }}</div>
+      <span class="box-num">1a</span>
+    </div>
+  </div>
 
-  <!-- Row 2: Patient name / DOB / Sex / Insured name -->
-  <tr>
-    <td colspan="2">
-      <span class="label">2. PATIENT'S NAME (Last, First, Middle Initial)</span>
-      <span class="value">{{ patient_name | default("") }}</span>
-    </td>
-    <td>
-      <span class="label">3. PATIENT'S BIRTH DATE</span>
-      <span class="value">{{ dob | default("") }}</span>
-    </td>
-    <td>
-      <span class="label">SEX</span>
-      <span class="value">{{ sex | default("") }}</span>
-    </td>
-    <td colspan="2">
-      <span class="label">4. INSURED'S NAME (Last, First, Middle Initial)</span>
-      <span class="value">{{ insured_name | default(patient_name | default("")) }}</span>
-    </td>
-  </tr>
+  <!-- ── Row: Boxes 2, 3, 4 ── -->
+  <div class="row">
+    <div class="cell w35">
+      <span class="lbl">2. PATIENT'S NAME (Last, First, MI)</span>
+      <div class="val">{{ patient_name | default("") }}</div>
+      <span class="box-num">2</span>
+    </div>
+    <div class="cell w20">
+      <span class="lbl">3. PATIENT'S BIRTH DATE</span>
+      <div class="val">{{ dob | default("") }}</div>
+      <span class="box-num">3</span>
+    </div>
+    <div class="cell w10">
+      <span class="lbl">SEX</span>
+      <div class="val">{{ sex | default("") }}</div>
+    </div>
+    <div class="cell w35">
+      <span class="lbl">4. INSURED'S NAME (Last, First, MI)</span>
+      <div class="val">{{ insured_name | default("") }}</div>
+      <span class="box-num">4</span>
+    </div>
+  </div>
 
-  <!-- Row 3: Patient address / Relationship / Insured address -->
-  <tr>
-    <td colspan="2">
-      <span class="label">5. PATIENT'S ADDRESS (No., Street)</span>
-      <span class="value">{{ patient_address | default("") }}</span>
-    </td>
-    <td colspan="2">
-      <span class="label">6. PATIENT RELATIONSHIP TO INSURED</span>
-      <span class="value">{{ relationship_to_insured | default("Self") }}</span>
-    </td>
-    <td colspan="2">
-      <span class="label">7. INSURED'S ADDRESS (No., Street)</span>
-      <span class="value">{{ insured_address | default(patient_address | default("")) }}</span>
-    </td>
-  </tr>
+  <!-- ── Row: Boxes 5, 6, 7 ── -->
+  <div class="row">
+    <div class="cell w35">
+      <span class="lbl">5. PATIENT'S ADDRESS (No., Street)</span>
+      <div class="val">{{ patient_address | default("") }}</div>
+      <div class="val">{{ patient_city | default("") }}{% if patient_city and patient_state %}, {% endif %}{{ patient_state | default("") }} &nbsp; {{ patient_zip | default("") }}</div>
+      <span class="box-num">5</span>
+    </div>
+    <div class="cell w20">
+      <span class="lbl">6. PATIENT RELATIONSHIP TO INSURED</span>
+      <div class="val">{{ relationship_to_insured | default("Self") }}</div>
+      <span class="box-num">6</span>
+    </div>
+    <div class="cell w10">
+      <span class="lbl">PHONE</span>
+      <div class="val" style="font-size:7.5pt;">{{ patient_phone | default("") }}</div>
+    </div>
+    <div class="cell w35">
+      <span class="lbl">7. INSURED'S ADDRESS (No., Street)</span>
+      <div class="val"></div>
+      <span class="box-num">7</span>
+    </div>
+  </div>
 
-  <!-- Row 4: City/State/Zip -->
-  <tr>
-    <td>
-      <span class="label">CITY</span>
-      <span class="value">{{ patient_city | default("") }}</span>
-    </td>
-    <td>
-      <span class="label">STATE</span>
-      <span class="value">{{ patient_state | default("") }}</span>
-    </td>
-    <td>
-      <span class="label">ZIP CODE</span>
-      <span class="value">{{ patient_zip | default("") }}</span>
-    </td>
-    <td>
-      <span class="label">TELEPHONE</span>
-      <span class="value">{{ patient_phone | default("") }}</span>
-    </td>
-    <td>
-      <span class="label">8. RESERVED FOR NUCC USE</span>
-      <span class="value">&nbsp;</span>
-    </td>
-    <td>
-      <span class="label">&nbsp;</span>
-    </td>
-  </tr>
+  <!-- ── Row: Boxes 9, 10a-c, 11 ── -->
+  <div class="row">
+    <div class="cell w35">
+      <span class="lbl">9. OTHER INSURED'S NAME</span>
+      <div class="val"></div>
+      <span class="box-num">9</span>
+    </div>
+    <div class="cell w30">
+      <span class="lbl">10. IS PATIENT'S CONDITION RELATED TO:</span>
+      <div style="display:flex; gap:6px; font-size:7.5pt; margin-top:1px;">
+        <span>a. EMPLOYMENT? {{ employment_related | default("NO") }}</span>
+        <span>b. AUTO ACCIDENT? {{ auto_accident | default("NO") }}</span>
+        <span>c. OTHER? {{ other_accident | default("NO") }}</span>
+      </div>
+      <span class="box-num">10</span>
+    </div>
+    <div class="cell w35">
+      <span class="lbl">11. INSURED'S POLICY GROUP OR FECA NUMBER</span>
+      <div class="val">{{ group_number | default("") }}</div>
+      <span class="box-num">11</span>
+    </div>
+  </div>
 
-  <!-- Row 5: Other insured / Condition related -->
-  <tr>
-    <td colspan="2">
-      <span class="label">9. OTHER INSURED'S NAME</span>
-      <span class="value">{{ other_insured_name | default("") }}</span>
-    </td>
-    <td colspan="2">
-      <span class="label">9a. OTHER INSURED'S POLICY OR GROUP NUMBER</span>
-      <span class="value">{{ other_insured_policy | default("") }}</span>
-    </td>
-    <td colspan="2">
-      <span class="label">10. IS PATIENT'S CONDITION RELATED TO</span>
-      <span class="value">
-        Employment: {{ employment_related | default("NO") }} &nbsp;
-        Auto Accident: {{ auto_accident | default("NO") }} &nbsp;
-        Other Accident: {{ other_accident | default("NO") }}
-      </span>
-    </td>
-  </tr>
+  <!-- ── Row: Boxes 12, 13 ── -->
+  <div class="row">
+    <div class="cell w65">
+      <span class="lbl">12. PATIENT'S OR AUTHORIZED PERSON'S SIGNATURE &nbsp; DATE: {{ signature_date | default("") }}</span>
+      <div class="val" style="font-style:italic; color:#555;">Signature on File</div>
+      <span class="box-num">12</span>
+    </div>
+    <div class="cell w35">
+      <span class="lbl">13. INSURED'S OR AUTHORIZED PERSON'S SIGNATURE</span>
+      <div class="val" style="font-style:italic; color:#555;">Signature on File</div>
+      <span class="box-num">13</span>
+    </div>
+  </div>
 
-  <!-- Row 6: Insurance plan name / Group number -->
-  <tr>
-    <td colspan="2">
-      <span class="label">9b. RESERVED FOR NUCC USE</span>
-      <span class="value">&nbsp;</span>
-    </td>
-    <td colspan="2">
-      <span class="label">9d. INSURANCE PLAN NAME OR PROGRAM NAME</span>
-      <span class="value">{{ other_plan_name | default("") }}</span>
-    </td>
-    <td colspan="2">
-      <span class="label">10d. CLAIM CODES (Designated by NUCC)</span>
-      <span class="value">&nbsp;</span>
-    </td>
-  </tr>
+  <!-- ── Section bar ── -->
+  <div class="section-bar">PHYSICIAN OR SUPPLIER INFORMATION</div>
 
-  <!-- Row 7: Insured policy / Group / Insured DOB / Sex -->
-  <tr>
-    <td colspan="2">
-      <span class="label">11. INSURED'S POLICY GROUP OR FECA NUMBER</span>
-      <span class="value">{{ group_number | default("") }}</span>
-    </td>
-    <td>
-      <span class="label">11a. INSURED'S DATE OF BIRTH</span>
-      <span class="value">{{ insured_dob | default(dob | default("")) }}</span>
-    </td>
-    <td>
-      <span class="label">SEX</span>
-      <span class="value">{{ sex | default("") }}</span>
-    </td>
-    <td colspan="2">
-      <span class="label">11b. OTHER CLAIM ID (DESIGNATED BY NUCC)</span>
-      <span class="value">&nbsp;</span>
-    </td>
-  </tr>
+  <!-- ── Row: Boxes 14, 15, 16 ── -->
+  <div class="row">
+    <div class="cell w30">
+      <span class="lbl">14. DATE OF CURRENT ILLNESS, INJURY, OR PREGNANCY</span>
+      <div class="val">{{ date_of_service | default("") }}</div>
+      <span class="box-num">14</span>
+    </div>
+    <div class="cell w35">
+      <span class="lbl">15. OTHER DATE</span>
+      <div class="val"></div>
+      <span class="box-num">15</span>
+    </div>
+    <div class="cell w35">
+      <span class="lbl">16. DATES PATIENT UNABLE TO WORK IN CURRENT OCCUPATION</span>
+      <div class="val"></div>
+      <span class="box-num">16</span>
+    </div>
+  </div>
 
-  <!-- Row 8: Insurance plan / Another benefit plan / Auth number -->
-  <tr>
-    <td colspan="2">
-      <span class="label">11c. INSURANCE PLAN NAME OR PROGRAM NAME</span>
-      <span class="value">{{ payer_name | default("") }}</span>
-    </td>
-    <td colspan="2">
-      <span class="label">11d. IS THERE ANOTHER HEALTH BENEFIT PLAN?</span>
-      <span class="value">{{ has_secondary | default("NO") }}</span>
-    </td>
-    <td colspan="2">
-      <span class="label">12. PATIENT'S OR AUTHORIZED PERSON'S SIGNATURE / DATE</span>
-      <span class="value">Signature on File &nbsp; {{ signature_date | default("") }}</span>
-    </td>
-  </tr>
+  <!-- ── Row: Boxes 17, 17a/b, 18, 19 ── -->
+  <div class="row">
+    <div class="cell w40">
+      <span class="lbl">17. NAME OF REFERRING PROVIDER OR OTHER SOURCE</span>
+      <div class="val">{{ referring_provider | default("") }}</div>
+      <span class="box-num">17</span>
+    </div>
+    <div class="cell w20">
+      <span class="lbl">17b. NPI</span>
+      <div class="val">{{ referring_npi | default("") }}</div>
+      <span class="box-num">17b</span>
+    </div>
+    <div class="cell w20">
+      <span class="lbl">18. HOSPITALIZATION DATES</span>
+      <div class="val"></div>
+      <span class="box-num">18</span>
+    </div>
+    <div class="cell w20">
+      <span class="lbl">19. ADDITIONAL CLAIM INFO</span>
+      <div class="val"></div>
+      <span class="box-num">19</span>
+    </div>
+  </div>
 
-  <!-- Row 9: Patient / insured authorization -->
-  <tr>
-    <td colspan="3">
-      <span class="label">13. INSURED'S OR AUTHORIZED PERSON'S SIGNATURE</span>
-      <span class="value">Signature on File</span>
-    </td>
-    <td colspan="3">
-      <span class="label">&nbsp;</span>
-    </td>
-  </tr>
+  <!-- ── Row: Box 20, 21 (diagnoses), 22, 23 ── -->
+  <div class="row">
+    <div class="cell w15">
+      <span class="lbl">20. OUTSIDE LAB?</span>
+      <div class="val">NO</div>
+      <span class="box-num">20</span>
+    </div>
+    <div class="cell w55">
+      <span class="lbl">21. DIAGNOSIS OR NATURE OF ILLNESS OR INJURY (ICD-10)</span>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:2px 8px; margin-top:2px;">
+        {% for i in range(12) %}
+        <div style="font-size:8pt;">
+          <span style="font-size:6.5pt; color:#888;">{{ ['A','B','C','D','E','F','G','H','I','J','K','L'][i] }}.</span>
+          <strong>{{ diagnosis_codes[i] if diagnosis_codes and i < diagnosis_codes|length else "" }}</strong>
+        </div>
+        {% endfor %}
+      </div>
+      <span class="box-num">21</span>
+    </div>
+    <div class="cell w15">
+      <span class="lbl">22. RESUBMISSION CODE / ORIG. REF. NO.</span>
+      <div class="val"></div>
+      <span class="box-num">22</span>
+    </div>
+    <div class="cell w15">
+      <span class="lbl">23. PRIOR AUTH. NUMBER</span>
+      <div class="val">{{ authorization_number | default("") }}</div>
+      <span class="box-num">23</span>
+    </div>
+  </div>
 
-  <!-- Row 10: Date of illness/injury/pregnancy -->
-  <tr>
-    <td colspan="2">
-      <span class="label">14. DATE OF CURRENT ILLNESS, INJURY, OR PREGNANCY (LMP)</span>
-      <span class="value">{{ onset_date | default("") }}</span>
-    </td>
-    <td colspan="2">
-      <span class="label">15. OTHER DATE</span>
-      <span class="value">{{ other_date | default("") }}</span>
-    </td>
-    <td colspan="2">
-      <span class="label">16. DATES PATIENT UNABLE TO WORK IN CURRENT OCCUPATION</span>
-      <span class="value">FROM: {{ unable_to_work_from | default("") }} &nbsp; TO: {{ unable_to_work_to | default("") }}</span>
-    </td>
-  </tr>
+  <!-- ── Service Lines (Box 24) ── -->
+  <table class="svc-table" style="margin-top:0;">
+    <thead>
+      <tr>
+        <th style="width:14%;">24A. DATE(S) OF SERVICE<br>From &nbsp;&nbsp; To</th>
+        <th style="width:5%;">B.<br>POS</th>
+        <th style="width:4%;">C.<br>EMG</th>
+        <th style="width:14%;">D. PROCEDURES, SERVICES, OR SUPPLIES<br>CPT/HCPCS &nbsp;&nbsp; MODIFIER</th>
+        <th style="width:8%;">E.<br>DIAGNOSIS<br>POINTER</th>
+        <th style="width:10%;">F.<br>$ CHARGES</th>
+        <th style="width:6%;">G.<br>DAYS<br>OR<br>UNITS</th>
+        <th style="width:5%;">H.<br>EPSDT</th>
+        <th style="width:5%;">I.<br>ID<br>QUAL</th>
+        <th style="width:14%;">J. RENDERING<br>PROVIDER ID #<br>NPI</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% set lines = service_lines if service_lines else [] %}
+      {% for i in range(6) %}
+      {% set line = lines[i] if i < lines|length else None %}
+      <tr class="svc-row">
+        <td>{% if line %}{{ line.dos_from | default("") }}{% if line.dos_to and line.dos_to != line.dos_from %} – {{ line.dos_to }}{% endif %}{% endif %}</td>
+        <td>{% if line %}{{ line.pos | default("11") }}{% endif %}</td>
+        <td></td>
+        <td>{% if line %}<strong>{{ line.cpt_code | default("") }}</strong>{% if line.modifiers %} {% for m in line.modifiers %}{{ m }}{% if not loop.last %} {% endif %}{% endfor %}{% endif %}{% endif %}</td>
+        <td>{% if line %}{% for p in (line.diagnosis_pointers or []) %}{{ ['A','B','C','D','E','F','G','H','I','J','K','L'][p-1] if p >= 1 and p <= 12 else p }}{% if not loop.last %} {% endif %}{% endfor %}{% endif %}</td>
+        <td>{% if line %}{{ "%.2f"|format(line.charge_amount) if line.charge_amount else "" }}{% endif %}</td>
+        <td>{% if line %}{{ line.units | default("") }}{% endif %}</td>
+        <td></td>
+        <td></td>
+        <td>{% if line %}{{ rendering_provider_npi | default("") }}{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 
-  <!-- Row 11: Referring provider / Hospitalization dates -->
-  <tr>
-    <td colspan="2">
-      <span class="label">17. NAME OF REFERRING PROVIDER OR OTHER SOURCE</span>
-      <span class="value">{{ referring_provider_name | default("") }}</span>
-    </td>
-    <td>
-      <span class="label">17a. &nbsp;</span>
-    </td>
-    <td>
-      <span class="label">17b. NPI</span>
-      <span class="value">{{ referring_provider_npi | default("") }}</span>
-    </td>
-    <td colspan="2">
-      <span class="label">18. HOSPITALIZATION DATES RELATED TO CURRENT SERVICES</span>
-      <span class="value">FROM: {{ hosp_from | default("") }} &nbsp; TO: {{ hosp_to | default("") }}</span>
-    </td>
-  </tr>
+  <!-- ── Boxes 25-33 ── -->
+  <div class="row">
+    <div class="cell w20">
+      <span class="lbl">25. FEDERAL TAX I.D. NUMBER &nbsp; SSN &nbsp; EIN</span>
+      <div class="val">{{ billing_tax_id | default("") }}</div>
+      <span class="box-num">25</span>
+    </div>
+    <div class="cell w20">
+      <span class="lbl">26. PATIENT'S ACCOUNT NO.</span>
+      <div class="val">{{ patient_account_number | default("") }}</div>
+      <span class="box-num">26</span>
+    </div>
+    <div class="cell w15">
+      <span class="lbl">27. ACCEPT ASSIGNMENT?</span>
+      <div class="val">YES</div>
+      <span class="box-num">27</span>
+    </div>
+    <div class="cell w15">
+      <span class="lbl">28. TOTAL CHARGE</span>
+      <div class="val">$ {{ "%.2f"|format(total_charge) }}</div>
+      <span class="box-num">28</span>
+    </div>
+    <div class="cell w15">
+      <span class="lbl">29. AMOUNT PAID</span>
+      <div class="val">$ {{ "%.2f"|format(total_paid) }}</div>
+      <span class="box-num">29</span>
+    </div>
+    <div class="cell w15">
+      <span class="lbl">30. RESERVED FOR NUCC USE</span>
+      <div class="val"></div>
+      <span class="box-num">30</span>
+    </div>
+  </div>
 
-  <!-- Row 12: Additional claim info / Outside lab -->
-  <tr>
-    <td colspan="3">
-      <span class="label">19. ADDITIONAL CLAIM INFORMATION (Designated by NUCC)</span>
-      <span class="value">{{ additional_claim_info | default("") }}</span>
-    </td>
-    <td colspan="3">
-      <span class="label">20. OUTSIDE LAB?</span>
-      <span class="value">{{ outside_lab | default("NO") }} &nbsp; $ {{ lab_charges | default("") }}</span>
-    </td>
-  </tr>
+  <!-- ── Boxes 31, 32, 33 ── -->
+  <div class="row">
+    <div class="cell w30">
+      <span class="lbl">31. SIGNATURE OF PHYSICIAN OR SUPPLIER</span>
+      <div class="val" style="font-style:italic; color:#555;">{{ provider_name | default("") }}</div>
+      <div style="font-size:7pt; margin-top:2px;">DATE: {{ signature_date | default("") }}</div>
+      <span class="box-num">31</span>
+    </div>
+    <div class="cell w35">
+      <span class="lbl">32. SERVICE FACILITY LOCATION INFORMATION</span>
+      <div class="val">{{ billing_provider_name | default("") }}</div>
+      <div style="font-size:7.5pt;">{{ billing_address | default("") }}</div>
+      <span class="box-num">32</span>
+    </div>
+    <div class="cell w35">
+      <span class="lbl">33. BILLING PROVIDER INFO &amp; PH #</span>
+      <div class="val">{{ billing_provider_name | default("") }}</div>
+      <div style="font-size:7.5pt;">{{ billing_address | default("") }}</div>
+      <div style="font-size:7.5pt; margin-top:2px;">NPI: <strong>{{ billing_provider_npi | default("") }}</strong></div>
+      <span class="box-num">33</span>
+    </div>
+  </div>
 
-  <!-- Row 13: Diagnosis codes -->
-  <tr>
-    <td colspan="6">
-      <span class="label">21. DIAGNOSIS OR NATURE OF ILLNESS OR INJURY (ICD-10-CM)</span>
-      <table style="border: none; width: 100%;">
-        <tr>
-          {% for i in range(12) %}
-          <td style="border: 1px solid #ccc; width: 8.3%; text-align: center;">
-            <span class="label">{{ "ABCDEFGHIJKL"[i] }}</span>
-            <span class="value">{{ diagnosis_codes[i] if i < diagnosis_codes|length else "" }}</span>
-          </td>
-          {% endfor %}
-        </tr>
-      </table>
-    </td>
-  </tr>
+  <!-- Footer note -->
+  <div style="text-align:center; font-size:6.5pt; color:#666; margin-top:4px; border-top:1px solid #ccc; padding-top:3px;">
+    NUCC Instruction Manual available at: www.nucc.org &nbsp;|&nbsp; PLEASE PRINT OR TYPE
+  </div>
 
-  <!-- Row 14: Medicaid resubmission -->
-  <tr>
-    <td colspan="2">
-      <span class="label">22. RESUBMISSION CODE / ORIGINAL REF. NO.</span>
-      <span class="value">{{ resubmission_code | default("") }} / {{ original_ref_no | default("") }}</span>
-    </td>
-    <td colspan="2">
-      <span class="label">23. PRIOR AUTHORIZATION NUMBER</span>
-      <span class="value">{{ authorization_number | default("") }}</span>
-    </td>
-    <td colspan="2">
-      <span class="label">CLAIM NUMBER (internal)</span>
-      <span class="value">{{ claim_number | default("") }}</span>
-    </td>
-  </tr>
-</table>
-
-<!-- Service Lines -->
-<table class="service-table" style="margin-top: 4px;">
-  <thead>
-    <tr>
-      <th>24A. DATE(S) OF SERVICE<br>From / To</th>
-      <th>24B.<br>POS</th>
-      <th>24C.<br>EMG</th>
-      <th>24D. PROCEDURES, SERVICES, OR SUPPLIES<br>CPT/HCPCS | MODIFIER</th>
-      <th>24E.<br>DIAG PTR</th>
-      <th>24F.<br>$ CHARGES</th>
-      <th>24G.<br>DAYS/UNITS</th>
-      <th>24H.<br>EPSDT</th>
-      <th>24I.<br>ID QUAL</th>
-      <th>24J.<br>RENDERING NPI</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for line in service_lines %}
-    <tr>
-      <td>{{ line.dos_from | default(date_of_service | default("")) }} / {{ line.dos_to | default(date_of_service | default("")) }}</td>
-      <td>{{ line.pos | default(place_of_service | default("11")) }}</td>
-      <td>&nbsp;</td>
-      <td>{{ line.cpt_code }}{% if line.modifiers %} | {{ line.modifiers | join(" ") }}{% endif %}</td>
-      <td>{{ line.diagnosis_pointers | default([1]) | join(" ") }}</td>
-      <td>{{ "%.2f" | format(line.charge_amount | float) }}</td>
-      <td>{{ line.units | default(1) }}</td>
-      <td>&nbsp;</td>
-      <td>NPI</td>
-      <td>{{ rendering_provider_npi | default("") }}</td>
-    </tr>
-    {% else %}
-    <tr>
-      <td colspan="10" style="text-align:center; color:#888;">No service lines</td>
-    </tr>
-    {% endfor %}
-    <!-- Pad to 6 rows minimum -->
-    {% for i in range([6 - service_lines|length, 0]|max) %}
-    <tr>
-      <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
-      <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
-      <td>&nbsp;</td><td>&nbsp;</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-
-<table style="margin-top: 4px;">
-  <tr>
-    <td colspan="2">
-      <span class="label">25. FEDERAL TAX I.D. NUMBER</span>
-      <span class="value">{{ billing_tax_id | default("") }}</span>
-      &nbsp;&nbsp; SSN / EIN: EIN
-    </td>
-    <td colspan="2">
-      <span class="label">26. PATIENT'S ACCOUNT NO.</span>
-      <span class="value">{{ patient_account_number | default("") }}</span>
-    </td>
-    <td>
-      <span class="label">27. ACCEPT ASSIGNMENT?</span>
-      <span class="value">YES</span>
-    </td>
-    <td>
-      <span class="label">28. TOTAL CHARGE</span>
-      <span class="value">$ {{ "%.2f" | format(total_charge | float) }}</span>
-    </td>
-    <td>
-      <span class="label">29. AMOUNT PAID</span>
-      <span class="value">$ {{ "%.2f" | format(total_paid | float) }}</span>
-    </td>
-    <td>
-      <span class="label">30. RESERVED FOR NUCC USE</span>
-      <span class="value">&nbsp;</span>
-    </td>
-  </tr>
-
-  <tr>
-    <td colspan="3">
-      <span class="label">31. SIGNATURE OF PHYSICIAN OR SUPPLIER (including degrees or credentials)</span>
-      <span class="value">{{ provider_name | default("") }}</span>
-      &nbsp;&nbsp; DATE: {{ date_of_service | default("") }}
-    </td>
-    <td colspan="2">
-      <span class="label">32. SERVICE FACILITY LOCATION INFORMATION</span>
-      <span class="value">{{ facility_name | default("") }}<br>{{ facility_address | default("") }}</span>
-      <br><span class="label">32a. NPI</span> <span class="value">{{ facility_npi | default("") }}</span>
-    </td>
-    <td colspan="3">
-      <span class="label">33. BILLING PROVIDER INFO &amp; PH #</span>
-      <span class="value">{{ billing_provider_name | default(provider_name | default("")) }}</span>
-      <br>{{ billing_address | default("") }}
-      <br><span class="label">33a. NPI</span> <span class="value">{{ billing_provider_npi | default(provider_npi | default("")) }}</span>
-      &nbsp;&nbsp; <span class="label">33b.</span> <span class="value">{{ billing_provider_other_id | default("") }}</span>
-    </td>
-  </tr>
-</table>
-
-<div style="margin-top: 8px; font-size: 7pt; color: #666; text-align: center;">
-  NUCC Instruction Manual available at: www.nucc.org &nbsp;|&nbsp; Please Print or Type &nbsp;|&nbsp; APPROVED OMB-0938-1197 FORM 1500 (02-12)
 </div>
-
 </body>
 </html>

@@ -353,6 +353,96 @@ async def download_edi837(
                              headers={"Content-Disposition": f"attachment; filename=claim_{claim.claim_number}.837"})
 
 
+@router.get("/claims/{claim_id}/cms1500/preview")
+async def preview_cms1500_html(
+    claim_id: uuid.UUID,
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("claims:read")),
+):
+    """Return CMS-1500 as HTML for in-browser preview/print."""
+    import os
+    from fastapi.responses import HTMLResponse
+    from jinja2 import Environment, FileSystemLoader
+    from domains.patients.models import Patient, PatientInsurance
+    from domains.master_data.models import Provider, Payer, BillingProvider
+
+    claim = await _load_claim(db, claim_id, ctx.tenant_id)
+    patient = (await db.execute(select(Patient).where(Patient.id == claim.patient_id))).scalar_one_or_none()
+    prov = None
+    if claim.provider_id:
+        prov = (await db.execute(select(Provider).where(Provider.id == claim.provider_id))).scalar_one_or_none()
+    bp = None
+    if claim.billing_provider_id:
+        bp = (await db.execute(select(BillingProvider).where(BillingProvider.id == claim.billing_provider_id))).scalar_one_or_none()
+    payer = None
+    if claim.payer_id:
+        payer = (await db.execute(select(Payer).where(Payer.id == claim.payer_id))).scalar_one_or_none()
+    ins = None
+    if claim.patient_insurance_id:
+        ins = (await db.execute(select(PatientInsurance).where(PatientInsurance.id == claim.patient_insurance_id))).scalar_one_or_none()
+
+    diagnosis_codes = [d.get("icd_code", "") for d in (claim.diagnoses_snapshot or [])]
+    service_lines = [
+        {
+            "dos_from": str(claim.date_of_service) if claim.date_of_service else "",
+            "dos_to": str(claim.date_of_service) if claim.date_of_service else "",
+            "pos": l.place_of_service_code or "11",
+            "cpt_code": l.cpt_code,
+            "modifiers": l.modifiers or [],
+            "diagnosis_pointers": l.diagnosis_pointers or [1],
+            "charge_amount": float(l.charge_amount or 0),
+            "units": l.units,
+        }
+        for l in claim.lines
+    ]
+    dob_str = ""
+    if patient:
+        dob_val = getattr(patient, "dob", None)
+        if dob_val:
+            dob_str = dob_val.strftime("%m/%d/%Y")
+
+    templates_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "templates"))
+    jinja_env = Environment(loader=FileSystemLoader(templates_dir))
+    template = jinja_env.get_template("cms1500.html")
+    rendered_html = template.render(
+        claim_number=claim.claim_number or str(claim.id),
+        patient_name=f"{patient.last_name}, {patient.first_name}" if patient else "",
+        patient_account_number=patient.account_number if patient else "",
+        patient_address=patient.address_line1 if patient else "",
+        patient_city=patient.city if patient else "",
+        patient_state=patient.state if patient else "",
+        patient_zip=patient.zip if patient else "",
+        patient_phone=patient.phone_home or patient.phone_cell or "" if patient else "",
+        dob=dob_str,
+        sex=getattr(patient, "sex", "") if patient else "",
+        insured_id=ins.subscriber_id if ins else "",
+        group_number=ins.group_number if ins else "",
+        payer_name=payer.name if payer else "",
+        authorization_number=claim.authorization_number or "",
+        date_of_service=str(claim.date_of_service) if claim.date_of_service else "",
+        diagnosis_codes=diagnosis_codes,
+        service_lines=service_lines,
+        total_charge=float(claim.total_charge or 0),
+        total_paid=float(claim.total_paid or 0),
+        provider_name=f"{prov.first_name} {prov.last_name}" if prov else "",
+        rendering_provider_npi=prov.npi if prov else "",
+        billing_provider_name=bp.name if bp else (f"{prov.first_name} {prov.last_name}" if prov else ""),
+        billing_provider_npi=bp.npi if bp else (prov.npi if prov else ""),
+        billing_address=bp.address_line1 if bp else "",
+        billing_tax_id=bp.tax_id if bp else "",
+        insured_name=f"{patient.last_name}, {patient.first_name}" if patient else "",
+        referring_provider="",
+        referring_npi="",
+        relationship_to_insured=ins.relationship_to_insured or "Self" if ins else "Self",
+        employment_related="NO",
+        auto_accident="NO",
+        other_accident="NO",
+        signature_date=str(claim.date_of_service) if claim.date_of_service else "",
+    )
+    return HTMLResponse(content=rendered_html)
+
+
 @router.get("/claims/{claim_id}/cms1500/pdf")
 async def download_cms1500_pdf(
     claim_id: uuid.UUID,
@@ -447,6 +537,9 @@ async def download_cms1500_pdf(
         billing_address=bp.address_line1 if bp else "",
         billing_tax_id=bp.tax_id if bp else "",
         relationship_to_insured=ins.relationship_to_insured or "Self" if ins else "Self",
+        insured_name=ins.insured_name if ins and hasattr(ins, 'insured_name') and ins.insured_name else (f"{patient.last_name}, {patient.first_name}" if patient else ""),
+        referring_provider="",
+        referring_npi="",
         has_secondary="NO",
         employment_related="NO",
         auto_accident="NO",
