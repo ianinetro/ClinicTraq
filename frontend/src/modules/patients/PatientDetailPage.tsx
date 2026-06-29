@@ -853,12 +853,13 @@ function DemographicsTab({ patient }: { patient: Patient }) {
 
 // ─── Insurance Tab ────────────────────────────────────────────────────────────
 
-function InsuranceTab({ patientId, insurance, refetch: _refetch }: {
+function InsuranceTab({ patientId, insurance, refetch }: {
   patientId: string
   insurance: PatientInsuranceFull[]
   refetch: () => void
 }) {
   const [checkingId, setCheckingId] = useState<string | null>(null)
+  const [addingInsurance, setAddingInsurance] = useState(false)
   const [eligibilityResults, setEligibilityResults] = useState<Record<string, Record<string, unknown>>>({})
 
   async function checkEligibility(insId: string) {
@@ -881,8 +882,20 @@ function InsuranceTab({ patientId, insurance, refetch: _refetch }: {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <Button size="sm" variant="secondary" leftIcon={<Plus size={13} />}>
-          Add Insurance
+        <Button size="sm" variant="secondary" leftIcon={<Plus size={13} />} onClick={async () => {
+          const payerName = window.prompt('Payer name:')
+          if (!payerName) return
+          const memberId = window.prompt('Member ID:') ?? ''
+          setAddingInsurance(true)
+          try {
+            await apiPost(`/patients/${patientId}/insurance`, {
+              payer_name: payerName, member_id: memberId, priority: insurance.length === 0 ? 'primary' : 'secondary', is_active: true,
+            })
+            refetch()
+          } catch { alert('Failed to add insurance') }
+          finally { setAddingInsurance(false) }
+        }} disabled={addingInsurance}>
+          {addingInsurance ? 'Saving…' : 'Add Insurance'}
         </Button>
       </div>
 
@@ -1096,7 +1109,7 @@ function VisitsTab({ patientId, visits }: { patientId: string; visits: Visit[] }
 
 // ─── Claims Tab ───────────────────────────────────────────────────────────────
 
-function ClaimsTab({ patientId: _patientId, claims }: { patientId: string; claims: Claim[] }) {
+function ClaimsTab({ patientId, claims }: { patientId: string; claims: Claim[] }) {
   const navigate = useNavigate()
   const [filter, setFilter] = useState('all')
 
@@ -1121,7 +1134,7 @@ function ClaimsTab({ patientId: _patientId, claims }: { patientId: string; claim
             </button>
           ))}
         </div>
-        <Button size="sm" variant="primary" leftIcon={<Plus size={13} />}>
+        <Button size="sm" variant="primary" leftIcon={<Plus size={13} />} onClick={() => navigate(`/claims/new?patient=${patientId}`)}>
           Create Claim
         </Button>
       </div>
