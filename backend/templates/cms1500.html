@@ -5,422 +5,742 @@
 <title>CMS-1500 Health Insurance Claim Form</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body {
+html, body {
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 8pt;
+  font-size: 7.5pt;
   color: #000;
   background: #fff;
-  padding: 6mm 6mm;
 }
 @page {
-  size: letter;
-  margin: 10mm 8mm;
+  size: letter portrait;
+  margin: 6mm 6mm 4mm 6mm;
 }
-.form-wrap { width: 100%; }
+body { padding: 0; }
 
-/* ── Header ─────────────────────────────────────────────── */
-.form-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 2px;
-}
-.form-title-center {
-  text-align: center;
-  flex: 1;
-}
-.form-title-center .main-title {
-  font-size: 10pt;
-  font-weight: bold;
-  letter-spacing: 1px;
-}
-.form-title-center .sub-title {
-  font-size: 7pt;
-  color: #444;
-}
-.carrier-box {
-  border: 1px solid #000;
-  width: 220px;
-  min-height: 36px;
-  padding: 3px 5px;
-  font-size: 7pt;
+:root {
+  --red: #CC0000;
+  --line: 1px solid #CC0000;
 }
 
-/* ── Grid helpers ───────────────────────────────────────── */
-.grid { display: grid; width: 100%; }
-.row { display: flex; width: 100%; }
+/* ─── Utility ─────────────────────────────────────────── */
+.form { width: 100%; }
 
-/* Every cell is a bordered box */
+.row { display: flex; width: 100%; border-left: var(--line); }
 .cell {
-  border: 1px solid #000;
-  border-collapse: collapse;
-  padding: 2px 3px;
-  min-height: 18px;
+  border-right: var(--line);
+  border-top: var(--line);
+  padding: 1px 2px 2px 3px;
   position: relative;
+  overflow: hidden;
+  min-height: 16px;
 }
-/* Collapse double borders */
-.cell + .cell { border-left: 0; }
-.row + .row .cell { border-top: 0; }
+/* collapse double top borders */
+.row + .row .cell { border-top: var(--line); }
 
 .lbl {
-  font-size: 6.5pt;
-  color: #444;
   display: block;
+  font-size: 5.5pt;
+  color: var(--red);
+  line-height: 1.2;
   margin-bottom: 1px;
 }
 .val {
-  font-size: 8.5pt;
+  font-size: 8pt;
   font-weight: bold;
+  line-height: 1.2;
   min-height: 9px;
+  color: #000;
 }
-.box-num {
-  position: absolute;
-  top: 1px;
-  right: 3px;
-  font-size: 6pt;
-  color: #888;
-}
-
-/* Flex proportional columns */
-.w10  { flex: 10; }
-.w12  { flex: 12; }
-.w13  { flex: 13; }
-.w14  { flex: 14; }
-.w15  { flex: 15; }
-.w16  { flex: 16; }
-.w17  { flex: 17; }
-.w18  { flex: 18; }
-.w20  { flex: 20; }
-.w22  { flex: 22; }
-.w25  { flex: 25; }
-.w30  { flex: 30; }
-.w35  { flex: 35; }
-.w40  { flex: 40; }
-.w50  { flex: 50; }
-.w60  { flex: 60; }
-.w70  { flex: 70; }
-.w100 { flex: 100; }
-
-/* ── Section dividers ───────────────────────────────────── */
-.section-bar {
-  background: #ccc;
-  border: 1px solid #000;
-  border-top: 0;
+.subval {
   font-size: 7pt;
+  color: #000;
+  line-height: 1.2;
+}
+.boxnum {
+  position: absolute;
+  bottom: 1px;
+  left: 2px;
+  font-size: 5pt;
+  color: var(--red);
   font-weight: bold;
-  padding: 2px 4px;
-  text-align: center;
-  letter-spacing: 0.5px;
 }
 
-/* ── Service lines table ─────────────────────────────────── */
-.svc-table { width: 100%; border-collapse: collapse; }
-.svc-table th, .svc-table td {
+/* Checkbox row helper */
+.checks {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-top: 1px;
+  flex-wrap: wrap;
+}
+.chk {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 6.5pt;
+}
+.chk-box {
+  display: inline-block;
+  width: 7px; height: 7px;
   border: 1px solid #000;
-  padding: 2px 3px;
-  font-size: 7.5pt;
-  text-align: center;
-  vertical-align: middle;
+  flex-shrink: 0;
 }
-.svc-table th { font-size: 6.5pt; background: #eee; font-weight: bold; }
-.svc-table tr + tr td { border-top: 0; }
-.svc-table th + th, .svc-table td + td { border-left: 0; }
-.svc-row td { min-height: 14px; height: 14px; }
+.chk-box.checked::after { content: '✓'; font-size: 6pt; line-height: 7px; display: block; text-align: center; }
 
-/* ── Bottom section ─────────────────────────────────────── */
-.bottom-grid { display: flex; width: 100%; }
+/* Flex proportional widths */
+.f5  { flex: 5;  min-width: 0; }
+.f6  { flex: 6;  min-width: 0; }
+.f7  { flex: 7;  min-width: 0; }
+.f8  { flex: 8;  min-width: 0; }
+.f9  { flex: 9;  min-width: 0; }
+.f10 { flex: 10; min-width: 0; }
+.f11 { flex: 11; min-width: 0; }
+.f12 { flex: 12; min-width: 0; }
+.f13 { flex: 13; min-width: 0; }
+.f14 { flex: 14; min-width: 0; }
+.f15 { flex: 15; min-width: 0; }
+.f16 { flex: 16; min-width: 0; }
+.f17 { flex: 17; min-width: 0; }
+.f18 { flex: 18; min-width: 0; }
+.f19 { flex: 19; min-width: 0; }
+.f20 { flex: 20; min-width: 0; }
+.f22 { flex: 22; min-width: 0; }
+.f24 { flex: 24; min-width: 0; }
+.f25 { flex: 25; min-width: 0; }
+.f28 { flex: 28; min-width: 0; }
+.f30 { flex: 30; min-width: 0; }
+.f33 { flex: 33; min-width: 0; }
+.f35 { flex: 35; min-width: 0; }
+.f40 { flex: 40; min-width: 0; }
+.f45 { flex: 45; min-width: 0; }
+.f50 { flex: 50; min-width: 0; }
+.f55 { flex: 55; min-width: 0; }
+.f60 { flex: 60; min-width: 0; }
+.f65 { flex: 65; min-width: 0; }
+.f70 { flex: 70; min-width: 0; }
+.f80 { flex: 80; min-width: 0; }
+.f100 { flex: 100; min-width: 0; }
+
+/* ─── Header ──────────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: flex-start;
+  border: var(--line);
+  border-bottom: none;
+  padding: 3px 4px 2px;
+  gap: 8px;
+}
+.header-left { font-size: 6pt; min-width: 60px; }
+.header-center { flex: 1; text-align: center; }
+.header-title { font-size: 14pt; font-weight: bold; color: var(--red); line-height: 1; }
+.header-sub { font-size: 5.5pt; color: #555; margin-top: 1px; }
+.pica-box {
+  border: var(--line);
+  padding: 2px 4px;
+  font-size: 5.5pt;
+  color: var(--red);
+  min-width: 40px;
+  text-align: center;
+}
+
+/* ─── Service lines table ──────────────────────────────── */
+.svc-hdr { display: flex; width: 100%; border-left: var(--line); background: #fff; }
+.svc-hdr .cell {
+  font-size: 5.5pt;
+  color: var(--red);
+  font-weight: bold;
+  text-align: center;
+  padding: 1px 1px;
+  line-height: 1.15;
+}
+.svc-row { display: flex; width: 100%; border-left: var(--line); }
+.svc-row .cell {
+  font-size: 7.5pt;
+  font-weight: bold;
+  text-align: center;
+  min-height: 14px;
+  padding: 1px 1px;
+}
+.svc-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 7.5pt;
+  font-weight: bold;
+  color: var(--red);
+  border-right: var(--line);
+  border-top: var(--line);
+  width: 14px;
+  flex-shrink: 0;
+}
+
+/* ─── Bottom section boxes ─────────────────────────────── */
+.bottom-row { display: flex; width: 100%; border-left: var(--line); }
+.bottom-row .cell { min-height: 28px; }
+
+/* ─── Sig section ──────────────────────────────────────── */
+.sig-cell { min-height: 32px; }
+.sig-line {
+  border-bottom: 1px solid #000;
+  display: inline-block;
+  width: 70%;
+  margin-top: 8px;
+}
+
+/* ─── Footer ───────────────────────────────────────────── */
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: var(--line);
+  border-top: none;
+  padding: 2px 4px;
+  font-size: 5.5pt;
+  color: #444;
+}
+.footer-center { font-size: 7.5pt; font-weight: bold; color: #000; text-align: center; flex: 1; }
 </style>
 </head>
 <body>
-<div class="form-wrap">
+<div class="form">
 
-  <!-- ── TOP HEADER ── -->
-  <div class="form-header">
-    <div style="width:220px; border:1px solid #000; padding:3px 5px; font-size:7pt; min-height:38px;">
-      <span style="font-size:6.5pt; color:#555;">CARRIER NAME / ADDRESS</span><br>
-      <strong>{{ payer_name | default("") }}</strong>
-    </div>
-    <div class="form-title-center" style="padding:0 10px;">
-      <div class="main-title">HEALTH INSURANCE CLAIM FORM</div>
-      <div class="sub-title">APPROVED BY NATIONAL UNIFORM CLAIM COMMITTEE (NUCC) 02/12 &nbsp;|&nbsp; CMS-1500 (02-12)</div>
-    </div>
-    <div style="width:220px; border:1px solid #000; padding:3px 5px; font-size:7pt; min-height:38px;">
-      <span style="font-size:6.5pt; color:#555;">CLAIM NUMBER</span><br>
-      <strong>{{ claim_number | default("") }}</strong>
+<!-- ─── HEADER ─── -->
+<div class="header">
+  <div class="header-left">
+    <div style="font-size:5pt; color:var(--red); margin-bottom:2px;">PICA</div>
+    <div style="display:flex; gap:2px;">
+      {% for i in range(3) %}<div style="width:10px;height:10px;border:1px solid var(--red);"></div>{% endfor %}
     </div>
   </div>
+  <div class="header-center">
+    <div class="header-title">HEALTH INSURANCE CLAIM FORM</div>
+    <div class="header-sub">APPROVED BY NATIONAL UNIFORM CLAIM COMMITTEE (NUCC) 02/12</div>
+  </div>
+  <div class="pica-box">PICA<br>▶</div>
+</div>
 
-  <!-- ── SECTION: INSURANCE TYPE (Box 1) ── -->
-  <div class="row" style="margin-top:2px;">
-    <div class="cell w100" style="border:1px solid #000;">
-      <span class="lbl">1. MEDICARE &nbsp;☐ &nbsp; MEDICAID &nbsp;☐ &nbsp; TRICARE &nbsp;☐ &nbsp; CHAMPVA &nbsp;☐ &nbsp; GROUP HEALTH PLAN &nbsp;☐ &nbsp; FECA BLK LUNG &nbsp;☐ &nbsp; OTHER &nbsp;☐</span>
-      <span class="box-num">1</span>
-    </div>
-    <div class="cell w40" style="border:1px solid #000; border-left:0;">
-      <span class="lbl">1a. INSURED'S I.D. NUMBER</span>
-      <div class="val">{{ insured_id | default("") }}</div>
-      <span class="box-num">1a</span>
+<!-- ─── CARRIER BOX (separate row above box 1) ─── -->
+<div class="row" style="border-bottom:none;">
+  <div class="cell f100" style="min-height:20px;">
+    <span class="lbl">CARRIER NAME &amp; ADDRESS</span>
+    <div class="val">{{ payer_name | default("") }}</div>
+  </div>
+</div>
+
+<!-- ─── ROW: Box 1 + 1a ─── -->
+<div class="row">
+  <div class="cell f65">
+    <span class="lbl">1. MEDICARE &nbsp; MEDICAID &nbsp; TRICARE &nbsp; CHAMPVA &nbsp; GROUP HEALTH PLAN &nbsp; FECA BLK LUNG &nbsp; OTHER</span>
+    <div class="checks">
+      <span class="chk"><span class="chk-box"></span> Medicare</span>
+      <span class="chk"><span class="chk-box"></span> Medicaid</span>
+      <span class="chk"><span class="chk-box"></span> TRICARE</span>
+      <span class="chk"><span class="chk-box"></span> CHAMPVA</span>
+      <span class="chk"><span class="chk-box"></span> Group Health</span>
+      <span class="chk"><span class="chk-box"></span> FECA/BLK LNG</span>
+      <span class="chk"><span class="chk-box"></span> Other</span>
     </div>
   </div>
+  <div class="cell f35">
+    <span class="lbl">1a. INSURED'S I.D. NUMBER &nbsp; (For Program in Item 1)</span>
+    <div class="val">{{ insured_id | default("") }}</div>
+    <span class="boxnum">1a</span>
+  </div>
+</div>
 
-  <!-- ── Row: Boxes 2, 3, 4 ── -->
-  <div class="row">
-    <div class="cell w35">
-      <span class="lbl">2. PATIENT'S NAME (Last, First, MI)</span>
-      <div class="val">{{ patient_name | default("") }}</div>
-      <span class="box-num">2</span>
-    </div>
-    <div class="cell w20">
-      <span class="lbl">3. PATIENT'S BIRTH DATE</span>
-      <div class="val">{{ dob | default("") }}</div>
-      <span class="box-num">3</span>
-    </div>
-    <div class="cell w10">
-      <span class="lbl">SEX</span>
-      <div class="val">{{ sex | default("") }}</div>
-    </div>
-    <div class="cell w35">
-      <span class="lbl">4. INSURED'S NAME (Last, First, MI)</span>
-      <div class="val">{{ insured_name | default("") }}</div>
-      <span class="box-num">4</span>
+<!-- ─── ROW: Boxes 2, 3 (DOB+Sex), 4 ─── -->
+<div class="row">
+  <div class="cell f35">
+    <span class="lbl">2. PATIENT'S NAME (Last Name, First Name, Middle Initial)</span>
+    <div class="val">{{ patient_name | default("") }}</div>
+    <span class="boxnum">2</span>
+  </div>
+  <div class="cell f16">
+    <span class="lbl">3. PATIENT'S BIRTH DATE</span>
+    <div style="display:flex; gap:2px; font-size:5.5pt; color:var(--red);">MM &nbsp; DD &nbsp; YY</div>
+    <div class="val">{{ dob | default("") }}</div>
+    <span class="boxnum">3</span>
+  </div>
+  <div class="cell f9">
+    <span class="lbl">SEX</span>
+    <div class="checks">
+      <span class="chk"><span class="chk-box{% if sex and (sex|lower == 'm' or sex|lower == 'male') %} checked{% endif %}"></span> M</span>
+      <span class="chk"><span class="chk-box{% if sex and (sex|lower == 'f' or sex|lower == 'female') %} checked{% endif %}"></span> F</span>
     </div>
   </div>
+  <div class="cell f40">
+    <span class="lbl">4. INSURED'S NAME (Last Name, First Name, Middle Initial)</span>
+    <div class="val">{{ insured_name | default("") }}</div>
+    <span class="boxnum">4</span>
+  </div>
+</div>
 
-  <!-- ── Row: Boxes 5, 6, 7 ── -->
-  <div class="row">
-    <div class="cell w35">
-      <span class="lbl">5. PATIENT'S ADDRESS (No., Street)</span>
-      <div class="val">{{ patient_address | default("") }}</div>
-      <div class="val">{{ patient_city | default("") }}{% if patient_city and patient_state %}, {% endif %}{{ patient_state | default("") }} &nbsp; {{ patient_zip | default("") }}</div>
-      <span class="box-num">5</span>
+<!-- ─── ROW: Boxes 5, 6, 7 ─── -->
+<div class="row">
+  <div class="cell f35">
+    <span class="lbl">5. PATIENT'S ADDRESS (No., Street)</span>
+    <div class="val">{{ patient_address | default("") }}</div>
+    <span class="boxnum">5</span>
+  </div>
+  <div class="cell f25">
+    <span class="lbl">6. PATIENT RELATIONSHIP TO INSURED</span>
+    <div class="checks">
+      <span class="chk"><span class="chk-box{% if relationship_to_insured and relationship_to_insured|lower == 'self' %} checked{% endif %}"></span> Self</span>
+      <span class="chk"><span class="chk-box"></span> Spouse</span>
+      <span class="chk"><span class="chk-box"></span> Child</span>
+      <span class="chk"><span class="chk-box"></span> Other</span>
     </div>
-    <div class="cell w20">
-      <span class="lbl">6. PATIENT RELATIONSHIP TO INSURED</span>
-      <div class="val">{{ relationship_to_insured | default("Self") }}</div>
-      <span class="box-num">6</span>
-    </div>
-    <div class="cell w10">
-      <span class="lbl">PHONE</span>
-      <div class="val" style="font-size:7.5pt;">{{ patient_phone | default("") }}</div>
-    </div>
-    <div class="cell w35">
-      <span class="lbl">7. INSURED'S ADDRESS (No., Street)</span>
-      <div class="val"></div>
-      <span class="box-num">7</span>
+    <span class="boxnum">6</span>
+  </div>
+  <div class="cell f40">
+    <span class="lbl">7. INSURED'S ADDRESS (No., Street)</span>
+    <div class="val"></div>
+    <span class="boxnum">7</span>
+  </div>
+</div>
+
+<!-- ─── ROW: City/State ─── -->
+<div class="row">
+  <div class="cell f25">
+    <span class="lbl">CITY</span>
+    <div class="val">{{ patient_city | default("") }}</div>
+  </div>
+  <div class="cell f10">
+    <span class="lbl">STATE</span>
+    <div class="val">{{ patient_state | default("") }}</div>
+  </div>
+  <div class="cell f25">
+    <span class="lbl">8. RESERVED FOR NUCC USE</span>
+    <div class="val"></div>
+    <span class="boxnum">8</span>
+  </div>
+  <div class="cell f25">
+    <span class="lbl">CITY</span>
+    <div class="val"></div>
+  </div>
+  <div class="cell f15">
+    <span class="lbl">STATE</span>
+    <div class="val"></div>
+  </div>
+</div>
+
+<!-- ─── ROW: ZIP + Phone ─── -->
+<div class="row">
+  <div class="cell f15">
+    <span class="lbl">ZIP CODE</span>
+    <div class="val">{{ patient_zip | default("") }}</div>
+  </div>
+  <div class="cell f20">
+    <span class="lbl">TELEPHONE (Include Area Code)</span>
+    <div class="val">{{ patient_phone | default("") }}</div>
+  </div>
+  <div class="cell f25">
+    <span class="lbl">&nbsp;</span>
+    <div class="val"></div>
+  </div>
+  <div class="cell f20">
+    <span class="lbl">ZIP CODE</span>
+    <div class="val"></div>
+  </div>
+  <div class="cell f20">
+    <span class="lbl">TELEPHONE (Include Area Code)</span>
+    <div class="val"></div>
+  </div>
+</div>
+
+<!-- ─── ROW: Boxes 9, 10, 11 ─── -->
+<div class="row">
+  <div class="cell f33">
+    <span class="lbl">9. OTHER INSURED'S NAME (Last Name, First Name, Middle Initial)</span>
+    <div class="val"></div>
+    <span class="boxnum">9</span>
+  </div>
+  <div class="cell f33">
+    <span class="lbl">10. IS PATIENT'S CONDITION RELATED TO:</span>
+    <div class="val"></div>
+    <span class="boxnum">10</span>
+  </div>
+  <div class="cell f34">
+    <span class="lbl">11. INSURED'S POLICY GROUP OR FECA NUMBER</span>
+    <div class="val">{{ group_number | default("") }}</div>
+    <span class="boxnum">11</span>
+  </div>
+</div>
+
+<!-- ─── ROW: 9a, 10a, 11a ─── -->
+<div class="row">
+  <div class="cell f33">
+    <span class="lbl">a. OTHER INSURED'S POLICY OR GROUP NUMBER</span>
+    <div class="val"></div>
+  </div>
+  <div class="cell f33">
+    <span class="lbl">a. EMPLOYMENT? (Current or Previous)</span>
+    <div class="checks">
+      <span class="chk"><span class="chk-box"></span> YES</span>
+      <span class="chk"><span class="chk-box"></span> NO</span>
     </div>
   </div>
-
-  <!-- ── Row: Boxes 9, 10a-c, 11 ── -->
-  <div class="row">
-    <div class="cell w35">
-      <span class="lbl">9. OTHER INSURED'S NAME</span>
-      <div class="val"></div>
-      <span class="box-num">9</span>
-    </div>
-    <div class="cell w30">
-      <span class="lbl">10. IS PATIENT'S CONDITION RELATED TO:</span>
-      <div style="display:flex; gap:6px; font-size:7.5pt; margin-top:1px;">
-        <span>a. EMPLOYMENT? {{ employment_related | default("NO") }}</span>
-        <span>b. AUTO ACCIDENT? {{ auto_accident | default("NO") }}</span>
-        <span>c. OTHER? {{ other_accident | default("NO") }}</span>
+  <div class="cell f34">
+    <span class="lbl">a. INSURED'S DATE OF BIRTH &nbsp; &nbsp; &nbsp; SEX</span>
+    <div style="display:flex; gap:8px; align-items:center; margin-top:1px;">
+      <div class="val" style="flex:1;"></div>
+      <div class="checks">
+        <span class="chk"><span class="chk-box"></span> M</span>
+        <span class="chk"><span class="chk-box"></span> F</span>
       </div>
-      <span class="box-num">10</span>
-    </div>
-    <div class="cell w35">
-      <span class="lbl">11. INSURED'S POLICY GROUP OR FECA NUMBER</span>
-      <div class="val">{{ group_number | default("") }}</div>
-      <span class="box-num">11</span>
     </div>
   </div>
+</div>
 
-  <!-- ── Row: Boxes 12, 13 ── -->
-  <div class="row">
-    <div class="cell w65">
-      <span class="lbl">12. PATIENT'S OR AUTHORIZED PERSON'S SIGNATURE &nbsp; DATE: {{ signature_date | default("") }}</span>
-      <div class="val" style="font-style:italic; color:#555;">Signature on File</div>
-      <span class="box-num">12</span>
-    </div>
-    <div class="cell w35">
-      <span class="lbl">13. INSURED'S OR AUTHORIZED PERSON'S SIGNATURE</span>
-      <div class="val" style="font-style:italic; color:#555;">Signature on File</div>
-      <span class="box-num">13</span>
+<!-- ─── ROW: 9b, 10b, 11b ─── -->
+<div class="row">
+  <div class="cell f33">
+    <span class="lbl">b. RESERVED FOR NUCC USE</span>
+    <div class="val"></div>
+  </div>
+  <div class="cell f33">
+    <span class="lbl">b. AUTO ACCIDENT? &nbsp; &nbsp; &nbsp; PLACE (State)</span>
+    <div style="display:flex; gap:6px; align-items:center; margin-top:1px;">
+      <div class="checks">
+        <span class="chk"><span class="chk-box"></span> YES</span>
+        <span class="chk"><span class="chk-box"></span> NO</span>
+      </div>
+      <div class="val" style="flex:1;"></div>
     </div>
   </div>
+  <div class="cell f34">
+    <span class="lbl">b. OTHER CLAIM ID (Designated by NUCC)</span>
+    <div class="val"></div>
+  </div>
+</div>
 
-  <!-- ── Section bar ── -->
-  <div class="section-bar">PHYSICIAN OR SUPPLIER INFORMATION</div>
-
-  <!-- ── Row: Boxes 14, 15, 16 ── -->
-  <div class="row">
-    <div class="cell w30">
-      <span class="lbl">14. DATE OF CURRENT ILLNESS, INJURY, OR PREGNANCY</span>
-      <div class="val">{{ date_of_service | default("") }}</div>
-      <span class="box-num">14</span>
+<!-- ─── ROW: 9c, 10c, 11c ─── -->
+<div class="row">
+  <div class="cell f33">
+    <span class="lbl">c. RESERVED FOR NUCC USE</span>
+    <div class="val"></div>
+  </div>
+  <div class="cell f33">
+    <span class="lbl">c. OTHER ACCIDENT?</span>
+    <div class="checks">
+      <span class="chk"><span class="chk-box"></span> YES</span>
+      <span class="chk"><span class="chk-box"></span> NO</span>
     </div>
-    <div class="cell w35">
-      <span class="lbl">15. OTHER DATE</span>
+  </div>
+  <div class="cell f34">
+    <span class="lbl">c. INSURANCE PLAN NAME OR PROGRAM NAME</span>
+    <div class="val">{{ payer_name | default("") }}</div>
+  </div>
+</div>
+
+<!-- ─── ROW: 9d, 10d, 11d ─── -->
+<div class="row">
+  <div class="cell f33">
+    <span class="lbl">d. INSURANCE PLAN NAME OR PROGRAM NAME</span>
+    <div class="val"></div>
+  </div>
+  <div class="cell f33">
+    <span class="lbl">10d. CLAIM CODES (Designated by NUCC)</span>
+    <div class="val"></div>
+  </div>
+  <div class="cell f34">
+    <span class="lbl">d. IS THERE ANOTHER HEALTH BENEFIT PLAN?</span>
+    <div class="checks">
+      <span class="chk"><span class="chk-box"></span> YES</span>
+      <span class="chk"><span class="chk-box"></span> NO</span>
+      <span style="font-size:5.5pt; color:var(--red);">If yes, complete items 9, 9a, and 9d.</span>
+    </div>
+  </div>
+</div>
+
+<!-- ─── ROW: Boxes 12 + 13 ─── -->
+<div class="row">
+  <div class="cell f65 sig-cell">
+    <span class="lbl">12. PATIENT'S OR AUTHORIZED PERSON'S SIGNATURE &nbsp; I authorize the release of any medical or other information necessary to process this claim. I also request payment of government benefits either to myself or to the party who accepts assignment below.</span>
+    <div style="display:flex; gap:8px; align-items:flex-end; margin-top:2px;">
+      <span style="font-size:6pt;">SIGNED</span>
+      <span class="sig-line"></span>
+      <span style="font-size:6pt;">DATE {{ signature_date | default("") }}</span>
+    </div>
+    <span class="boxnum">12</span>
+  </div>
+  <div class="cell f35 sig-cell">
+    <span class="lbl">13. INSURED'S OR AUTHORIZED PERSON'S SIGNATURE &nbsp; I authorize payment of medical benefits to the undersigned physician or supplier for services described below.</span>
+    <div style="display:flex; gap:8px; align-items:flex-end; margin-top:2px;">
+      <span style="font-size:6pt;">SIGNED</span>
+      <span class="sig-line"></span>
+    </div>
+    <span class="boxnum">13</span>
+  </div>
+</div>
+
+<!-- ─── ROW: Boxes 14, 15, 16 ─── -->
+<div class="row">
+  <div class="cell f28">
+    <span class="lbl">14. DATE OF CURRENT ILLNESS, INJURY, or PREGNANCY (LMP)</span>
+    <div style="display:flex; gap:2px; font-size:5.5pt; color:var(--red);">MM &nbsp; DD &nbsp; YY &nbsp;&nbsp; QUAL</div>
+    <div class="val">{{ date_of_service | default("") }}</div>
+    <span class="boxnum">14</span>
+  </div>
+  <div class="cell f22">
+    <span class="lbl">15. OTHER DATE</span>
+    <div style="font-size:5.5pt; color:var(--red);">QUAL &nbsp; MM &nbsp; DD &nbsp; YY</div>
+    <div class="val"></div>
+    <span class="boxnum">15</span>
+  </div>
+  <div class="cell f50">
+    <span class="lbl">16. DATES PATIENT UNABLE TO WORK IN CURRENT OCCUPATION</span>
+    <div style="display:flex; gap:8px; font-size:6pt;">
+      <span>FROM <span class="val" style="display:inline;"></span></span>
+      <span>TO <span class="val" style="display:inline;"></span></span>
+    </div>
+    <span class="boxnum">16</span>
+  </div>
+</div>
+
+<!-- ─── ROW: Boxes 17, 17a/b, 18 ─── -->
+<div class="row">
+  <div class="cell f40">
+    <span class="lbl">17. NAME OF REFERRING PROVIDER OR OTHER SOURCE</span>
+    <div class="val">{{ referring_provider | default("") }}</div>
+    <span class="boxnum">17</span>
+  </div>
+  <div class="cell f10" style="display:flex; flex-direction:column;">
+    <div style="flex:1; border-bottom: var(--line); padding:1px 2px;">
+      <span class="lbl">17a.</span>
       <div class="val"></div>
-      <span class="box-num">15</span>
     </div>
-    <div class="cell w35">
-      <span class="lbl">16. DATES PATIENT UNABLE TO WORK IN CURRENT OCCUPATION</span>
-      <div class="val"></div>
-      <span class="box-num">16</span>
-    </div>
-  </div>
-
-  <!-- ── Row: Boxes 17, 17a/b, 18, 19 ── -->
-  <div class="row">
-    <div class="cell w40">
-      <span class="lbl">17. NAME OF REFERRING PROVIDER OR OTHER SOURCE</span>
-      <div class="val">{{ referring_provider | default("") }}</div>
-      <span class="box-num">17</span>
-    </div>
-    <div class="cell w20">
+    <div style="flex:1; padding:1px 2px;">
       <span class="lbl">17b. NPI</span>
       <div class="val">{{ referring_npi | default("") }}</div>
-      <span class="box-num">17b</span>
-    </div>
-    <div class="cell w20">
-      <span class="lbl">18. HOSPITALIZATION DATES</span>
-      <div class="val"></div>
-      <span class="box-num">18</span>
-    </div>
-    <div class="cell w20">
-      <span class="lbl">19. ADDITIONAL CLAIM INFO</span>
-      <div class="val"></div>
-      <span class="box-num">19</span>
     </div>
   </div>
-
-  <!-- ── Row: Box 20, 21 (diagnoses), 22, 23 ── -->
-  <div class="row">
-    <div class="cell w15">
-      <span class="lbl">20. OUTSIDE LAB?</span>
-      <div class="val">NO</div>
-      <span class="box-num">20</span>
+  <div class="cell f50">
+    <span class="lbl">18. HOSPITALIZATION DATES RELATED TO CURRENT SERVICES</span>
+    <div style="display:flex; gap:8px; font-size:6pt;">
+      <span>FROM</span>
+      <span>TO</span>
     </div>
-    <div class="cell w55">
-      <span class="lbl">21. DIAGNOSIS OR NATURE OF ILLNESS OR INJURY (ICD-10)</span>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:2px 8px; margin-top:2px;">
-        {% for i in range(12) %}
-        <div style="font-size:8pt;">
-          <span style="font-size:6.5pt; color:#888;">{{ ['A','B','C','D','E','F','G','H','I','J','K','L'][i] }}.</span>
-          <strong>{{ diagnosis_codes[i] if diagnosis_codes and i < diagnosis_codes|length else "" }}</strong>
-        </div>
-        {% endfor %}
+    <span class="boxnum">18</span>
+  </div>
+</div>
+
+<!-- ─── ROW: Boxes 19, 20 ─── -->
+<div class="row">
+  <div class="cell f60">
+    <span class="lbl">19. ADDITIONAL CLAIM INFORMATION (Designated by NUCC)</span>
+    <div class="val"></div>
+    <span class="boxnum">19</span>
+  </div>
+  <div class="cell f20">
+    <span class="lbl">20. OUTSIDE LAB?</span>
+    <div class="checks">
+      <span class="chk"><span class="chk-box"></span> YES</span>
+      <span class="chk"><span class="chk-box"></span> NO</span>
+    </div>
+    <span class="boxnum">20</span>
+  </div>
+  <div class="cell f20">
+    <span class="lbl">$ CHARGES</span>
+    <div class="val"></div>
+  </div>
+</div>
+
+<!-- ─── ROW: Box 21 (diagnoses A-L), 22, 23 ─── -->
+<div class="row">
+  <div class="cell f55">
+    <span class="lbl">21. DIAGNOSIS OR NATURE OF ILLNESS OR INJURY &nbsp; Relate A-L to service line below (24E) &nbsp; &nbsp; ICD Ind.</span>
+    <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:2px 6px; margin-top:2px;">
+      {% for i in range(12) %}
+      <div style="display:flex; align-items:center; gap:3px; font-size:7.5pt;">
+        <span style="font-size:6pt; color:var(--red); font-weight:bold; min-width:8px;">{{ ['A.','B.','C.','D.','E.','F.','G.','H.','I.','J.','K.','L.'][i] }}</span>
+        <span style="border-bottom:1px solid #000; flex:1; display:inline-block; font-weight:bold;">{{ diagnosis_codes[i] if diagnosis_codes and i < diagnosis_codes|length else "" }}</span>
       </div>
-      <span class="box-num">21</span>
-    </div>
-    <div class="cell w15">
-      <span class="lbl">22. RESUBMISSION CODE / ORIG. REF. NO.</span>
-      <div class="val"></div>
-      <span class="box-num">22</span>
-    </div>
-    <div class="cell w15">
-      <span class="lbl">23. PRIOR AUTH. NUMBER</span>
-      <div class="val">{{ authorization_number | default("") }}</div>
-      <span class="box-num">23</span>
-    </div>
-  </div>
-
-  <!-- ── Service Lines (Box 24) ── -->
-  <table class="svc-table" style="margin-top:0;">
-    <thead>
-      <tr>
-        <th style="width:14%;">24A. DATE(S) OF SERVICE<br>From &nbsp;&nbsp; To</th>
-        <th style="width:5%;">B.<br>POS</th>
-        <th style="width:4%;">C.<br>EMG</th>
-        <th style="width:14%;">D. PROCEDURES, SERVICES, OR SUPPLIES<br>CPT/HCPCS &nbsp;&nbsp; MODIFIER</th>
-        <th style="width:8%;">E.<br>DIAGNOSIS<br>POINTER</th>
-        <th style="width:10%;">F.<br>$ CHARGES</th>
-        <th style="width:6%;">G.<br>DAYS<br>OR<br>UNITS</th>
-        <th style="width:5%;">H.<br>EPSDT</th>
-        <th style="width:5%;">I.<br>ID<br>QUAL</th>
-        <th style="width:14%;">J. RENDERING<br>PROVIDER ID #<br>NPI</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% set lines = service_lines if service_lines else [] %}
-      {% for i in range(6) %}
-      {% set line = lines[i] if i < lines|length else None %}
-      <tr class="svc-row">
-        <td>{% if line %}{{ line.dos_from | default("") }}{% if line.dos_to and line.dos_to != line.dos_from %} – {{ line.dos_to }}{% endif %}{% endif %}</td>
-        <td>{% if line %}{{ line.pos | default("11") }}{% endif %}</td>
-        <td></td>
-        <td>{% if line %}<strong>{{ line.cpt_code | default("") }}</strong>{% if line.modifiers %} {% for m in line.modifiers %}{{ m }}{% if not loop.last %} {% endif %}{% endfor %}{% endif %}{% endif %}</td>
-        <td>{% if line %}{% for p in (line.diagnosis_pointers or []) %}{{ ['A','B','C','D','E','F','G','H','I','J','K','L'][p-1] if p >= 1 and p <= 12 else p }}{% if not loop.last %} {% endif %}{% endfor %}{% endif %}</td>
-        <td>{% if line %}{{ "%.2f"|format(line.charge_amount) if line.charge_amount else "" }}{% endif %}</td>
-        <td>{% if line %}{{ line.units | default("") }}{% endif %}</td>
-        <td></td>
-        <td></td>
-        <td>{% if line %}{{ rendering_provider_npi | default("") }}{% endif %}</td>
-      </tr>
       {% endfor %}
-    </tbody>
-  </table>
-
-  <!-- ── Boxes 25-33 ── -->
-  <div class="row">
-    <div class="cell w20">
-      <span class="lbl">25. FEDERAL TAX I.D. NUMBER &nbsp; SSN &nbsp; EIN</span>
-      <div class="val">{{ billing_tax_id | default("") }}</div>
-      <span class="box-num">25</span>
     </div>
-    <div class="cell w20">
-      <span class="lbl">26. PATIENT'S ACCOUNT NO.</span>
-      <div class="val">{{ patient_account_number | default("") }}</div>
-      <span class="box-num">26</span>
-    </div>
-    <div class="cell w15">
-      <span class="lbl">27. ACCEPT ASSIGNMENT?</span>
-      <div class="val">YES</div>
-      <span class="box-num">27</span>
-    </div>
-    <div class="cell w15">
-      <span class="lbl">28. TOTAL CHARGE</span>
-      <div class="val">$ {{ "%.2f"|format(total_charge) }}</div>
-      <span class="box-num">28</span>
-    </div>
-    <div class="cell w15">
-      <span class="lbl">29. AMOUNT PAID</span>
-      <div class="val">$ {{ "%.2f"|format(total_paid) }}</div>
-      <span class="box-num">29</span>
-    </div>
-    <div class="cell w15">
-      <span class="lbl">30. RESERVED FOR NUCC USE</span>
+    <span class="boxnum">21</span>
+  </div>
+  <div class="cell f20" style="display:flex; flex-direction:column;">
+    <div style="flex:1; border-bottom: var(--line); padding:1px 2px;">
+      <span class="lbl">22. RESUBMISSION CODE</span>
       <div class="val"></div>
-      <span class="box-num">30</span>
     </div>
+    <div style="flex:1; padding:1px 2px;">
+      <span class="lbl">ORIGINAL REF. NO.</span>
+      <div class="val"></div>
+    </div>
+    <span class="boxnum">22</span>
   </div>
+  <div class="cell f25">
+    <span class="lbl">23. PRIOR AUTHORIZATION NUMBER</span>
+    <div class="val">{{ authorization_number | default("") }}</div>
+    <span class="boxnum">23</span>
+  </div>
+</div>
 
-  <!-- ── Boxes 31, 32, 33 ── -->
-  <div class="row">
-    <div class="cell w30">
-      <span class="lbl">31. SIGNATURE OF PHYSICIAN OR SUPPLIER</span>
-      <div class="val" style="font-style:italic; color:#555;">{{ provider_name | default("") }}</div>
-      <div style="font-size:7pt; margin-top:2px;">DATE: {{ signature_date | default("") }}</div>
-      <span class="box-num">31</span>
-    </div>
-    <div class="cell w35">
-      <span class="lbl">32. SERVICE FACILITY LOCATION INFORMATION</span>
-      <div class="val">{{ billing_provider_name | default("") }}</div>
-      <div style="font-size:7.5pt;">{{ billing_address | default("") }}</div>
-      <span class="box-num">32</span>
-    </div>
-    <div class="cell w35">
-      <span class="lbl">33. BILLING PROVIDER INFO &amp; PH #</span>
-      <div class="val">{{ billing_provider_name | default("") }}</div>
-      <div style="font-size:7.5pt;">{{ billing_address | default("") }}</div>
-      <div style="font-size:7.5pt; margin-top:2px;">NPI: <strong>{{ billing_provider_npi | default("") }}</strong></div>
-      <span class="box-num">33</span>
+<!-- ─── SERVICE LINES HEADER (Box 24) ─── -->
+<div class="svc-hdr">
+  <div style="width:14px; border-right:var(--line); border-top:var(--line);"></div>
+  <div class="cell f22" style="text-align:center;">
+    <span class="lbl" style="text-align:center; display:block;">24. A.<br>DATE(S) OF SERVICE<br>From &nbsp;&nbsp;&nbsp; To</span>
+    <div style="display:flex; justify-content:space-around; font-size:5pt; color:var(--red);">
+      <span>MM DD YY</span><span>MM DD YY</span>
     </div>
   </div>
+  <div class="cell f8" style="text-align:center;">
+    <span class="lbl" style="text-align:center; display:block;">B.<br>PLACE OF<br>SERVICE</span>
+  </div>
+  <div class="cell f5" style="text-align:center;">
+    <span class="lbl" style="text-align:center; display:block;">C.<br>EMG</span>
+  </div>
+  <div class="cell f24" style="text-align:center;">
+    <span class="lbl" style="text-align:center; display:block;">D. PROCEDURES, SERVICES, OR SUPPLIES<br>(Explain Unusual Circumstances)<br>CPT/HCPCS &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; MODIFIER</span>
+  </div>
+  <div class="cell f10" style="text-align:center;">
+    <span class="lbl" style="text-align:center; display:block;">E.<br>DIAGNOSIS<br>POINTER</span>
+  </div>
+  <div class="cell f12" style="text-align:center;">
+    <span class="lbl" style="text-align:center; display:block;">F.<br>$ CHARGES</span>
+  </div>
+  <div class="cell f6" style="text-align:center;">
+    <span class="lbl" style="text-align:center; display:block;">G.<br>DAYS<br>OR<br>UNITS</span>
+  </div>
+  <div class="cell f5" style="text-align:center;">
+    <span class="lbl" style="text-align:center; display:block;">H.<br>EPSDT<br>Family<br>Plan</span>
+  </div>
+  <div class="cell f5" style="text-align:center;">
+    <span class="lbl" style="text-align:center; display:block;">I.<br>ID.<br>QUAL.</span>
+  </div>
+  <div class="cell f18" style="text-align:center;">
+    <span class="lbl" style="text-align:center; display:block;">J.<br>RENDERING<br>PROVIDER ID. #</span>
+  </div>
+</div>
 
-  <!-- Footer note -->
-  <div style="text-align:center; font-size:6.5pt; color:#666; margin-top:4px; border-top:1px solid #ccc; padding-top:3px;">
-    NUCC Instruction Manual available at: www.nucc.org &nbsp;|&nbsp; PLEASE PRINT OR TYPE
+<!-- ─── SERVICE LINE ROWS ─── -->
+{% set lines = service_lines if service_lines else [] %}
+{% for i in range(6) %}
+{% set line = lines[i] if i < lines|length else None %}
+<div class="svc-row">
+  <div class="svc-num" style="background:{% if line %}#fff{% else %}#fff{% endif %};">{{ i+1 }}</div>
+  <div class="cell f22" style="text-align:center;">
+    {% if line %}
+    <span style="font-size:7.5pt; font-weight:bold;">{{ line.dos_from | default("") }}{% if line.dos_to and line.dos_to != line.dos_from %} – {{ line.dos_to }}{% endif %}</span>
+    {% endif %}
   </div>
+  <div class="cell f8" style="text-align:center;">
+    {% if line %}<span style="font-weight:bold;">{{ line.pos | default("11") }}</span>{% endif %}
+  </div>
+  <div class="cell f5"></div>
+  <div class="cell f24" style="text-align:center;">
+    {% if line %}
+    <span style="font-weight:bold; font-size:8pt;">{{ line.cpt_code | default("") }}</span>
+    {% if line.modifiers and line.modifiers|length > 0 %}
+    <span style="font-size:7pt;"> &nbsp; {% for m in line.modifiers %}{{ m }}{% if not loop.last %} {% endif %}{% endfor %}</span>
+    {% endif %}
+    {% endif %}
+  </div>
+  <div class="cell f10" style="text-align:center;">
+    {% if line %}
+    <span style="font-weight:bold; font-size:7.5pt;">{% for p in (line.diagnosis_pointers or []) %}{{ ['A','B','C','D','E','F','G','H','I','J','K','L'][p-1] if p and p >= 1 and p <= 12 else '' }}{% if not loop.last %} {% endif %}{% endfor %}</span>
+    {% endif %}
+  </div>
+  <div class="cell f12" style="text-align:right; padding-right:3px;">
+    {% if line and line.charge_amount %}<span style="font-weight:bold;">{{ "%.2f"|format(line.charge_amount) }}</span>{% endif %}
+  </div>
+  <div class="cell f6" style="text-align:center;">
+    {% if line %}<span style="font-weight:bold;">{{ line.units | default("") }}</span>{% endif %}
+  </div>
+  <div class="cell f5"></div>
+  <div class="cell f5"></div>
+  <div class="cell f18" style="text-align:center;">
+    <div style="font-size:5.5pt; color:var(--red);">NPI</div>
+    {% if line %}<span style="font-weight:bold; font-size:7pt;">{{ rendering_provider_npi | default("") }}</span>{% endif %}
+  </div>
+</div>
+{% endfor %}
+
+<!-- ─── ROW: Boxes 25-30 ─── -->
+<div class="bottom-row">
+  <div class="cell f22">
+    <span class="lbl">25. FEDERAL TAX I.D. NUMBER &nbsp; &nbsp; SSN &nbsp; EIN</span>
+    <div style="display:flex; align-items:center; gap:4px;">
+      <div class="val">{{ billing_tax_id | default("") }}</div>
+      <div class="checks">
+        <span class="chk"><span class="chk-box"></span> SSN</span>
+        <span class="chk"><span class="chk-box checked"></span> EIN</span>
+      </div>
+    </div>
+    <span class="boxnum">25</span>
+  </div>
+  <div class="cell f20">
+    <span class="lbl">26. PATIENT'S ACCOUNT NO.</span>
+    <div class="val">{{ patient_account_number | default("") }}</div>
+    <span class="boxnum">26</span>
+  </div>
+  <div class="cell f18">
+    <span class="lbl">27. ACCEPT ASSIGNMENT?</span>
+    <div class="checks">
+      <span class="chk"><span class="chk-box checked"></span> YES</span>
+      <span class="chk"><span class="chk-box"></span> NO</span>
+    </div>
+    <span class="boxnum">27</span>
+  </div>
+  <div class="cell f15">
+    <span class="lbl">28. TOTAL CHARGE</span>
+    <div class="val">$ {{ "%.2f"|format(total_charge) }}</div>
+    <span class="boxnum">28</span>
+  </div>
+  <div class="cell f15">
+    <span class="lbl">29. AMOUNT PAID</span>
+    <div class="val">$ {{ "%.2f"|format(total_paid) }}</div>
+    <span class="boxnum">29</span>
+  </div>
+  <div class="cell f10">
+    <span class="lbl">30. Rsvd for NUCC Use</span>
+    <div class="val"></div>
+    <span class="boxnum">30</span>
+  </div>
+</div>
+
+<!-- ─── ROW: Boxes 31, 32, 33 ─── -->
+<div class="bottom-row">
+  <div class="cell f33" style="min-height:44px;">
+    <span class="lbl">31. SIGNATURE OF PHYSICIAN OR SUPPLIER INCLUDING DEGREES OR CREDENTIALS (I certify that the statements on the reverse apply to this bill and are made a part thereof.)</span>
+    <div style="display:flex; gap:4px; align-items:flex-end; margin-top:2px;">
+      <span style="font-size:6pt;">SIGNED</span>
+      <span style="border-bottom:1px solid #000; flex:1; display:inline-block;"></span>
+      <span style="font-size:6pt;">DATE {{ signature_date | default("") }}</span>
+    </div>
+    <span class="boxnum">31</span>
+  </div>
+  <div class="cell f33" style="min-height:44px;">
+    <span class="lbl">32. SERVICE FACILITY LOCATION INFORMATION</span>
+    <div class="val">{{ billing_provider_name | default("") }}</div>
+    <div class="subval">{{ billing_address | default("") }}</div>
+    <div style="display:flex; gap:6px; margin-top:2px; font-size:5.5pt; color:var(--red);">
+      <span>a. <span style="border-bottom:1px solid #000; display:inline-block; width:50px;"></span> NPI</span>
+      <span>b. <span style="border-bottom:1px solid #000; display:inline-block; width:50px;"></span></span>
+    </div>
+    <span class="boxnum">32</span>
+  </div>
+  <div class="cell f34" style="min-height:44px;">
+    <span class="lbl">33. BILLING PROVIDER INFO &amp; PH #</span>
+    <div class="val">{{ billing_provider_name | default("") }}</div>
+    <div class="subval">{{ billing_address | default("") }}</div>
+    <div style="display:flex; gap:6px; margin-top:2px; font-size:5.5pt; color:var(--red);">
+      <span>a. NPI <span style="color:#000; font-weight:bold; font-size:7pt;">{{ billing_provider_npi | default("") }}</span></span>
+      <span>b. <span style="border-bottom:1px solid #000; display:inline-block; width:30px;"></span></span>
+    </div>
+    <span class="boxnum">33</span>
+  </div>
+</div>
+
+<!-- ─── FOOTER ─── -->
+<div class="footer">
+  <span>NUCC Instruction Manual available at: www.nucc.org</span>
+  <span class="footer-center">PLEASE PRINT OR TYPE</span>
+  <span>APPROVED OMB-0938-1197 FORM 1500 (02-12)</span>
+</div>
 
 </div>
 </body>
