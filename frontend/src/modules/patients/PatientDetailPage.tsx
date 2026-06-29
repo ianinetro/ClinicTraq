@@ -1033,7 +1033,7 @@ function InfoCell({ label, value, mono = false }: { label: string; value: string
 
 // ─── Visits Tab ───────────────────────────────────────────────────────────────
 
-function VisitsTab({ patientId, visits, onNewVisit }: { patientId: string; visits: Visit[]; onNewVisit: () => void }) {
+function VisitsTab({ visits, onNewVisit }: { patientId: string; visits: Visit[]; onNewVisit: () => void }) {
   const navigate = useNavigate()
   const [filter, setFilter] = useState('all')
 
