@@ -739,7 +739,7 @@ export function VisitComposerPage() {
             <ArrowLeft size={14} /> Back
           </Button>
           {step === 'review' ? (
-            <Button variant="primary" onClick={handleSubmit}>
+            <Button variant="primary" onClick={handleSubmit} disabled={!form.patientId || !form.visitDate || form.diagnoses.length === 0}>
               <Check size={14} /> Save Visit
             </Button>
           ) : (

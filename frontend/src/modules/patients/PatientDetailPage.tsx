@@ -534,6 +534,43 @@ function DemographicsTab({ patient, startEditing }: { patient: Patient; startEdi
   })
   const [saved, setSaved] = useState(false)
 
+  // ── Live validation ───────────────────────────────────────────────
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set())
+
+  function validateDemographicsField(key: string, value: string) {
+    let msg: string | undefined
+    if (key === 'first_name' && !value.trim()) msg = 'First name is required'
+    else if (key === 'last_name' && !value.trim()) msg = 'Last name is required'
+    else if (key === 'dob') {
+      if (!value) {
+        msg = 'Date of birth is required'
+      } else {
+        const d = new Date(value)
+        if (isNaN(d.getTime())) msg = 'Invalid date'
+        else if (d > new Date()) msg = 'Date of birth cannot be in the future'
+      }
+    } else if (key === 'phone_home' || key === 'phone_cell' || key === 'phone_work') {
+      if (value && !/^\d{10}$/.test(value.replace(/\D/g, ''))) msg = 'Phone must be 10 digits'
+    } else if (key === 'email') {
+      if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) msg = 'Invalid email format'
+    }
+    setFieldErrors(prev => {
+      const next = { ...prev }
+      if (msg) next[key] = msg
+      else delete next[key]
+      return next
+    })
+  }
+
+  function touchField(key: string) {
+    setTouchedFields(prev => new Set(prev).add(key))
+  }
+
+  const hasDemographicsErrors = Object.keys(fieldErrors).length > 0
+  const requiredDemographics = ['first_name', 'last_name', 'dob']
+  const requiredMissing = requiredDemographics.some(k => !String(form[k as keyof typeof form] ?? '').trim())
+
   const mutation = useMutation({
     mutationFn: (data: Partial<typeof form>) => {
       // Strip empty strings so the backend doesn't reject them as invalid dates/enums
@@ -552,8 +589,12 @@ function DemographicsTab({ patient, startEditing }: { patient: Patient; startEdi
 
   const age = calcAge(form.dob)
 
+  const VALIDATED_KEYS = new Set(['first_name', 'last_name', 'dob', 'email', 'phone_home', 'phone_cell', 'phone_work'])
+
   function field(label: string, key: keyof typeof form, opts?: { readOnly?: boolean; type?: string }) {
     const ro = opts?.readOnly || !isEditing
+    const keyStr = String(key)
+    const hasError = touchedFields.has(keyStr) && !!fieldErrors[keyStr]
     return (
       <div>
         <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--bb-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>
@@ -563,14 +604,26 @@ function DemographicsTab({ patient, startEditing }: { patient: Patient; startEdi
           type={opts?.type ?? 'text'}
           value={String(form[key] ?? '')}
           readOnly={ro}
-          onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+          onChange={e => {
+            setForm(p => ({ ...p, [key]: e.target.value }))
+            if (!ro && VALIDATED_KEYS.has(keyStr)) validateDemographicsField(keyStr, e.target.value)
+          }}
+          onBlur={e => {
+            if (!ro && VALIDATED_KEYS.has(keyStr)) {
+              touchField(keyStr)
+              validateDemographicsField(keyStr, e.target.value)
+            }
+          }}
           style={{
             height: 32, width: '100%', padding: '0 10px', fontSize: 13,
-            border: `1px solid ${ro ? 'transparent' : 'var(--bb-border)'}`, borderRadius: 6,
+            border: `1px solid ${ro ? 'transparent' : hasError ? 'var(--bb-status-danger)' : 'var(--bb-border)'}`, borderRadius: 6,
             background: ro ? 'transparent' : 'var(--bb-surface-card)',
             color: 'var(--bb-text-primary)', outline: 'none',
           }}
         />
+        {hasError && (
+          <span style={{ color: 'var(--bb-status-danger)', fontSize: 12, marginTop: 2, display: 'block' }}>{fieldErrors[keyStr]}</span>
+        )}
       </div>
     )
   }
@@ -866,7 +919,16 @@ function DemographicsTab({ patient, startEditing }: { patient: Patient; startEdi
               variant="primary"
               size="sm"
               loading={mutation.isPending}
-              onClick={() => mutation.mutate(form)}
+              disabled={hasDemographicsErrors || requiredMissing}
+              onClick={() => {
+                // Touch all required fields on submit attempt to reveal any untouched errors
+                requiredDemographics.forEach(k => {
+                  touchField(k)
+                  validateDemographicsField(k, String(form[k as keyof typeof form] ?? ''))
+                })
+                if (hasDemographicsErrors || requiredMissing) return
+                mutation.mutate(form)
+              }}
             >
               Save Changes
             </Button>
