@@ -10,6 +10,8 @@ import { PayersSettings } from './PayersSettings'
 import { ProvidersSettings } from './ProvidersSettings'
 import { CPTCodesSettings } from './CPTCodesSettings'
 import { ICDCodesSettings } from './ICDCodesSettings'
+import ChartOfAccountsSettings from './ChartOfAccountsSettings'
+import DeductibleTrackerSettings from './DeductibleTrackerSettings'
 
 interface SettingsSection {
   id: string
@@ -44,24 +46,6 @@ const sections: SettingsSection[] = [
 
 const groups = Array.from(new Set(sections.map(s => s.group)))
 
-function GenericSettingsSection({ title }: { title: string }) {
-  return (
-    <div className="p-6">
-      <div className="mb-4">
-        <h2 className="text-xl font-semibold text-[#12122C]">{title}</h2>
-        <p className="text-sm text-[#676687] mt-1">
-          Manage {title.toLowerCase()} settings for your practice.
-        </p>
-        <div className="mt-2 bg-[#D9FCFF] border border-[#94F2FA] rounded-lg px-3 py-2 text-xs text-[#007998]">
-          Changes here affect billing workflows, claim generation, and downstream reporting.
-        </div>
-      </div>
-      <div className="bg-white border border-[#E3E3F1] rounded-lg p-6 text-center">
-        <p className="text-sm text-[#676687]">{title} configuration coming soon.</p>
-      </div>
-    </div>
-  )
-}
 
 export function SettingsPage() {
   return (
@@ -112,10 +96,10 @@ export function SettingsPage() {
           <Route path="payers" element={<PayersSettings />} />
           <Route path="codes/cpt" element={<CPTCodesSettings />} />
           <Route path="codes/icd" element={<ICDCodesSettings />} />
-          <Route path="codes/accounts" element={<GenericSettingsSection title="Chart of Accounts" />} />
+          <Route path="codes/accounts" element={<ChartOfAccountsSettings />} />
           <Route path="users" element={<UsersSettings />} />
           <Route path="billing/tfl" element={<TFLSettings />} />
-          <Route path="billing/deductible" element={<GenericSettingsSection title="Deductible Tracker Settings" />} />
+          <Route path="billing/deductible" element={<DeductibleTrackerSettings />} />
           <Route path="*" element={<Navigate to="practice/info" replace />} />
         </Routes>
       </div>
