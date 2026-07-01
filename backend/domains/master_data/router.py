@@ -7,6 +7,7 @@ from typing import List, Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +17,7 @@ from domains.identity.models import User
 from domains.master_data.models import (
     BillingProvider,
     CARCCode,
+    ChartAccount,
     CPTCode,
     DiagnosisCode,
     Facility,
@@ -632,3 +634,95 @@ async def create_pin(
     db.add(obj)
     await db.flush()
     return obj
+
+
+# ── Chart of Accounts ─────────────────────────────────────────────────────────
+
+class ChartAccountCreate(BaseModel):
+    account_number: str
+    name: str
+    account_type: str
+    parent_id: Optional[uuid.UUID] = None
+
+
+class ChartAccountUpdate(BaseModel):
+    name: Optional[str] = None
+    account_type: Optional[str] = None
+
+
+class ChartAccountResponse(BaseModel):
+    id: uuid.UUID
+    account_number: str
+    name: str
+    account_type: str
+    parent_id: Optional[uuid.UUID] = None
+
+    model_config = {"from_attributes": True}
+
+
+@router.get("/chart-accounts", response_model=List[ChartAccountResponse])
+async def list_chart_accounts(
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("master_data:read")),
+):
+    result = await db.execute(
+        select(ChartAccount)
+        .where(ChartAccount.tenant_id == ctx.tenant_id)
+        .order_by(ChartAccount.account_number)
+    )
+    return result.scalars().all()
+
+
+@router.post("/chart-accounts", response_model=ChartAccountResponse, status_code=status.HTTP_201_CREATED)
+async def create_chart_account(
+    body: ChartAccountCreate,
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("master_data:write")),
+):
+    obj = ChartAccount(tenant_id=ctx.tenant_id, **body.model_dump())
+    db.add(obj)
+    await db.flush()
+    return obj
+
+
+@router.patch("/chart-accounts/{account_id}", response_model=ChartAccountResponse)
+async def update_chart_account(
+    account_id: uuid.UUID,
+    body: ChartAccountUpdate,
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("master_data:write")),
+):
+    result = await db.execute(
+        select(ChartAccount).where(
+            ChartAccount.id == account_id, ChartAccount.tenant_id == ctx.tenant_id
+        )
+    )
+    obj = result.scalar_one_or_none()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Chart account not found")
+    for k, v in body.model_dump(exclude_none=True).items():
+        setattr(obj, k, v)
+    await db.flush()
+    return obj
+
+
+@router.delete("/chart-accounts/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_chart_account(
+    account_id: uuid.UUID,
+    ctx: TenantContext = Depends(),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("master_data:write")),
+):
+    result = await db.execute(
+        select(ChartAccount).where(
+            ChartAccount.id == account_id, ChartAccount.tenant_id == ctx.tenant_id
+        )
+    )
+    obj = result.scalar_one_or_none()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Chart account not found")
+    obj.is_active = False
+    await db.flush()
