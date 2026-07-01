@@ -73,8 +73,9 @@ apiClient.interceptors.response.use(
         const response = await axios.post(`${BASE_URL}/auth/refresh`, {
           refresh_token: refreshToken,
         })
-        const { access_token } = response.data
-        localStorage.setItem('auth_token', access_token)
+        const newToken = response.data.accessToken ?? response.data.access_token
+        localStorage.setItem('auth_token', newToken)
+        const access_token = newToken
 
         refreshQueue.forEach((cb) => cb(access_token))
         refreshQueue = []

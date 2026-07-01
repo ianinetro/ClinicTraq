@@ -46,9 +46,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   login: async (email, password) => {
     const res = await api.post('/auth/login', { email, password })
-    const { access_token, refresh_token, user } = res.data
-    localStorage.setItem('auth_token', access_token)
-    localStorage.setItem('refresh_token', refresh_token)
+    // camelizeKeys transform runs on all responses, so snake_case fields become camelCase
+    const { accessToken, refreshToken, access_token, refresh_token, user } = res.data
+    const tok = accessToken ?? access_token
+    const ref = refreshToken ?? refresh_token
+    localStorage.setItem('auth_token', tok)
+    localStorage.setItem('refresh_token', ref)
     localStorage.setItem('auth_user', JSON.stringify(user))
     if (user.clinicId) localStorage.setItem('active_clinic_id', user.clinicId)
     set({ user, isAuthenticated: true, activeClinicId: user.clinicId ?? null })
