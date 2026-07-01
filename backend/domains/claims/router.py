@@ -11,6 +11,8 @@ from sqlalchemy.orm import selectinload
 
 from database import get_db
 from domains.claims.models import Claim, ClaimLine, ClaimStatusEvent, ClaimSubmission, ClaimValidationIssue
+from domains.master_data.models import Payer
+from domains.patients.models import Patient
 from domains.claims.schemas import (
     BatchSubmitRequest,
     ClaimCreate,
@@ -67,7 +69,29 @@ async def list_claims(
         stmt = stmt.where(Claim.payer_id == payer_id)
     stmt = stmt.offset(offset).limit(limit).order_by(Claim.created_at.desc())
     result = await db.execute(stmt)
-    return result.scalars().all()
+    claims = result.scalars().all()
+
+    # Collect unique payer and patient IDs to fetch in bulk
+    payer_ids = {c.payer_id for c in claims if c.payer_id}
+    patient_ids = {c.patient_id for c in claims if c.patient_id}
+
+    payer_map: dict = {}
+    if payer_ids:
+        payer_result = await db.execute(select(Payer).where(Payer.id.in_(payer_ids)))
+        payer_map = {p.id: p.name for p in payer_result.scalars().all()}
+
+    patient_map: dict = {}
+    if patient_ids:
+        patient_result = await db.execute(select(Patient).where(Patient.id.in_(patient_ids)))
+        patient_map = {p.id: f"{p.first_name} {p.last_name}" for p in patient_result.scalars().all()}
+
+    responses = []
+    for claim in claims:
+        resp = ClaimResponse.model_validate(claim)
+        resp.payer_name = payer_map.get(claim.payer_id) if claim.payer_id else None
+        resp.patient_name = patient_map.get(claim.patient_id) if claim.patient_id else None
+        responses.append(resp)
+    return responses
 
 
 @router.post("/claims", response_model=ClaimResponse, status_code=status.HTTP_201_CREATED)

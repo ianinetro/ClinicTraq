@@ -34,8 +34,16 @@ export function PaymentsPage() {
         const { apiClient } = await import('../../services/api')
         await apiClient.post('/payments/era/upload', { file_name: file.name, raw_content: rawContent })
         alert(`ERA file "${file.name}" uploaded successfully. Review the ERA Files tab.`)
-      } catch {
-        alert('ERA upload failed. Please check the file format and try again.')
+      } catch (err: unknown) {
+        const axiosErr = err as { response?: { data?: { detail?: string; message?: string } }; message?: string }
+        const detail = axiosErr?.response?.data?.detail ?? axiosErr?.response?.data?.message ?? axiosErr?.message
+        const reasons = [
+          detail,
+          'Accepted formats: .835, .edi, .txt',
+          'File must be a valid X12 835 EDI document',
+          'If the file is correct, the payer may not be configured — check Settings → Payers',
+        ].filter(Boolean).join('\n\n')
+        alert(`ERA upload failed.\n\n${reasons}`)
       } finally {
         setEraUploading(false)
       }

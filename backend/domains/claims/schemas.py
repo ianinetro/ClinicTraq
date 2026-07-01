@@ -71,6 +71,8 @@ class ClaimResponse(BaseModel):
     visit_id: Optional[uuid.UUID]
     provider_id: Optional[uuid.UUID]
     payer_id: Optional[uuid.UUID]
+    payer_name: Optional[str] = None
+    patient_name: Optional[str] = None
     claim_type: str
     date_of_service: Optional[date]
     admit_date: Optional[date]

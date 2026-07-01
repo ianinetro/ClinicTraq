@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 import { format } from 'date-fns'
 import { PageHeader } from '../../components/shell/PageHeader'
 import { Table, type ColumnDef } from '../../components/ui/Table'
@@ -14,13 +14,14 @@ export function PatientsPage() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [statusFilter, setStatusFilter] = useState('')
+
+  const enabled = search.trim().length >= 2
 
   const { data, isLoading, error } = usePatients({
     search: search || undefined,
-    status: statusFilter || undefined,
     page,
     pageSize: 25,
+    enabled,
   })
 
   const columns: ColumnDef<Patient>[] = [
@@ -29,28 +30,28 @@ export function PatientsPage() {
       header: 'Account #',
       width: '110px',
       cell: (row) => (
-        <span className="text-sm font-mono text-[#676687]">{row.accountNumber}</span>
+        <span className="text-sm font-mono text-[--bb-text-secondary]">{row.accountNumber}</span>
       ),
     },
     {
       id: 'name',
       header: 'Name',
       cell: (row) => (
-        <span className="text-sm font-medium text-[#12122C]">{row.firstName} {row.lastName}</span>
+        <span className="text-sm font-medium text-[--bb-text-primary]">{row.firstName} {row.lastName}</span>
       ),
     },
     {
       id: 'dob',
       header: 'Date of Birth',
       cell: (row) => (
-        <span className="text-sm tabular-nums text-[#676687]">{row.dateOfBirth ? format(new Date(row.dateOfBirth), 'MM/dd/yyyy') : '—'}</span>
+        <span className="text-sm tabular-nums text-[--bb-text-secondary]">{row.dateOfBirth ? format(new Date(row.dateOfBirth), 'MM/dd/yyyy') : '—'}</span>
       ),
     },
     {
       id: 'insurance',
       header: 'Insurance',
       cell: (_row) => (
-        <span className="text-sm text-[#676687]">—</span>
+        <span className="text-sm text-[--bb-text-secondary]">—</span>
       ),
     },
     {
@@ -86,40 +87,58 @@ export function PatientsPage() {
         }}
       />
 
-      <Table<Patient>
-        columns={columns}
-        data={data?.items ?? []}
-        loading={isLoading}
-        error={error ? 'Failed to load patients.' : undefined}
-        total={data?.total ?? 0}
-        page={page}
-        pageSize={25}
-        onPageChange={setPage}
-        onRowClick={(row) => navigate(`/patients/${row.id}`)}
-        getRowId={(row) => row.id}
-        emptyTitle="No patients found"
-        emptyDescription="Try adjusting your search or filters."
-        toolbar={
-          <div className="flex items-center gap-3 w-full">
-            <SearchInput
-              value={search}
-              onChange={(v) => { setSearch(v); setPage(1) }}
-              placeholder="Search patients…"
-              className="w-72"
-            />
-            <select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
-              className="h-9 border border-[#BABACE] rounded-md text-sm px-2 text-[#12122C] bg-white outline-none focus:border-[#3F4CFF]"
-            >
-              <option value="">All Statuses</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="archived">Archived</option>
-            </select>
+      {!enabled ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-5">
+          <div className="flex items-center justify-center w-16 h-16 rounded-full bg-[--bb-surface-app]">
+            <Search size={28} className="text-[--bb-text-secondary]" />
           </div>
-        }
-      />
+          <div className="text-center space-y-1">
+            <h2 className="text-lg font-semibold text-[--bb-text-primary]">Find a Patient</h2>
+            <p className="text-sm text-[--bb-text-secondary]">Search by name, date of birth, MRN, or account number</p>
+          </div>
+          <SearchInput
+            value={search}
+            onChange={(v) => { setSearch(v); setPage(1) }}
+            placeholder="Search patients…"
+            className="w-full max-w-md"
+          />
+          <Button
+            variant="primary"
+            leftIcon={<Plus size={15} />}
+            onClick={() => navigate('/patients/new')}
+          >
+            New Patient
+          </Button>
+        </div>
+      ) : (
+        <Table<Patient>
+          columns={columns}
+          data={data?.items ?? []}
+          loading={isLoading}
+          error={error ? 'Failed to load patients.' : undefined}
+          total={data?.total ?? 0}
+          page={page}
+          pageSize={25}
+          onPageChange={setPage}
+          onRowClick={(row) => navigate(`/patients/${row.id}`)}
+          getRowId={(row) => row.id}
+          emptyTitle={`No patients found for '${search}'`}
+          emptyDescription="Try a different name, DOB, MRN, or account number."
+          toolbar={
+            <div className="flex items-center gap-3 w-full">
+              <SearchInput
+                value={search}
+                onChange={(v) => { setSearch(v); setPage(1) }}
+                placeholder="Search patients…"
+                className="w-72"
+              />
+              {data?.total != null && (
+                <span className="text-sm text-[--bb-text-secondary]">{data.total} result{data.total !== 1 ? 's' : ''}</span>
+              )}
+            </div>
+          }
+        />
+      )}
     </div>
   )
 }

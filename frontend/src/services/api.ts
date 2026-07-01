@@ -3,6 +3,20 @@ import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosError } f
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? '/api/v1'
 
+function camelCase(str: string): string {
+  return str.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
+}
+
+function camelizeKeys(obj: unknown): unknown {
+  if (Array.isArray(obj)) return obj.map(camelizeKeys)
+  if (obj !== null && typeof obj === 'object') {
+    return Object.fromEntries(
+      Object.entries(obj as Record<string, unknown>).map(([k, v]) => [camelCase(k), camelizeKeys(v)])
+    )
+  }
+  return obj
+}
+
 export const apiClient: AxiosInstance = axios.create({
   baseURL: BASE_URL,
   headers: {
@@ -22,7 +36,12 @@ let isRefreshing = false
 let refreshQueue: Array<(token: string) => void> = []
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (response.data && typeof response.data === 'object') {
+      response.data = camelizeKeys(response.data)
+    }
+    return response
+  },
   async (error: AxiosError) => {
     const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean }
 

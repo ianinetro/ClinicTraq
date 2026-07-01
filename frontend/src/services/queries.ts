@@ -73,6 +73,7 @@ interface PatientsParams {
   status?: string
   page?: number
   pageSize?: number
+  enabled?: boolean
 }
 
 interface PaginatedResponse<T> {
@@ -93,6 +94,7 @@ export function usePatients(params: PatientsParams = {}) {
   return useQuery<PaginatedResponse<Patient>>({
     queryKey: ['patients', params],
     queryFn: () => apiFetchList(`/api/v1/patients?${qs}`, page, pageSize),
+    enabled: params.enabled !== false,
   })
 }
 
