@@ -8,6 +8,8 @@ import { OfficesSettings } from './OfficesSettings'
 import { FacilitiesSettings } from './FacilitiesSettings'
 import { PayersSettings } from './PayersSettings'
 import { ProvidersSettings } from './ProvidersSettings'
+import { CPTCodesSettings } from './CPTCodesSettings'
+import { ICDCodesSettings } from './ICDCodesSettings'
 
 interface SettingsSection {
   id: string
@@ -108,8 +110,8 @@ export function SettingsPage() {
           <Route path="providers/referring" element={<ProvidersSettings />} />
           <Route path="facilities" element={<FacilitiesSettings />} />
           <Route path="payers" element={<PayersSettings />} />
-          <Route path="codes/cpt" element={<GenericSettingsSection title="CPT Codes" />} />
-          <Route path="codes/icd" element={<GenericSettingsSection title="Diagnosis Codes" />} />
+          <Route path="codes/cpt" element={<CPTCodesSettings />} />
+          <Route path="codes/icd" element={<ICDCodesSettings />} />
           <Route path="codes/accounts" element={<GenericSettingsSection title="Chart of Accounts" />} />
           <Route path="users" element={<UsersSettings />} />
           <Route path="billing/tfl" element={<TFLSettings />} />
