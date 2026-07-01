@@ -1,57 +1,82 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
-
-// ─── Note ─────────────────────────────────────────────────────────────────────
-// Stored locally — sync to billing system manually.
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { apiClient } from '../../services/api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type AccountType = 'revenue' | 'expense' | 'asset' | 'liability'
+type AccountType = 'income' | 'expense' | 'asset' | 'liability'
 
 interface COAAccount {
   id: string
-  code: string
+  accountNumber: string
   name: string
-  account_type: AccountType
-  notes?: string
+  accountType: AccountType
+  parentId?: string | null
 }
 
-type FormData = Omit<COAAccount, 'id'>
+type FormData = {
+  accountNumber: string
+  name: string
+  accountType: AccountType
+}
 
 const EMPTY_FORM: FormData = {
-  code: '',
+  accountNumber: '',
   name: '',
-  account_type: 'revenue',
-  notes: '',
+  accountType: 'income',
 }
 
 const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
-  revenue: 'Revenue',
+  income: 'Income',
   expense: 'Expense',
   asset: 'Asset',
   liability: 'Liability',
 }
 
 const TYPE_BADGE_STYLES: Record<AccountType, string> = {
-  revenue: 'bg-[--bb-status-success]/10 text-[--bb-status-success]',
+  income: 'bg-[--bb-status-success]/10 text-[--bb-status-success]',
   expense: 'bg-[--bb-status-danger]/10 text-[--bb-status-danger]',
   asset: 'bg-[--bb-brand-blue]/10 text-[--bb-brand-blue]',
   liability: 'bg-[--bb-status-warning]/10 text-[--bb-status-warning]',
 }
 
-const LS_KEY = 'ct_coa_accounts'
+// ─── API helpers ──────────────────────────────────────────────────────────────
 
-function loadAccounts(): COAAccount[] {
-  try {
-    const raw = localStorage.getItem(LS_KEY)
-    return raw ? (JSON.parse(raw) as COAAccount[]) : []
-  } catch {
-    return []
-  }
+async function fetchAccounts(): Promise<COAAccount[]> {
+  const res = await apiClient.get('/chart-accounts')
+  return res.data
 }
 
-function saveAccounts(accounts: COAAccount[]): void {
-  localStorage.setItem(LS_KEY, JSON.stringify(accounts))
+async function createAccount(data: FormData): Promise<COAAccount> {
+  const res = await apiClient.post('/chart-accounts', data)
+  return res.data
+}
+
+async function updateAccount({ id, data }: { id: string; data: Partial<FormData> }): Promise<COAAccount> {
+  const res = await apiClient.patch(`/chart-accounts/${id}`, data)
+  return res.data
+}
+
+async function deleteAccount(id: string): Promise<void> {
+  await apiClient.delete(`/chart-accounts/${id}`)
+}
+
+// ─── Loading Skeleton ─────────────────────────────────────────────────────────
+
+function TableSkeleton() {
+  return (
+    <div className="divide-y divide-[--bb-border]">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-4 px-4 py-3 animate-pulse">
+          <div className="h-4 w-16 rounded bg-[--bb-border]" />
+          <div className="h-4 w-48 rounded bg-[--bb-border]" />
+          <div className="h-5 w-20 rounded-full bg-[--bb-border]" />
+          <div className="ml-auto h-4 w-12 rounded bg-[--bb-border]" />
+        </div>
+      ))}
+    </div>
+  )
 }
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
@@ -59,12 +84,13 @@ function saveAccounts(accounts: COAAccount[]): void {
 interface ModalProps {
   title: string
   form: FormData
+  saving: boolean
   onChange: (f: FormData) => void
   onSave: () => void
   onClose: () => void
 }
 
-function AccountModal({ title, form, onChange, onSave, onClose }: ModalProps) {
+function AccountModal({ title, form, saving, onChange, onSave, onClose }: ModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
@@ -83,15 +109,15 @@ function AccountModal({ title, form, onChange, onSave, onClose }: ModalProps) {
         </h2>
 
         <div className="space-y-4">
-          {/* Code */}
+          {/* Account Number */}
           <div>
             <label className="block text-sm font-medium text-[--bb-text-secondary] mb-1">
-              Code <span className="text-[--bb-status-danger]">*</span>
+              Account # <span className="text-[--bb-status-danger]">*</span>
             </label>
             <input
               className="w-full rounded-lg border border-[--bb-border] bg-[--bb-surface-app] px-3 py-2 text-sm font-mono text-[--bb-text-primary] focus:outline-none focus:ring-2 focus:ring-[--bb-brand-blue]/40"
-              value={form.code}
-              onChange={(e) => onChange({ ...form, code: e.target.value })}
+              value={form.accountNumber}
+              onChange={(e) => onChange({ ...form, accountNumber: e.target.value })}
               placeholder="e.g. 4000"
             />
           </div>
@@ -116,29 +142,16 @@ function AccountModal({ title, form, onChange, onSave, onClose }: ModalProps) {
             </label>
             <select
               className="w-full rounded-lg border border-[--bb-border] bg-[--bb-surface-app] px-3 py-2 text-sm text-[--bb-text-primary] focus:outline-none focus:ring-2 focus:ring-[--bb-brand-blue]/40"
-              value={form.account_type}
+              value={form.accountType}
               onChange={(e) =>
-                onChange({ ...form, account_type: e.target.value as AccountType })
+                onChange({ ...form, accountType: e.target.value as AccountType })
               }
             >
-              <option value="revenue">Revenue</option>
+              <option value="income">Income</option>
               <option value="expense">Expense</option>
               <option value="asset">Asset</option>
               <option value="liability">Liability</option>
             </select>
-          </div>
-
-          {/* Notes */}
-          <div>
-            <label className="block text-sm font-medium text-[--bb-text-secondary] mb-1">
-              Notes
-            </label>
-            <input
-              className="w-full rounded-lg border border-[--bb-border] bg-[--bb-surface-app] px-3 py-2 text-sm text-[--bb-text-primary] focus:outline-none focus:ring-2 focus:ring-[--bb-brand-blue]/40"
-              value={form.notes ?? ''}
-              onChange={(e) => onChange({ ...form, notes: e.target.value })}
-              placeholder="Optional"
-            />
           </div>
         </div>
 
@@ -146,16 +159,17 @@ function AccountModal({ title, form, onChange, onSave, onClose }: ModalProps) {
         <div className="mt-6 flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg text-sm font-medium text-[--bb-text-secondary] border border-[--bb-border] hover:bg-[--bb-surface-app] transition-colors"
+            disabled={saving}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-[--bb-text-secondary] border border-[--bb-border] hover:bg-[--bb-surface-app] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Cancel
           </button>
           <button
             onClick={onSave}
-            disabled={!form.code.trim() || !form.name.trim()}
+            disabled={!form.accountNumber.trim() || !form.name.trim() || saving}
             className="px-4 py-2 rounded-lg text-sm font-medium bg-[--bb-brand-blue] text-white hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Save Account
+            {saving ? 'Saving…' : 'Save Account'}
           </button>
         </div>
       </div>
@@ -166,14 +180,34 @@ function AccountModal({ title, form, onChange, onSave, onClose }: ModalProps) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ChartOfAccountsSettings() {
-  const [accounts, setAccounts] = useState<COAAccount[]>(loadAccounts)
+  const queryClient = useQueryClient()
   const [modal, setModal] = useState<{ mode: 'add' | 'edit'; editing?: COAAccount } | null>(null)
   const [form, setForm] = useState<FormData>(EMPTY_FORM)
   const [deleteTarget, setDeleteTarget] = useState<COAAccount | null>(null)
 
-  useEffect(() => {
-    saveAccounts(accounts)
-  }, [accounts])
+  const { data: accounts = [], isLoading } = useQuery({
+    queryKey: ['chart-accounts'],
+    queryFn: fetchAccounts,
+  })
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['chart-accounts'] })
+
+  const createMutation = useMutation({
+    mutationFn: createAccount,
+    onSuccess: () => { invalidate(); setModal(null) },
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: updateAccount,
+    onSuccess: () => { invalidate(); setModal(null) },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteAccount,
+    onSuccess: () => { invalidate(); setDeleteTarget(null) },
+  })
+
+  const isSaving = createMutation.isPending || updateMutation.isPending
 
   function openAdd() {
     setForm(EMPTY_FORM)
@@ -182,38 +216,20 @@ export default function ChartOfAccountsSettings() {
 
   function openEdit(account: COAAccount) {
     setForm({
-      code: account.code,
+      accountNumber: account.accountNumber,
       name: account.name,
-      account_type: account.account_type,
-      notes: account.notes ?? '',
+      accountType: account.accountType,
     })
     setModal({ mode: 'edit', editing: account })
   }
 
   function handleSave() {
-    if (!form.code.trim() || !form.name.trim()) return
+    if (!form.accountNumber.trim() || !form.name.trim()) return
     if (modal?.mode === 'add') {
-      const next: COAAccount = {
-        id: crypto.randomUUID(),
-        ...form,
-        notes: form.notes?.trim() || undefined,
-      }
-      setAccounts((prev) => [...prev, next])
+      createMutation.mutate(form)
     } else if (modal?.mode === 'edit' && modal.editing) {
-      setAccounts((prev) =>
-        prev.map((a) =>
-          a.id === modal.editing!.id
-            ? { ...a, ...form, notes: form.notes?.trim() || undefined }
-            : a,
-        ),
-      )
+      updateMutation.mutate({ id: modal.editing.id, data: { name: form.name, accountType: form.accountType } })
     }
-    setModal(null)
-  }
-
-  function handleDelete(account: COAAccount) {
-    setAccounts((prev) => prev.filter((a) => a.id !== account.id))
-    setDeleteTarget(null)
   }
 
   return (
@@ -225,7 +241,7 @@ export default function ChartOfAccountsSettings() {
             Chart of Accounts
           </h1>
           <p className="mt-0.5 text-sm text-[--bb-text-secondary]">
-            Stored locally — sync to billing system manually.
+            Manage your organization's chart of accounts.
           </p>
         </div>
         <button
@@ -239,9 +255,18 @@ export default function ChartOfAccountsSettings() {
 
       {/* Table card */}
       <div className="rounded-xl border border-[--bb-border] bg-[--bb-surface-card] overflow-hidden">
-        {accounts.length === 0 ? (
-          <div className="py-16 text-center text-sm text-[--bb-text-secondary]">
-            No accounts configured yet.
+        {isLoading ? (
+          <TableSkeleton />
+        ) : accounts.length === 0 ? (
+          <div className="py-16 flex flex-col items-center gap-4">
+            <p className="text-sm text-[--bb-text-secondary]">No accounts yet.</p>
+            <button
+              onClick={openAdd}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-[--bb-brand-blue] text-white hover:opacity-90 transition-opacity"
+            >
+              <Plus className="w-4 h-4" />
+              Add Account
+            </button>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -249,16 +274,13 @@ export default function ChartOfAccountsSettings() {
               <thead>
                 <tr className="border-b border-[--bb-border] bg-[--bb-surface-app]">
                   <th className="px-4 py-3 text-left font-medium text-[--bb-text-secondary]">
-                    Code
+                    Account #
                   </th>
                   <th className="px-4 py-3 text-left font-medium text-[--bb-text-secondary]">
-                    Account Name
+                    Name
                   </th>
                   <th className="px-4 py-3 text-left font-medium text-[--bb-text-secondary]">
                     Type
-                  </th>
-                  <th className="px-4 py-3 text-left font-medium text-[--bb-text-secondary]">
-                    Notes
                   </th>
                   <th className="px-4 py-3 text-right font-medium text-[--bb-text-secondary]">
                     Actions
@@ -269,18 +291,15 @@ export default function ChartOfAccountsSettings() {
                 {accounts.map((account) => (
                   <tr key={account.id} className="hover:bg-[--bb-surface-app]/60 transition-colors">
                     <td className="px-4 py-3 font-mono text-[--bb-text-primary]">
-                      {account.code}
+                      {account.accountNumber}
                     </td>
                     <td className="px-4 py-3 text-[--bb-text-primary]">{account.name}</td>
                     <td className="px-4 py-3">
                       <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${TYPE_BADGE_STYLES[account.account_type]}`}
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${TYPE_BADGE_STYLES[account.accountType]}`}
                       >
-                        {ACCOUNT_TYPE_LABELS[account.account_type]}
+                        {ACCOUNT_TYPE_LABELS[account.accountType]}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-[--bb-text-secondary] max-w-xs truncate">
-                      {account.notes || '—'}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
@@ -313,6 +332,7 @@ export default function ChartOfAccountsSettings() {
         <AccountModal
           title={modal.mode === 'add' ? 'Add Account' : 'Edit Account'}
           form={form}
+          saving={isSaving}
           onChange={setForm}
           onSave={handleSave}
           onClose={() => setModal(null)}
@@ -333,22 +353,24 @@ export default function ChartOfAccountsSettings() {
             <p className="text-sm text-[--bb-text-secondary]">
               Are you sure you want to delete{' '}
               <span className="font-medium text-[--bb-text-primary]">
-                {deleteTarget.code} — {deleteTarget.name}
+                {deleteTarget.accountNumber} — {deleteTarget.name}
               </span>
               ? This cannot be undone.
             </p>
             <div className="mt-5 flex justify-end gap-3">
               <button
                 onClick={() => setDeleteTarget(null)}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-[--bb-text-secondary] border border-[--bb-border] hover:bg-[--bb-surface-app] transition-colors"
+                disabled={deleteMutation.isPending}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-[--bb-text-secondary] border border-[--bb-border] hover:bg-[--bb-surface-app] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
-                onClick={() => handleDelete(deleteTarget)}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-[--bb-status-danger] text-white hover:opacity-90 transition-opacity"
+                onClick={() => deleteMutation.mutate(deleteTarget.id)}
+                disabled={deleteMutation.isPending}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-[--bb-status-danger] text-white hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Delete
+                {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
               </button>
             </div>
           </div>

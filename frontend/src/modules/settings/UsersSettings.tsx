@@ -103,7 +103,7 @@ function getRoleColors(role?: string) {
 
 function Avatar({ firstName, lastName, role }: { firstName: string; lastName: string; role?: string }) {
   const colors = getRoleColors(role)
-  const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
+  const initials = `${(firstName ?? '').charAt(0)}${(lastName ?? '').charAt(0)}`.toUpperCase() || '?'
   return (
     <div
       style={{

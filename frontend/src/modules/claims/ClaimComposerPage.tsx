@@ -1027,8 +1027,15 @@ export function ClaimComposerPage() {
       const res = await api.get(`/claims/${id}/cms1500/pdf`, { responseType: 'blob' })
       const url = URL.createObjectURL(res.data)
       window.open(url, '_blank')
-    } catch {
-      setError('PDF generation failed. Please try again.')
+    } catch (err: unknown) {
+      const axErr = err as { response?: { data?: Blob } }
+      if (axErr?.response?.data instanceof Blob) {
+        const text = await axErr.response.data.text()
+        try { const j = JSON.parse(text); setError(`PDF failed: ${j.detail ?? text}`) }
+        catch { setError(`PDF failed: ${text}`) }
+      } else {
+        setError('PDF generation failed. Check that the backend has been deployed with pymupdf installed.')
+      }
     }
   }
 

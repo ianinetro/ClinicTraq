@@ -181,8 +181,15 @@ export function ClaimDetailPage() {
       const res = await api.get(`/claims/${claimId}/cms1500/pdf`, { responseType: 'blob' })
       const url = URL.createObjectURL(res.data)
       window.open(url, '_blank')
-    } catch {
-      alert('PDF generation failed')
+    } catch (err: unknown) {
+      const axErr = err as { response?: { data?: Blob } }
+      if (axErr?.response?.data instanceof Blob) {
+        const text = await axErr.response.data.text()
+        try { const j = JSON.parse(text); alert(`PDF failed: ${j.detail ?? text}`) }
+        catch { alert(`PDF failed: ${text}`) }
+      } else {
+        alert('PDF generation failed. Ensure backend is deployed with pymupdf.')
+      }
     }
   }
 
