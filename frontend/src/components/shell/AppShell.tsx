@@ -4,9 +4,12 @@ import { TopNav } from './TopNav'
 import { SideNav } from './SideNav'
 import { CommandPaletteContext } from '../../hooks/useCommandPalette'
 import { CommandPalette } from '../ui/CommandPalette'
+import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
+import { ShortcutHelpModal } from '../ui/ShortcutHelpModal'
 
 export function AppShell() {
   const [cmdOpen, setCmdOpen] = useState(false)
+  useKeyboardShortcuts()
 
   return (
     <CommandPaletteContext.Provider value={{
@@ -24,6 +27,7 @@ export function AppShell() {
         </div>
       </div>
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />
+      <ShortcutHelpModal />
     </CommandPaletteContext.Provider>
   )
 }

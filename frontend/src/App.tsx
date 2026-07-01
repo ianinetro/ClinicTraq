@@ -35,6 +35,9 @@ const ARDashboardPage = lazy(() =>
 const WorkspaceManagerPage = lazy(() =>
   import('./modules/billing/WorkspaceManagerPage').then(m => ({ default: m.WorkspaceManagerPage }))
 )
+const BillingPage = lazy(() => import('./modules/billing/BillingPage').then(m => ({ default: m.BillingPage })))
+const PatientBalancePage = lazy(() => import('./modules/patients/PatientBalancePage').then(m => ({ default: m.PatientBalancePage })))
+const SecondaryClaimsPage = lazy(() => import('./modules/claims/SecondaryClaimsPage').then(m => ({ default: m.SecondaryClaimsPage })))
 
 const Fallback = () => <div style={{ padding: 40, color: '#9CA3AF', textAlign: 'center' }}>Loading…</div>
 
@@ -95,8 +98,15 @@ export default function App() {
         <Route path="/visits/:id/vitals" element={<VitalsPage />} />
         <Route path="/visits/:id/note" element={<ProviderNotePage />} />
 
-        {/* Billing Workspace Manager */}
+        {/* Billing */}
+        <Route path="/billing" element={<Suspense fallback={<Fallback />}><BillingPage /></Suspense>} />
         <Route path="/billing/workspaces" element={<Suspense fallback={<Fallback />}><WorkspaceManagerPage /></Suspense>} />
+
+        {/* Patient Balances */}
+        <Route path="/patients/balances" element={<Suspense fallback={<Fallback />}><PatientBalancePage /></Suspense>} />
+
+        {/* Secondary Claims */}
+        <Route path="/claims/secondary" element={<Suspense fallback={<Fallback />}><SecondaryClaimsPage /></Suspense>} />
 
         {/* Admin / Settings */}
         <Route path="/settings/*" element={<SettingsPage />} />
