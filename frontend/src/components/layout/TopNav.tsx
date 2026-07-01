@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { Menu, Bell, LogOut, ChevronDown, Building2, CheckCircle2 } from 'lucide-react'
+import { Menu, Bell, LogOut, ChevronDown, Building2, CheckCircle2, Search } from 'lucide-react'
+import { useCommandPalette } from '../../hooks/useCommandPalette'
 import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '../../stores/authStore'
 import { apiClient as api } from '../../services/api'
@@ -11,6 +12,7 @@ interface TopNavProps {
 
 export function TopNav({ onMenuClick, pageTitle }: TopNavProps) {
   const { user, logout, activeClinicId, setActiveClinic } = useAuthStore()
+  const { openPalette } = useCommandPalette()
   const [showDropdown, setShowDropdown] = useState(false)
   const [showClinicPicker, setShowClinicPicker] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
@@ -54,6 +56,21 @@ export function TopNav({ onMenuClick, pageTitle }: TopNavProps) {
         {pageTitle}
       </span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {/* Search / Command Palette trigger */}
+        <button
+          onClick={openPalette}
+          title="Search (Ctrl+K)"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: 'var(--bb-surface-app)', border: '1px solid var(--bb-border)',
+            borderRadius: 8, padding: '5px 12px', cursor: 'pointer',
+            color: 'var(--bb-text-secondary)', fontSize: 13,
+          }}
+        >
+          <Search size={14} />
+          <span style={{ minWidth: 120 }}>Search…</span>
+          <kbd style={{ fontSize: 11, background: 'var(--bb-border)', border: '1px solid var(--bb-border)', borderRadius: 4, padding: '1px 5px', fontFamily: 'monospace', color: 'var(--bb-text-secondary)' }}>⌘K</kbd>
+        </button>
         {/* Clinic switcher — only visible to billing/mgmt users */}
         {canSwitchClinic && (
           <div style={{ position: 'relative' }}>

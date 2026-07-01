@@ -4,6 +4,10 @@ import { Outlet, useLocation } from 'react-router-dom'
 import { SideNav } from './SideNav'
 import { TopNav } from './TopNav'
 import { ToastProvider } from '../ui/Toast'
+import { CommandPaletteContext } from '../../hooks/useCommandPalette'
+import { CommandPalette } from '../ui/CommandPalette'
+import { ShortcutHelpModal } from '../ui/ShortcutHelpModal'
+import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 
 class PageErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
   constructor(props: { children: ReactNode }) {
@@ -43,28 +47,39 @@ const pageTitles: Record<string, string> = {
   '/settings': 'Settings',
 }
 
+function KeyboardShortcutsMount() {
+  useKeyboardShortcuts()
+  return null
+}
+
 export function AppShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [cmdOpen, setCmdOpen] = useState(false)
   const location = useLocation()
   const title = pageTitles[location.pathname] || 'ClinicTraq'
 
   return (
-    <ToastProvider>
-      <div style={{ display: 'flex', minHeight: '100vh' }}>
-        <SideNav isOpen={!sidebarCollapsed} onClose={() => setSidebarCollapsed(false)} />
-        <div style={{ flex: 1, marginLeft: sidebarCollapsed ? 0 : 240, transition: 'margin-left 0.25s', display: 'flex', flexDirection: 'column' }}>
-          <TopNav onMenuClick={() => setSidebarCollapsed(v => !v)} pageTitle={title} />
-          <main style={{
-            flex: 1,
-            background: 'var(--bb-surface-app)',
-            minHeight: 'calc(100vh - 56px)',
-          }}>
-            <PageErrorBoundary>
-              <Outlet />
-            </PageErrorBoundary>
-          </main>
+    <CommandPaletteContext.Provider value={{ open: cmdOpen, openPalette: () => setCmdOpen(true), closePalette: () => setCmdOpen(false) }}>
+      <ToastProvider>
+        <KeyboardShortcutsMount />
+        <div style={{ display: 'flex', minHeight: '100vh' }}>
+          <SideNav isOpen={!sidebarCollapsed} onClose={() => setSidebarCollapsed(false)} />
+          <div style={{ flex: 1, marginLeft: sidebarCollapsed ? 0 : 240, transition: 'margin-left 0.25s', display: 'flex', flexDirection: 'column' }}>
+            <TopNav onMenuClick={() => setSidebarCollapsed(v => !v)} pageTitle={title} />
+            <main style={{
+              flex: 1,
+              background: 'var(--bb-surface-app)',
+              minHeight: 'calc(100vh - 56px)',
+            }}>
+              <PageErrorBoundary>
+                <Outlet />
+              </PageErrorBoundary>
+            </main>
+          </div>
         </div>
-      </div>
-    </ToastProvider>
+        <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />
+        <ShortcutHelpModal />
+      </ToastProvider>
+    </CommandPaletteContext.Provider>
   )
 }
