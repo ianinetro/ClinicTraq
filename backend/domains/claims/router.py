@@ -474,107 +474,140 @@ async def download_cms1500_pdf(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_permission("claims:read")),
 ):
-    """Render CMS-1500 form as PDF and return as attachment."""
-    import os
+    """Fill CMS-1500 AcroForm PDF template and return as attachment."""
+    import os, copy
     from fastapi.responses import Response
-    from jinja2 import Environment, FileSystemLoader
     from domains.patients.models import Patient, PatientInsurance
     from domains.master_data.models import Provider, Payer, BillingProvider
 
     try:
-        from weasyprint import HTML as WeasyHTML
+        import fitz  # PyMuPDF
     except ImportError:
-        raise HTTPException(status_code=500, detail="PDF generation library not available on this server.")
+        raise HTTPException(status_code=500, detail="pymupdf not installed on this server.")
 
     claim = await _load_claim(db, claim_id, ctx.tenant_id)
-
     patient = (await db.execute(select(Patient).where(Patient.id == claim.patient_id))).scalar_one_or_none()
-
     prov = None
     if claim.provider_id:
         prov = (await db.execute(select(Provider).where(Provider.id == claim.provider_id))).scalar_one_or_none()
-
     bp = None
     if claim.billing_provider_id:
         bp = (await db.execute(select(BillingProvider).where(BillingProvider.id == claim.billing_provider_id))).scalar_one_or_none()
-
     payer = None
     if claim.payer_id:
         payer = (await db.execute(select(Payer).where(Payer.id == claim.payer_id))).scalar_one_or_none()
-
     ins = None
     if claim.patient_insurance_id:
         ins = (await db.execute(select(PatientInsurance).where(PatientInsurance.id == claim.patient_insurance_id))).scalar_one_or_none()
 
+    # ── helpers ──────────────────────────────────────────────────────────────
+    def fmt_date(d, part):
+        if not d:
+            return ""
+        try:
+            from datetime import date as _date
+            if isinstance(d, str):
+                from datetime import datetime
+                d = datetime.strptime(d, "%Y-%m-%d").date()
+            return {"mm": f"{d.month:02d}", "dd": f"{d.day:02d}", "yy": str(d.year)}[part]
+        except Exception:
+            return ""
+
+    dob = getattr(patient, "dob", None) if patient else None
+    dos = claim.date_of_service
+
     diagnosis_codes = [d.get("icd_code", "") for d in (claim.diagnoses_snapshot or [])]
-    service_lines = [
-        {
-            "dos_from": str(claim.date_of_service) if claim.date_of_service else "",
-            "dos_to": str(claim.date_of_service) if claim.date_of_service else "",
-            "pos": l.place_of_service_code or "11",
-            "cpt_code": l.cpt_code,
-            "modifiers": l.modifiers or [],
-            "diagnosis_pointers": l.diagnosis_pointers or [1],
-            "charge_amount": float(l.charge_amount or 0),
-            "units": l.units,
-        }
-        for l in claim.lines
-    ]
 
-    dob_str = ""
-    if patient:
-        dob_val = getattr(patient, "dob", None)
-        if dob_val:
-            dob_str = dob_val.strftime("%m/%d/%Y")
+    # Pointer letter map: 1→A, 2→B … 12→L
+    ptr_letters = {i+1: chr(65+i) for i in range(12)}
 
-    templates_dir = os.path.join(os.path.dirname(__file__), "..", "..", "templates")
-    templates_dir = os.path.abspath(templates_dir)
-    jinja_env = Environment(loader=FileSystemLoader(templates_dir))
-    template = jinja_env.get_template("cms1500.html")
+    # ── build field map ───────────────────────────────────────────────────────
+    fields: dict[str, str] = {
+        # Patient
+        "pt_name":     f"{patient.last_name}, {patient.first_name}" if patient else "",
+        "birth_mm":    fmt_date(dob, "mm"),
+        "birth_dd":    fmt_date(dob, "dd"),
+        "birth_yy":    fmt_date(dob, "yy"),
+        "pt_street":   getattr(patient, "address_line1", "") or "",
+        "pt_city":     getattr(patient, "city", "") or "",
+        "pt_state":    getattr(patient, "state", "") or "",
+        "pt_zip":      getattr(patient, "zip", "") or "",
+        "pt_AreaCode": (getattr(patient, "phone_home", "") or getattr(patient, "phone_cell", "") or "")[:3],
+        "pt_phone":    (getattr(patient, "phone_home", "") or getattr(patient, "phone_cell", "") or "")[3:],
+        "pt_account":  patient.account_number if patient else "",
+        "pt_signature": "Signature on File",
+        "pt_date":      fmt_date(dos, "mm") + "/" + fmt_date(dos, "dd") + "/" + fmt_date(dos, "yy"),
+        # Insurance / insured
+        "insurance_name":          payer.name if payer else "",
+        "insurance_id":            ins.subscriber_id if ins else "",
+        "ins_name":                ins.insured_name if ins and getattr(ins, "insured_name", None) else (f"{patient.last_name}, {patient.first_name}" if patient else ""),
+        "ins_policy":              ins.group_number if ins else "",
+        "ins_signature":           "Signature on File",
+        # Diagnosis codes A–L
+        **{f"diagnosis{i+1}": (diagnosis_codes[i] if i < len(diagnosis_codes) else "") for i in range(12)},
+        # Provider / facility
+        "ref_physician":   "",
+        "id_physician":    "",
+        "doc_name":        f"{prov.first_name} {prov.last_name}" if prov else "",
+        "pin1":            prov.npi if prov else "",
+        "physician_signature": "Signature on File",
+        "physician_date":  fmt_date(dos, "mm") + "/" + fmt_date(dos, "dd") + "/" + fmt_date(dos, "yy"),
+        "fac_name":        bp.name if bp else "",
+        "fac_street":      getattr(bp, "address_line1", "") or "" if bp else "",
+        "fac_location":    (f"{getattr(bp,'city','')}, {getattr(bp,'state','')} {getattr(bp,'zip','')}").strip(", ") if bp else "",
+        "doc_name":        bp.name if bp else (f"{prov.first_name} {prov.last_name}" if prov else ""),
+        "doc_street":      getattr(bp, "address_line1", "") or "" if bp else "",
+        "doc_location":    (f"{getattr(bp,'city','')}, {getattr(bp,'state','')} {getattr(bp,'zip','')}").strip(", ") if bp else "",
+        "pin":             bp.npi if bp else (prov.npi if prov else ""),
+        "grp":             bp.group_npi if bp and getattr(bp, "group_npi", None) else "",
+        "tax_id":          bp.tax_id if bp and getattr(bp, "tax_id", None) else "",
+        # Totals
+        "t_charge":  f"{float(claim.total_charge or 0):.2f}",
+        "amt_paid":  f"{float(claim.total_paid or 0):.2f}",
+        # Prior auth
+        "prior_auth": claim.authorization_number or "",
+    }
 
-    rendered_html = template.render(
-        claim_number=claim.claim_number or str(claim.id),
-        patient_name=f"{patient.last_name}, {patient.first_name}" if patient else "",
-        patient_account_number=patient.account_number if patient else "",
-        patient_address=patient.address_line1 if patient else "",
-        patient_city=patient.city if patient else "",
-        patient_state=patient.state if patient else "",
-        patient_zip=patient.zip if patient else "",
-        patient_phone=patient.phone_home or patient.phone_cell or "" if patient else "",
-        dob=dob_str,
-        sex=getattr(patient, "sex", "") if patient else "",
-        insured_id=ins.subscriber_id if ins else "",
-        group_number=ins.group_number if ins else "",
-        payer_name=payer.name if payer else "",
-        authorization_number=claim.authorization_number or "",
-        date_of_service=str(claim.date_of_service) if claim.date_of_service else "",
-        place_of_service="11",
-        diagnosis_codes=diagnosis_codes,
-        service_lines=service_lines,
-        total_charge=float(claim.total_charge or 0),
-        total_paid=float(claim.total_paid or 0),
-        provider_name=f"{prov.first_name} {prov.last_name}" if prov else "",
-        provider_npi=prov.npi if prov else "",
-        rendering_provider_npi=prov.npi if prov else "",
-        billing_provider_name=bp.name if bp else (f"{prov.first_name} {prov.last_name}" if prov else ""),
-        billing_provider_npi=bp.npi if bp else (prov.npi if prov else ""),
-        billing_address=bp.address_line1 if bp else "",
-        billing_tax_id=bp.tax_id if bp else "",
-        relationship_to_insured=ins.relationship_to_insured or "Self" if ins else "Self",
-        insured_name=ins.insured_name if ins and hasattr(ins, 'insured_name') and ins.insured_name else (f"{patient.last_name}, {patient.first_name}" if patient else ""),
-        referring_provider="",
-        referring_npi="",
-        has_secondary="NO",
-        employment_related="NO",
-        auto_accident="NO",
-        other_accident="NO",
-        signature_date=str(claim.date_of_service) if claim.date_of_service else "",
-    )
+    # ── service lines (up to 6) ───────────────────────────────────────────────
+    for i, line in enumerate(claim.lines[:6], start=1):
+        n = str(i)
+        fields[f"sv{n}_mm_from"] = fmt_date(dos, "mm")
+        fields[f"sv{n}_dd_from"] = fmt_date(dos, "dd")
+        fields[f"sv{n}_yy_from"] = fmt_date(dos, "yy")
+        fields[f"sv{n}_mm_end"]  = fmt_date(dos, "mm")
+        fields[f"sv{n}_dd_end"]  = fmt_date(dos, "dd")
+        fields[f"sv{n}_yy_end"]  = fmt_date(dos, "yy")
+        fields[f"place{n}"]  = line.place_of_service_code or "11"
+        fields[f"cpt{n}"]    = line.cpt_code or ""
+        mods = (line.modifiers or []) + ["", "", "", ""]
+        fields[f"mod{n}"]    = mods[0]
+        fields[f"mod{n}a"]   = mods[1]
+        fields[f"mod{n}b"]   = mods[2]
+        fields[f"mod{n}c"]   = mods[3]
+        ptrs = line.diagnosis_pointers or [1]
+        fields[f"diag{n}"]   = "".join(ptr_letters.get(p, "") for p in ptrs[:4])
+        fields[f"ch{n}"]     = f"{float(line.charge_amount or 0):.2f}"
+        fields[f"day{n}"]    = str(line.units or 1)
+        fields[f"local{n}"]  = prov.npi if prov else ""
 
-    try:
-        pdf_bytes = WeasyHTML(string=rendered_html).write_pdf()
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"PDF rendering failed: {exc}")
+    # ── fill PDF ──────────────────────────────────────────────────────────────
+    template_path = os.path.join(os.path.dirname(__file__), "..", "..", "templates", "cms1500_template.pdf")
+    template_path = os.path.abspath(template_path)
+    if not os.path.exists(template_path):
+        raise HTTPException(status_code=500, detail="CMS-1500 template PDF not found on server.")
+
+    doc = fitz.open(template_path)
+    for page in doc:
+        for widget in page.widgets():
+            name = widget.field_name
+            if name in fields:
+                if widget.field_type_string == "Text":
+                    widget.field_value = fields[name]
+                    widget.update()
+    doc.bake()  # flatten form fields
+    pdf_bytes = doc.tobytes(deflate=True)
+    doc.close()
+
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
