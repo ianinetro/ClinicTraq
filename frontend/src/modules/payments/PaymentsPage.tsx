@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
-import { Eye, DollarSign } from 'lucide-react'
-import { PageHeader } from '../../components/shell/PageHeader'
+import { Eye, DollarSign, Upload } from 'lucide-react'
 import { PostPaymentModal } from './PostPaymentModal'
 import { Table, type ColumnDef } from '../../components/ui/Table'
 import { Button } from '../../components/ui/Button'
@@ -191,86 +190,109 @@ export function PaymentsPage() {
   ]
 
   return (
-    <div className="p-4 space-y-3">
-      <PageHeader
-        title="Payments"
-        description="Track insurance and patient payments, import ERA files"
-        primaryAction={{
-          label: 'Post Payment',
-          icon: <DollarSign size={15} />,
-          onClick: () => setShowPostPayment(true),
-        }}
-        secondaryAction={{
-          label: eraUploading ? 'Uploading…' : 'Import ERA',
-          onClick: handleERAImport,
-        }}
-      />
+    <Tabs defaultTab="all">
+      <div style={{ minHeight: '100vh', background: 'var(--bb-surface-app)' }}>
+        {/* Sticky white header card */}
+        <div style={{ background: 'var(--bb-surface-card)', borderBottom: '1px solid var(--bb-border)', padding: '28px 32px 0' }}>
+          <div style={{ maxWidth: 1400, margin: '0 auto' }}>
+            {/* Title row */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div>
+                <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--bb-text-primary)', margin: 0 }}>Payments</h1>
+                <p style={{ fontSize: 13, color: 'var(--bb-text-secondary)', marginTop: 4 }}>Track insurance and patient payments, import ERA files</p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  leftIcon={<Upload size={13} />}
+                  onClick={handleERAImport}
+                  disabled={eraUploading}
+                >
+                  {eraUploading ? 'Uploading…' : 'Import ERA'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  leftIcon={<DollarSign size={15} />}
+                  onClick={() => setShowPostPayment(true)}
+                >
+                  Post Payment
+                </Button>
+              </div>
+            </div>
+            {/* Tab strip flush to bottom of header */}
+            <TabList>
+              <Tab id="all">All Payments</Tab>
+              <Tab id="era">ERA Files</Tab>
+              <Tab id="unapplied">Unapplied</Tab>
+            </TabList>
+          </div>
+        </div>
 
-      <Tabs defaultTab="all">
-        <TabList>
-          <Tab id="all">All Payments</Tab>
-          <Tab id="era">ERA Files</Tab>
-          <Tab id="unapplied">Unapplied</Tab>
-        </TabList>
-
-        <TabPanel id="all" className="pt-4">
-          <Table<Payment>
-            columns={paymentColumns}
-            data={paymentsData?.items ?? []}
-            loading={paymentsLoading}
-            total={paymentsData?.total ?? 0}
-            page={page}
-            pageSize={25}
-            onPageChange={setPage}
-            getRowId={(row) => row.id}
-            emptyTitle="No payments found"
-            emptyDescription="Payment records will appear here once posted."
-            toolbar={
-              <SearchInput
-                value={search}
-                onChange={(v) => { setSearch(v); setPage(1) }}
-                placeholder="Search payments…"
-                className="w-72"
+        {/* Content area */}
+        <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 32px' }}>
+          <div style={{ background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+            <TabPanel id="all">
+              <Table<Payment>
+                columns={paymentColumns}
+                data={paymentsData?.items ?? []}
+                loading={paymentsLoading}
+                total={paymentsData?.total ?? 0}
+                page={page}
+                pageSize={25}
+                onPageChange={setPage}
+                getRowId={(row) => row.id}
+                emptyTitle="No payments found"
+                emptyDescription="Payment records will appear here once posted."
+                toolbar={
+                  <SearchInput
+                    value={search}
+                    onChange={(v) => { setSearch(v); setPage(1) }}
+                    placeholder="Search payments…"
+                    className="w-72"
+                  />
+                }
               />
-            }
-          />
-        </TabPanel>
+            </TabPanel>
 
-        <TabPanel id="era" className="pt-4">
-          <Table<ERAFile>
-            columns={eraColumns}
-            data={eraData?.items ?? []}
-            loading={eraLoading}
-            total={eraData?.total ?? 0}
-            page={eraPage}
-            pageSize={25}
-            onPageChange={setEraPage}
-            getRowId={(row) => row.id}
-            emptyTitle="No ERA files imported"
-            emptyDescription="Import an ERA file to start posting payments."
-            emptyAction={{ label: 'Import ERA', onClick: handleERAImport }}
-          />
-        </TabPanel>
+            <TabPanel id="era">
+              <Table<ERAFile>
+                columns={eraColumns}
+                data={eraData?.items ?? []}
+                loading={eraLoading}
+                total={eraData?.total ?? 0}
+                page={eraPage}
+                pageSize={25}
+                onPageChange={setEraPage}
+                getRowId={(row) => row.id}
+                emptyTitle="No ERA files imported"
+                emptyDescription="Import an ERA file to start posting payments."
+                emptyAction={{ label: 'Import ERA', onClick: handleERAImport }}
+              />
+            </TabPanel>
 
-        <TabPanel id="unapplied" className="pt-4">
-          <Table<Payment>
-            columns={paymentColumns}
-            data={(paymentsData?.items ?? [] as Payment[]).filter((p) => p.unappliedAmount > 0)}
-            loading={paymentsLoading}
-            total={0}
-            getRowId={(row) => row.id}
-            emptyTitle="No unapplied payments"
-            emptyDescription="All payments have been fully applied."
-          />
-        </TabPanel>
-      </Tabs>
+            <TabPanel id="unapplied">
+              <Table<Payment>
+                columns={paymentColumns}
+                data={(paymentsData?.items ?? [] as Payment[]).filter((p) => p.unappliedAmount > 0)}
+                loading={paymentsLoading}
+                total={0}
+                getRowId={(row) => row.id}
+                emptyTitle="No unapplied payments"
+                emptyDescription="All payments have been fully applied."
+              />
+            </TabPanel>
+          </div>
+        </div>
 
-      {showPostPayment && (
-        <PostPaymentModal
-          onClose={() => setShowPostPayment(false)}
-          onSuccess={() => setShowPostPayment(false)}
-        />
-      )}
-    </div>
+        {showPostPayment && (
+          <PostPaymentModal
+            onClose={() => setShowPostPayment(false)}
+            onSuccess={() => setShowPostPayment(false)}
+          />
+        )}
+      </div>
+    </Tabs>
   )
 }

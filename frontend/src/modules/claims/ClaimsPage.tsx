@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import { Send, RefreshCw, Plus } from 'lucide-react'
-import { PageHeader } from '../../components/shell/PageHeader'
 import { Table, type ColumnDef } from '../../components/ui/Table'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -180,55 +179,17 @@ export function ClaimsPage() {
   ]
 
   return (
-    <div className="p-6 space-y-4">
-      <PageHeader
-        title="Claims"
-        description="Manage and submit insurance claims"
-        primaryAction={{
-          label: 'New Claim',
-          icon: <Plus size={15} />,
-          onClick: () => navigate('/claims/new'),
-        }}
-      />
-
-      <Table<Claim>
-        columns={columns}
-        data={data?.items ?? []}
-        loading={isLoading}
-        error={error ? 'Failed to load claims.' : undefined}
-        total={data?.total ?? 0}
-        page={page}
-        pageSize={25}
-        onPageChange={setPage}
-        onRowClick={(row) => navigate(`/claims/${row.id}`)}
-        getRowId={(row) => row.id}
-        multiSelect
-        selectedIds={selectedIds}
-        onSelectionChange={setSelectedIds}
-        emptyTitle="No claims found"
-        emptyDescription="Claims will appear here once visits are billed."
-        toolbar={
-          <div className="flex items-center gap-3 w-full">
-            <SearchInput
-              value={search}
-              onChange={(v) => { setSearch(v); setPage(1) }}
-              placeholder="Search claims…"
-              className="w-72"
-            />
-            <select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
-              className="h-9 border border-[#BABACE] rounded-md text-sm px-2 text-[#12122C] bg-white outline-none focus:border-[#3F4CFF]"
-            >
-              <option value="">All Statuses</option>
-              <option value="draft">Draft</option>
-              <option value="ready">Ready</option>
-              <option value="submitted">Submitted</option>
-              <option value="paid">Paid</option>
-              <option value="denied">Denied</option>
-              <option value="rejected">Rejected</option>
-            </select>
-            <div className="ml-auto flex items-center gap-2">
+    <div style={{ minHeight: '100vh', background: 'var(--bb-surface-app)' }}>
+      {/* Sticky white header card */}
+      <div style={{ background: 'var(--bb-surface-card)', borderBottom: '1px solid var(--bb-border)', padding: '28px 32px 0' }}>
+        <div style={{ maxWidth: 1400, margin: '0 auto' }}>
+          {/* Title row */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+            <div>
+              <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--bb-text-primary)', margin: 0 }}>Claims</h1>
+              <p style={{ fontSize: 13, color: 'var(--bb-text-secondary)', marginTop: 4 }}>Manage and submit insurance claims</p>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Button size="sm" variant="secondary" leftIcon={<RefreshCw size={13} />} onClick={() => refetch()}>
                 Refresh
               </Button>
@@ -242,10 +203,67 @@ export function ClaimsPage() {
                   Submit {selectedIds.size} Claims
                 </Button>
               )}
+              <Button
+                size="sm"
+                variant="primary"
+                leftIcon={<Plus size={15} />}
+                onClick={() => navigate('/claims/new')}
+              >
+                New Claim
+              </Button>
             </div>
           </div>
-        }
-      />
+          {/* Search + filter in header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 20 }}>
+            <SearchInput
+              value={search}
+              onChange={(v) => { setSearch(v); setPage(1) }}
+              placeholder="Search claims…"
+              className="w-72"
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
+              style={{
+                height: 36, padding: '0 10px', border: '1px solid var(--bb-border)',
+                borderRadius: 6, fontSize: 13, outline: 'none', background: 'var(--bb-surface-card)',
+                color: 'var(--bb-text-primary)', cursor: 'pointer',
+              }}
+            >
+              <option value="">All Statuses</option>
+              <option value="draft">Draft</option>
+              <option value="ready">Ready</option>
+              <option value="submitted">Submitted</option>
+              <option value="paid">Paid</option>
+              <option value="denied">Denied</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Content area */}
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 32px' }}>
+        <div style={{ background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+          <Table<Claim>
+            columns={columns}
+            data={data?.items ?? []}
+            loading={isLoading}
+            error={error ? 'Failed to load claims.' : undefined}
+            total={data?.total ?? 0}
+            page={page}
+            pageSize={25}
+            onPageChange={setPage}
+            onRowClick={(row) => navigate(`/claims/${row.id}`)}
+            getRowId={(row) => row.id}
+            multiSelect
+            selectedIds={selectedIds}
+            onSelectionChange={setSelectedIds}
+            emptyTitle="No claims found"
+            emptyDescription="Claims will appear here once visits are billed."
+          />
+        </div>
+      </div>
 
       <ConfirmModal
         open={batchConfirmOpen}

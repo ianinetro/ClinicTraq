@@ -312,117 +312,127 @@ export function WorkQueuePage() {
   const assignees = [...new Set(allItems.map(i => i.assignedTo))]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#676687', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Billing</div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#12122C' }}>Work Queue</h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: '#676687' }}>Denial management, authorization follow-ups, and billing tasks.</p>
-        </div>
-        {highCount > 0 && (
-          <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <AlertCircle size={16} color="#DC2626" />
-            <span style={{ fontSize: 14, fontWeight: 600, color: '#DC2626' }}>{highCount} high-priority task{highCount !== 1 ? 's' : ''} need attention</span>
-          </div>
-        )}
-      </div>
-
-      {/* View switcher */}
-      <div style={{ display: 'flex', gap: 2, background: '#F2F2F8', padding: 3, borderRadius: 8, width: 'fit-content' }}>
-        {([['tasks', 'Task Queue'], ['billing', 'Billing Pipeline']] as const).map(([v, label]) => (
-          <button
-            key={v}
-            onClick={() => setView(v)}
-            style={{
-              padding: '6px 16px', borderRadius: 6, border: 'none', cursor: 'pointer',
-              fontSize: 13, fontWeight: 600,
-              background: view === v ? 'white' : 'transparent',
-              color: view === v ? '#0410BD' : '#6B6B8A',
-              boxShadow: view === v ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-            }}
-          >
-            {label}
-            {v === 'billing' && billingCount > 0 && (
-              <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, background: '#DC2626', color: 'white', borderRadius: 99, padding: '1px 5px' }}>{billingCount}</span>
+    <div style={{ minHeight: '100vh', background: 'var(--bb-surface-app)' }}>
+      {/* Sticky white header card */}
+      <div style={{ background: 'var(--bb-surface-card)', borderBottom: '1px solid var(--bb-border)', padding: '28px 32px 20px' }}>
+        <div style={{ maxWidth: 1400, margin: '0 auto' }}>
+          {/* Title row */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div>
+              <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--bb-text-primary)', margin: 0 }}>Work Queue</h1>
+              <p style={{ fontSize: 13, color: 'var(--bb-text-secondary)', marginTop: 4 }}>Denial management, authorization follow-ups, and billing tasks.</p>
+            </div>
+            {highCount > 0 && (
+              <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertCircle size={16} color="var(--bb-status-danger)" />
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--bb-status-danger)' }}>{highCount} high-priority task{highCount !== 1 ? 's' : ''} need attention</span>
+              </div>
             )}
-          </button>
-        ))}
+          </div>
+
+          {/* View switcher + filters */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            {/* View pill switcher */}
+            <div style={{ display: 'flex', gap: 2, background: 'var(--bb-surface-app)', padding: 3, borderRadius: 8 }}>
+              {([['tasks', 'Task Queue'], ['billing', 'Billing Pipeline']] as const).map(([v, label]) => (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  style={{
+                    padding: '6px 16px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                    fontSize: 13, fontWeight: 600,
+                    background: view === v ? 'var(--bb-surface-card)' : 'transparent',
+                    color: view === v ? 'var(--bb-brand-blue)' : 'var(--bb-text-secondary)',
+                    boxShadow: view === v ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  }}
+                >
+                  {label}
+                  {v === 'billing' && billingCount > 0 && (
+                    <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, background: 'var(--bb-status-danger)', color: 'white', borderRadius: 99, padding: '1px 5px' }}>{billingCount}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {view === 'tasks' && (
+              <>
+                <div style={{ position: 'relative' }}>
+                  <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--bb-text-secondary)' }} />
+                  <input value={search} onChange={e => setSearch(e.target.value)}
+                    placeholder="Search patient, claim, task…"
+                    style={{ height: 36, paddingLeft: 32, paddingRight: 12, border: '1px solid var(--bb-border)', borderRadius: 6, fontSize: 13, outline: 'none', width: 260, background: 'var(--bb-surface-card)', color: 'var(--bb-text-primary)' }} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--bb-text-secondary)' }}>
+                  <User size={14} />
+                  <select value={assignFilter} onChange={e => setAssignFilter(e.target.value)}
+                    style={{ height: 36, padding: '0 10px', border: '1px solid var(--bb-border)', borderRadius: 6, fontSize: 13, outline: 'none', background: 'var(--bb-surface-card)', color: 'var(--bb-text-primary)' }}>
+                    <option value="">All assignees</option>
+                    {assignees.map(a => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                </div>
+                <div style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--bb-text-secondary)' }}>
+                  {filtered.length} task{filtered.length !== 1 ? 's' : ''}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       {toast && (
-        <div style={{ position: 'fixed', bottom: 24, right: 24, background: '#12122C', color: 'white', borderRadius: 8, padding: '12px 20px', fontSize: 13, fontWeight: 500, zIndex: 9999, boxShadow: '0 4px 16px rgba(0,0,0,0.25)' }}>
+        <div style={{ position: 'fixed', bottom: 24, right: 24, background: 'var(--bb-brand-ink)', color: 'white', borderRadius: 8, padding: '12px 20px', fontSize: 13, fontWeight: 500, zIndex: 9999, boxShadow: '0 4px 16px rgba(0,0,0,0.25)' }}>
           {toast}
         </div>
       )}
 
-      {view === 'billing' ? (
-        <BillingSubQueuePanel items={allItems} navigate={navigate} />
-      ) : (
-        <>
-          {/* Summary cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-            {[
-              { label: 'Total Open', value: allItems.filter(i => i.status === 'open').length, color: '#12122C' },
-              { label: 'High Priority', value: highCount, color: '#DC2626' },
-              { label: 'In Progress', value: allItems.filter(i => i.status === 'in_progress').length, color: '#007998' },
-              { label: 'Overdue (5+ days)', value: allItems.filter(i => i.ageDays >= 5).length, color: '#D97706' },
-            ].map(s => (
-              <div key={s.label} style={{ background: 'white', border: '1px solid #E3E3F1', borderRadius: 8, padding: '14px 18px' }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#676687', textTransform: 'uppercase', marginBottom: 6 }}>{s.label}</div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: s.color }}>{s.value}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Toolbar */}
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ position: 'relative' }}>
-              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#BABACE' }} />
-              <input value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search patient, claim, task…"
-                style={{ height: 36, paddingLeft: 32, paddingRight: 12, border: '1px solid #BABACE', borderRadius: 6, fontSize: 13, outline: 'none', width: 260 }} />
+      {/* Content area */}
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 32px' }}>
+        {view === 'billing' ? (
+          <BillingSubQueuePanel items={allItems} navigate={navigate} />
+        ) : (
+          <>
+            {/* Summary cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+              {[
+                { label: 'Total Open', value: allItems.filter(i => i.status === 'open').length, color: 'var(--bb-text-primary)' },
+                { label: 'High Priority', value: highCount, color: 'var(--bb-status-danger)' },
+                { label: 'In Progress', value: allItems.filter(i => i.status === 'in_progress').length, color: '#007998' },
+                { label: 'Overdue (5+ days)', value: allItems.filter(i => i.ageDays >= 5).length, color: 'var(--bb-status-warning)' },
+              ].map(s => (
+                <div key={s.label} style={{ background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)', borderRadius: 8, padding: '14px 18px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--bb-text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>{s.label}</div>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: s.color }}>{s.value}</div>
+                </div>
+              ))}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#676687' }}>
-              <User size={14} />
-              <select value={assignFilter} onChange={e => setAssignFilter(e.target.value)}
-                style={{ height: 36, padding: '0 10px', border: '1px solid #BABACE', borderRadius: 6, fontSize: 13, outline: 'none', background: 'white' }}>
-                <option value="">All assignees</option>
-                {assignees.map(a => <option key={a} value={a}>{a}</option>)}
-              </select>
-            </div>
-            <div style={{ marginLeft: 'auto', fontSize: 13, color: '#676687' }}>
-              {filtered.length} task{filtered.length !== 1 ? 's' : ''}
-            </div>
-          </div>
 
-          {/* Category tabs */}
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {CATEGORIES.map(cat => {
-              const count = countByCategory(cat)
-              const isActive = category === cat
-              return (
-                <button key={cat} onClick={() => setCategory(cat)} style={{
-                  padding: '5px 12px', borderRadius: 20, border: `1px solid ${isActive ? '#0410BD' : '#BABACE'}`,
-                  background: isActive ? '#EFF0FF' : 'white', color: isActive ? '#0410BD' : '#676687',
-                  fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-                }}>
-                  {cat}
-                  {count > 0 && (
-                    <span style={{
-                      minWidth: 18, height: 18, borderRadius: 9,
-                      background: isActive ? '#0410BD' : '#F2F2F8',
-                      color: isActive ? 'white' : '#676687',
-                      fontSize: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px',
-                    }}>{count}</span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
+            {/* Category tabs */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+              {CATEGORIES.map(cat => {
+                const count = countByCategory(cat)
+                const isActive = category === cat
+                return (
+                  <button key={cat} onClick={() => setCategory(cat)} style={{
+                    padding: '5px 12px', borderRadius: 20, border: `1px solid ${isActive ? 'var(--bb-brand-blue)' : 'var(--bb-border)'}`,
+                    background: isActive ? '#EFF0FF' : 'var(--bb-surface-card)', color: isActive ? 'var(--bb-brand-blue)' : 'var(--bb-text-secondary)',
+                    fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+                  }}>
+                    {cat}
+                    {count > 0 && (
+                      <span style={{
+                        minWidth: 18, height: 18, borderRadius: 9,
+                        background: isActive ? 'var(--bb-brand-blue)' : 'var(--bb-surface-app)',
+                        color: isActive ? 'white' : 'var(--bb-text-secondary)',
+                        fontSize: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px',
+                      }}>{count}</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
 
-          {/* Queue list */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0, background: 'white', border: '1px solid #E3E3F1', borderRadius: 10, overflow: 'hidden' }}>
+            {/* Queue list */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0, background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
             {filtered.length === 0 ? (
               <div style={{ padding: '48px 0', textAlign: 'center', color: '#BABACE', fontSize: 13 }}>
                 <CheckCircle2 size={32} color="#BABACE" style={{ display: 'block', margin: '0 auto 12px' }} />

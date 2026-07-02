@@ -2,7 +2,6 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, X, Calendar, Hash } from 'lucide-react'
 import { format } from 'date-fns'
-import { PageHeader } from '../../components/shell/PageHeader'
 import { Table, type ColumnDef } from '../../components/ui/Table'
 import { Button } from '../../components/ui/Button'
 import { StatusBadge } from '../../components/shared/StatusBadge'
@@ -158,139 +157,159 @@ export function PatientsPage() {
 
   const hasSearch = committedSearch.trim().length >= 1
 
-  return (
-    <div className="p-6 space-y-4">
-      <PageHeader
-        title="Patients"
-        description="Search and manage patient records"
-        primaryAction={{
-          label: 'New Patient',
-          icon: <Plus size={15} />,
-          onClick: () => navigate('/patients/new'),
-        }}
-      />
-
-      {/* Search bar — always in toolbar position */}
-      <div style={{ position: 'relative', maxWidth: 440 }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          background: 'var(--bb-surface-card)',
-          border: '1px solid var(--bb-border)',
-          borderRadius: 8,
-          padding: '0 12px',
-        }}>
-          <Search size={15} style={{ color: 'var(--bb-text-secondary)', flexShrink: 0 }} />
-          <input
-            ref={inputRef}
-            value={inputValue}
-            onChange={e => handleInputChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onFocus={() => inputValue.trim().length >= 1 && setShowSuggestions(true)}
-            placeholder="Search by name, DOB, MRN, or account #…"
-            autoComplete="off"
-            style={{
-              flex: 1, border: 'none', outline: 'none', background: 'transparent',
-              fontSize: 14, color: 'var(--bb-text-primary)', padding: '9px 0',
-            }}
-          />
-          {suggestFetching && inputValue && (
-            <div style={{
-              width: 13, height: 13, border: '2px solid var(--bb-border)',
-              borderTopColor: 'var(--bb-brand-blue)', borderRadius: '50%',
-              animation: 'spin 0.6s linear infinite', flexShrink: 0,
-            }} />
-          )}
-          {inputValue && (
-            <button onClick={clear} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', color: 'var(--bb-text-secondary)' }}>
-              <X size={14} />
-            </button>
-          )}
-        </div>
-
-        {/* Suggestions dropdown */}
-        {showSuggestions && suggestions.length > 0 && (
-          <div ref={dropdownRef} style={{
-            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
-            background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)',
-            borderRadius: 8, boxShadow: 'var(--bb-shadow-md)', zIndex: 50, overflow: 'hidden',
-          }}>
-            {suggestions.map((p, i) => (
-              <button
-                key={p.id}
-                onMouseEnter={() => setActiveIdx(i)}
-                onMouseDown={e => { e.preventDefault(); navigate(`/patients/${p.id}`) }}
-                style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '9px 14px',
-                  background: activeIdx === i ? 'var(--bb-surface-app)' : 'none',
-                  border: 'none', borderTop: i > 0 ? '1px solid var(--bb-border)' : 'none',
-                  cursor: 'pointer', textAlign: 'left',
-                }}
-              >
-                <div style={{
-                  width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
-                  background: 'var(--bb-brand-blue)', color: 'white',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 700,
-                }}>
-                  {(p.firstName?.[0] ?? '').toUpperCase()}{(p.lastName?.[0] ?? '').toUpperCase()}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--bb-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {p.firstName} {p.lastName}
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--bb-text-secondary)', display: 'flex', gap: 10, marginTop: 1 }}>
-                    {p.dateOfBirth && (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                        <Calendar size={11} />{format(new Date(p.dateOfBirth), 'MM/dd/yyyy')}
-                      </span>
-                    )}
-                    {p.accountNumber && (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                        <Hash size={11} />{p.accountNumber}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <span style={{
-                  fontSize: 11, padding: '2px 6px', borderRadius: 4,
-                  background: 'var(--bb-surface-app)', color: 'var(--bb-text-secondary)',
-                  border: '1px solid var(--bb-border)', flexShrink: 0,
-                }}>
-                  {p.status}
-                </span>
-              </button>
-            ))}
-          </div>
+  const searchBox = (
+    <div style={{ position: 'relative', maxWidth: 440 }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        background: 'var(--bb-surface-card)',
+        border: '1px solid var(--bb-border)',
+        borderRadius: 8,
+        padding: '0 12px',
+      }}>
+        <Search size={15} style={{ color: 'var(--bb-text-secondary)', flexShrink: 0 }} />
+        <input
+          ref={inputRef}
+          value={inputValue}
+          onChange={e => handleInputChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onFocus={() => inputValue.trim().length >= 1 && setShowSuggestions(true)}
+          placeholder="Search by name, DOB, MRN, or account #…"
+          autoComplete="off"
+          style={{
+            flex: 1, border: 'none', outline: 'none', background: 'transparent',
+            fontSize: 14, color: 'var(--bb-text-primary)', padding: '9px 0',
+          }}
+        />
+        {suggestFetching && inputValue && (
+          <div style={{
+            width: 13, height: 13, border: '2px solid var(--bb-border)',
+            borderTopColor: 'var(--bb-brand-blue)', borderRadius: '50%',
+            animation: 'spin 0.6s linear infinite', flexShrink: 0,
+          }} />
         )}
-
-        {showSuggestions && !suggestFetching && inputValue.trim().length >= 1 && suggestions.length === 0 && (
-          <div ref={dropdownRef} style={{
-            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
-            background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)',
-            borderRadius: 8, boxShadow: 'var(--bb-shadow-md)', zIndex: 50,
-            padding: '14px 16px', fontSize: 13, color: 'var(--bb-text-secondary)',
-          }}>
-            No patients match "{inputValue}"
-          </div>
+        {inputValue && (
+          <button onClick={clear} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', color: 'var(--bb-text-secondary)' }}>
+            <X size={14} />
+          </button>
         )}
       </div>
 
-      {/* Results table — shows as soon as any search term exists */}
-      <Table<Patient>
-        columns={columns}
-        data={data?.items ?? []}
-        loading={isLoading && hasSearch}
-        error={error ? 'Failed to load patients.' : undefined}
-        total={data?.total ?? 0}
-        page={page}
-        pageSize={25}
-        onPageChange={setPage}
-        onRowClick={(row) => navigate(`/patients/${row.id}`)}
-        getRowId={(row) => row.id}
-        emptyTitle={hasSearch ? `No patients found for "${committedSearch}"` : 'Search to find patients'}
-        emptyDescription={hasSearch ? 'Try a different name, DOB, MRN, or account number.' : 'Enter a name, date of birth, MRN, or account number above.'}
-      />
+      {/* Suggestions dropdown */}
+      {showSuggestions && suggestions.length > 0 && (
+        <div ref={dropdownRef} style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+          background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)',
+          borderRadius: 8, boxShadow: 'var(--bb-shadow-md)', zIndex: 50, overflow: 'hidden',
+        }}>
+          {suggestions.map((p, i) => (
+            <button
+              key={p.id}
+              onMouseEnter={() => setActiveIdx(i)}
+              onMouseDown={e => { e.preventDefault(); navigate(`/patients/${p.id}`) }}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                padding: '9px 14px',
+                background: activeIdx === i ? 'var(--bb-surface-app)' : 'none',
+                border: 'none', borderTop: i > 0 ? '1px solid var(--bb-border)' : 'none',
+                cursor: 'pointer', textAlign: 'left',
+              }}
+            >
+              <div style={{
+                width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
+                background: 'var(--bb-brand-blue)', color: 'white',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 11, fontWeight: 700,
+              }}>
+                {(p.firstName?.[0] ?? '').toUpperCase()}{(p.lastName?.[0] ?? '').toUpperCase()}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--bb-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {p.firstName} {p.lastName}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--bb-text-secondary)', display: 'flex', gap: 10, marginTop: 1 }}>
+                  {p.dateOfBirth && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                      <Calendar size={11} />{format(new Date(p.dateOfBirth), 'MM/dd/yyyy')}
+                    </span>
+                  )}
+                  {p.accountNumber && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                      <Hash size={11} />{p.accountNumber}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <span style={{
+                fontSize: 11, padding: '2px 6px', borderRadius: 4,
+                background: 'var(--bb-surface-app)', color: 'var(--bb-text-secondary)',
+                border: '1px solid var(--bb-border)', flexShrink: 0,
+              }}>
+                {p.status}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {showSuggestions && !suggestFetching && inputValue.trim().length >= 1 && suggestions.length === 0 && (
+        <div ref={dropdownRef} style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+          background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)',
+          borderRadius: 8, boxShadow: 'var(--bb-shadow-md)', zIndex: 50,
+          padding: '14px 16px', fontSize: 13, color: 'var(--bb-text-secondary)',
+        }}>
+          No patients match "{inputValue}"
+        </div>
+      )}
+    </div>
+  )
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--bb-surface-app)' }}>
+      {/* Sticky white header card */}
+      <div style={{ background: 'var(--bb-surface-card)', borderBottom: '1px solid var(--bb-border)', padding: '28px 32px 0' }}>
+        <div style={{ maxWidth: 1400, margin: '0 auto' }}>
+          {/* Title row */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+            <div>
+              <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--bb-text-primary)', margin: 0 }}>Patients</h1>
+              <p style={{ fontSize: 13, color: 'var(--bb-text-secondary)', marginTop: 4 }}>Search and manage patient records</p>
+            </div>
+            <Button
+              size="sm"
+              variant="primary"
+              leftIcon={<Plus size={15} />}
+              onClick={() => navigate('/patients/new')}
+            >
+              New Patient
+            </Button>
+          </div>
+          {/* Search in header */}
+          <div style={{ paddingBottom: 20 }}>
+            {searchBox}
+          </div>
+        </div>
+      </div>
+
+      {/* Content area */}
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 32px' }}>
+        <div style={{ background: 'var(--bb-surface-card)', border: '1px solid var(--bb-border)', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+          <Table<Patient>
+            columns={columns}
+            data={data?.items ?? []}
+            loading={isLoading && hasSearch}
+            error={error ? 'Failed to load patients.' : undefined}
+            total={data?.total ?? 0}
+            page={page}
+            pageSize={25}
+            onPageChange={setPage}
+            onRowClick={(row) => navigate(`/patients/${row.id}`)}
+            getRowId={(row) => row.id}
+            emptyTitle={hasSearch ? `No patients found for "${committedSearch}"` : 'Search to find patients'}
+            emptyDescription={hasSearch ? 'Try a different name, DOB, MRN, or account number.' : 'Enter a name, date of birth, MRN, or account number above.'}
+          />
+        </div>
+      </div>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>

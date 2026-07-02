@@ -110,8 +110,16 @@ export function TabPanel({ id, children, className }: TabPanelProps) {
   const { activeTab } = useTabs()
   if (activeTab !== id) return null
   return (
-    <div role="tabpanel" className={className}>
-      {children}
-    </div>
+    <>
+      <style>{`@keyframes tab-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+      <div
+        key={activeTab}
+        role="tabpanel"
+        className={className}
+        style={{ animation: 'tab-in 0.18s ease both' }}
+      >
+        {children}
+      </div>
+    </>
   )
 }
