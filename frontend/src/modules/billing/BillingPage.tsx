@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useCallback, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   FileText,
@@ -768,8 +768,19 @@ function BulkActionBar({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export function BillingPage() {
-  const [activeQueue, setActiveQueue] = useState<QueueKey>('ready_to_bill')
+  const [searchParams] = useSearchParams()
+  const tabParam = searchParams.get('tab') as QueueKey | null
+  const [activeQueue, setActiveQueue] = useState<QueueKey>(
+    tabParam && QUEUES.find(q => q.key === tabParam) ? tabParam : 'ready_to_bill'
+  )
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  // Sync tab from URL when navigating via Command+K
+  useEffect(() => {
+    if (tabParam && QUEUES.find(q => q.key === tabParam)) {
+      setActiveQueue(tabParam)
+    }
+  }, [tabParam])
 
   const activeConfig = QUEUES.find((q) => q.key === activeQueue)!
 

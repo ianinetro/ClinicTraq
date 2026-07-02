@@ -182,13 +182,24 @@ export function ClaimDetailPage() {
       const url = URL.createObjectURL(res.data)
       window.open(url, '_blank')
     } catch (err: unknown) {
-      const axErr = err as { response?: { data?: Blob } }
+      const axErr = err as { response?: { data?: Blob; status?: number } }
+      let detail = ''
       if (axErr?.response?.data instanceof Blob) {
         const text = await axErr.response.data.text()
-        try { const j = JSON.parse(text); alert(`PDF failed: ${j.detail ?? text}`) }
-        catch { alert(`PDF failed: ${text}`) }
-      } else {
-        alert('PDF generation failed. Ensure backend is deployed with pymupdf.')
+        try { detail = JSON.parse(text).detail ?? text } catch { detail = text }
+      }
+      // Fall back to HTML preview which always works
+      const useFallback = window.confirm(
+        `PDF generation failed${detail ? `: ${detail}` : ''}\n\nOpen the HTML preview instead?`
+      )
+      if (useFallback) {
+        try {
+          const res2 = await api.get(`/claims/${claimId}/cms1500/preview`, { responseType: 'blob' })
+          const url2 = URL.createObjectURL(res2.data)
+          window.open(url2, '_blank')
+        } catch {
+          alert('Preview also failed. Check backend logs.')
+        }
       }
     }
   }

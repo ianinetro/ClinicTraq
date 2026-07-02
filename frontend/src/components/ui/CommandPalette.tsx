@@ -45,14 +45,14 @@ interface QuickAction {
 }
 
 const QUICK_ACTIONS: QuickAction[] = [
-  { label: 'New Patient',        path: '/patients/new',                  icon: UserPlus,      description: 'Register a patient' },
-  { label: 'New Visit',          path: '/visits/new',                    icon: CalendarPlus,  description: 'Open an encounter' },
-  { label: 'New Claim',          path: '/claims/new',                    icon: FilePlus,      description: 'Start a claim' },
-  { label: 'Add Payment',        path: '/payments',                      icon: DollarSign,    description: 'Post a payment' },
-  { label: 'Ready to Submit',    path: '/billing?tab=ready-to-submit',   icon: CheckCircle,   description: 'Claims awaiting send' },
-  { label: 'Rejected Claims',    path: '/billing?tab=rejected',          icon: XCircle,       description: 'Review rejections' },
-  { label: 'Unmatched ERA',      path: '/billing?tab=unmatched-era',     icon: AlertTriangle, description: 'ERA exceptions' },
-  { label: 'Work Queue',         path: '/work-queue',                    icon: ClipboardList, description: 'Open task queue' },
+  { label: 'New Patient',        path: '/patients/new',                   icon: UserPlus,      description: 'Register a patient' },
+  { label: 'New Visit',          path: '/visits/new',                     icon: CalendarPlus,  description: 'Open an encounter' },
+  { label: 'New Claim',          path: '/claims/new',                     icon: FilePlus,      description: 'Start a claim' },
+  { label: 'Add Payment',        path: '/payments',                       icon: DollarSign,    description: 'Post a payment' },
+  { label: 'Ready to Submit',    path: '/billing?tab=ready_to_submit',    icon: CheckCircle,   description: 'Claims awaiting send' },
+  { label: 'Rejected Claims',    path: '/billing?tab=rejected',           icon: XCircle,       description: 'Review rejections' },
+  { label: 'Unmatched ERA',      path: '/billing?tab=unmatched_era',      icon: AlertTriangle, description: 'ERA exceptions' },
+  { label: 'Work Queue',         path: '/work-queue',                     icon: ClipboardList, description: 'Open task queue' },
 ]
 
 const RECENT_KEY = 'ct_recent_nav'
@@ -208,41 +208,50 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[60] flex items-start justify-center pt-[14vh] px-4"
+      className="fixed inset-0 z-[60] flex items-start justify-center pt-[12vh] px-4"
       role="dialog"
       aria-modal="true"
       aria-label="Command palette"
     >
-      {/* Backdrop */}
+      {/* Backdrop — dark, no blur so the panel pops */}
       <div
-        className="absolute inset-0 bg-[--bb-brand-ink]/40 backdrop-blur-[2px]"
+        className="absolute inset-0"
+        style={{ background: 'rgba(10,10,26,0.72)' }}
         onClick={onClose}
       />
 
-      {/* Panel */}
+      {/* Panel — solid white, strong shadow, no transparency */}
       <div
-        className="relative w-full max-w-[560px] rounded-[--bb-radius-lg] border border-[--bb-border] bg-[--bb-surface-card] shadow-[0_20px_60px_rgba(18,18,44,0.22)] overflow-hidden flex flex-col"
-        style={{ maxHeight: 'min(540px, 72vh)' }}
+        className="relative w-full max-w-[580px] overflow-hidden flex flex-col"
+        style={{
+          background: '#ffffff',
+          borderRadius: 12,
+          boxShadow: '0 8px 48px rgba(4,16,189,0.18), 0 2px 12px rgba(0,0,0,0.14)',
+          maxHeight: 'min(560px, 74vh)',
+          border: '1px solid #d4d4e8',
+        }}
       >
         {/* ── Search bar ───────────────────────────────────────────────────── */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-[--bb-border] flex-shrink-0">
+        <div className="flex items-center gap-3 px-5 flex-shrink-0" style={{ borderBottom: '1px solid #e8e8f0', padding: '14px 18px' }}>
           {isLoading
-            ? <Loader2 size={16} className="text-[--bb-text-secondary] animate-spin flex-shrink-0" />
-            : <Search size={16} className="text-[--bb-text-secondary] flex-shrink-0" />
+            ? <Loader2 size={18} className="animate-spin flex-shrink-0" style={{ color: '#0410BD' }} />
+            : <Search size={18} className="flex-shrink-0" style={{ color: '#0410BD' }} />
           }
           <input
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search patients, claims, visits, providers…"
-            className="flex-1 text-sm text-[--bb-text-primary] placeholder-[--bb-text-secondary] bg-transparent outline-none"
+            className="flex-1 bg-transparent outline-none"
+            style={{ fontSize: 15, color: '#12122C', border: 'none' }}
             autoComplete="off"
             spellCheck={false}
           />
           {query && (
             <button
               onClick={() => setQuery('')}
-              className="text-xs text-[--bb-text-secondary] hover:text-[--bb-text-primary] transition-colors flex-shrink-0 px-1"
+              className="flex-shrink-0"
+              style={{ background: '#f0f0f8', border: 'none', borderRadius: 6, padding: '2px 8px', fontSize: 12, color: '#6B6B8A', cursor: 'pointer' }}
               tabIndex={-1}
             >
               Clear
@@ -256,12 +265,12 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
           {/* ── NO QUERY: Quick Actions + Recent ─────────────────────────── */}
           {!isSearching && (
             <>
-              {/* Quick Actions grid */}
-              <div className="px-3 pt-3 pb-2">
-                <p className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-widest text-[--bb-text-secondary]">
+              {/* Quick Actions — two-column rows */}
+              <div style={{ padding: '10px 10px 4px' }}>
+                <p style={{ padding: '0 8px 6px', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#9898b8' }}>
                   Quick Actions
                 </p>
-                <div className="grid grid-cols-4 gap-1.5">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
                   {QUICK_ACTIONS.map((action) => {
                     const Icon = action.icon
                     const myIdx = flatIdx++
@@ -271,15 +280,31 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                         key={action.path}
                         ref={isSelected ? (selectedRef as React.RefObject<HTMLButtonElement>) : undefined}
                         onClick={() => selectItem({ id: `quick-${action.path}`, label: action.label, path: action.path, kind: 'quick' })}
-                        className={clsx(
-                          'group flex flex-col items-center gap-1.5 rounded-[--bb-radius] border px-2 py-2.5 text-center transition-all',
-                          isSelected
-                            ? 'border-[--bb-brand-blue] bg-[--bb-brand-blue] text-[--bb-text-inverse]'
-                            : 'border-[--bb-border] bg-[--bb-surface-app] text-[--bb-text-primary] hover:border-[--bb-brand-blue] hover:bg-[--bb-surface-app]',
-                        )}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '9px 12px', borderRadius: 8,
+                          background: isSelected ? '#0410BD' : 'transparent',
+                          border: 'none', cursor: 'pointer', textAlign: 'left',
+                          transition: 'background 0.1s',
+                        }}
+                        onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = '#f4f4fb' }}
+                        onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                       >
-                        <Icon size={15} className={clsx('flex-shrink-0', isSelected ? 'text-[--bb-text-inverse]' : 'text-[--bb-brand-blue]')} />
-                        <span className="text-[11px] font-medium leading-tight">{action.label}</span>
+                        <span style={{
+                          width: 28, height: 28, borderRadius: 7, flexShrink: 0,
+                          background: isSelected ? 'rgba(255,255,255,0.18)' : '#eeeeff',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <Icon size={14} style={{ color: isSelected ? '#fff' : '#0410BD' }} />
+                        </span>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: isSelected ? '#fff' : '#12122C', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {action.label}
+                          </div>
+                          <div style={{ fontSize: 11, color: isSelected ? 'rgba(255,255,255,0.7)' : '#9898b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {action.description}
+                          </div>
+                        </div>
                       </button>
                     )
                   })}
