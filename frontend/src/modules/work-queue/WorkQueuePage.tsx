@@ -538,9 +538,10 @@ export function WorkQueuePage() {
                 </div>
               )
             })}
-          </div>
-        </>
-      )}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }
